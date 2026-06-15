@@ -1,0 +1,119 @@
+.font-clash { font-family: 'Clash Display', sans-serif; }
+.font-bdo { font-family: 'BDO Grotesk', sans-serif; }
+
+@keyframes scheduleRise {
+    from { opacity: 0; transform: translate3d(0, 20px, 0); }
+    to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes scheduleTitleSweep {
+    0% { background-position: -140% center; }
+    100% { background-position: 220% center; }
+}
+
+@keyframes scheduleIconBreath {
+    0%, 100% {
+        box-shadow: 0 18px 36px -28px rgba(8,145,178,.72), inset 0 1px 0 rgba(255,255,255,.82);
+    }
+    50% {
+        box-shadow: 0 24px 42px -28px rgba(8,145,178,.88), 0 0 20px rgba(45,212,191,.16), inset 0 1px 0 rgba(255,255,255,.9);
+    }
+}
+
+@keyframes scheduleButtonSweep {
+    0% { left: -70%; }
+    100% { left: 120%; }
+}
+
+.schedule-enter {
+    animation: scheduleRise .58s cubic-bezier(.16,1,.3,1) forwards;
+    opacity: 0;
+}
+
+.schedule-title-shine {
+    background: linear-gradient(112deg, #0f172a 0%, #0f172a 34%, #ffffff 47%, #67e8f9 54%, #0f172a 69%, #0f172a 100%);
+    background-size: 240% auto;
+    color: transparent;
+    -webkit-background-clip: text;
+    background-clip: text;
+    animation: scheduleTitleSweep 5.2s linear infinite;
+}
+
+.schedule-icon-core {
+    animation: scheduleIconBreath 3.8s ease-in-out infinite;
+}
+
+.schedule-panel-glass::before,
+.schedule-command-surface::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 24px;
+    right: 24px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.95), transparent);
+    pointer-events: none;
+    z-index: 2;
+}
+
+.schedule-command-surface {
+    position: relative;
+}
+
+.schedule-panel-glass {
+    position: relative;
+}
+
+.schedule-btn-pulse {
+    position: relative;
+    overflow: hidden;
+}
+
+.schedule-btn-pulse::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 48%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.14), transparent);
+    animation: scheduleButtonSweep 3.2s ease-in-out 1s infinite;
+}
+
+.schedule-list-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(8,145,178,.36) transparent;
+}
+
+.schedule-list-scroll::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+}
+
+.schedule-list-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.schedule-list-scroll::-webkit-scrollbar-thumb {
+    border: 2px solid rgba(255,255,255,.9);
+    border-radius: 999px;
+    background: rgba(8,145,178,.36);
+}
+
+.schedule-list-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(14,116,144,.58);
+}
+
+.delay-100 { animation-delay: 100ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
+
+@media (prefers-reduced-motion: reduce) {
+    .schedule-enter,
+    .schedule-title-shine,
+    .schedule-icon-core,
+    .schedule-btn-pulse::before {
+        animation: none !important;
+        opacity: 1 !important;
+        transform: none !important;
+    }
+}
