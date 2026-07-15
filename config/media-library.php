@@ -38,7 +38,7 @@ return [
      * The maximum file size of an item in bytes.
      * Adding a larger file will result in an exception.
      */
-    'max_file_size' => 1024 * 1024 * 100, // 100MB
+    'max_file_size' => (int) env('MEDIA_MAX_FILE_SIZE', 250 * 1024 * 1024),
 
     /*
      * This queue connection will be used to generate derived and responsive images.

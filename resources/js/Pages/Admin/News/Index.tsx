@@ -180,8 +180,34 @@ function ActionButton({
     );
 }
 
+function isPubliclyVisible(article: NewsItem): boolean {
+    if (article.status !== "published" || !article.published_at) {
+        return false;
+    }
+
+    const publishedAt = new Date(article.published_at.replace(" ", "T"));
+
+    return !Number.isNaN(publishedAt.getTime()) && publishedAt.getTime() <= Date.now();
+}
+
+function getHeroOrderedArticles(articles: NewsItem[]): NewsItem[] {
+    return [...articles]
+        .filter((article) => article.is_hero_featured)
+        .sort((first, second) => {
+            const firstOrder = first.hero_sort_order ?? 99;
+            const secondOrder = second.hero_sort_order ?? 99;
+
+            if (firstOrder !== secondOrder) {
+                return firstOrder - secondOrder;
+            }
+
+            return first.id - second.id;
+        });
+}
+
 function NewsRowActions({ article }: { article: NewsItem }) {
     const [deleting, setDeleting] = useState(false);
+    const canViewPublic = isPubliclyVisible(article);
 
     const handleDelete = () => {
         if (!confirm(`Hapus artikel "${article.title}"?`)) return;
@@ -195,6 +221,25 @@ function NewsRowActions({ article }: { article: NewsItem }) {
 
     return (
         <div className="flex items-center gap-2">
+            {canViewPublic ? (
+                <a
+                    href={route("news.show", article.slug)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-sky-100 bg-sky-50 text-sky-600 transition-all duration-200 hover:-translate-y-0.5 hover:border-sky-200 hover:bg-white hover:text-sky-800 hover:shadow-sm"
+                    aria-label={`Lihat halaman publik ${article.title}`}
+                >
+                    <Eye size={14} />
+                </a>
+            ) : (
+                <span
+                    className="inline-flex h-9 w-9 cursor-not-allowed items-center justify-center rounded-xl border border-slate-100 bg-slate-50 text-slate-300"
+                    aria-label={`${article.title} belum tampil publik`}
+                    title="Belum tampil publik"
+                >
+                    <Eye size={14} />
+                </span>
+            )}
             <Link
                 href={route("admin.news.edit", article.id)}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:text-slate-950 hover:shadow-sm"
@@ -1061,6 +1106,12 @@ function ArticleCard({ article }: { article: NewsItem }) {
                 <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-slate-950/38 to-transparent" />
                 <div className="absolute left-3 top-3 flex max-w-[calc(100%-1.5rem)] flex-wrap gap-2">
                     <StatusBadge status={article.status} />
+                    {article.is_hero_featured && (
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50/92 px-2.5 py-1 font-bdo text-[10px] font-bold uppercase tracking-wide text-amber-700 shadow-sm backdrop-blur">
+                            <Sparkles size={11} />
+                            Hero {article.hero_sort_order ?? "-"}
+                        </span>
+                    )}
                     <span className="inline-flex items-center gap-1.5 rounded-full border border-white/70 bg-white/88 px-2.5 py-1 font-bdo text-[10px] font-bold uppercase tracking-wide text-slate-600 shadow-sm backdrop-blur">
                         <Tag size={11} />
                         <span className="max-w-[140px] truncate">{categoryName}</span>
@@ -1096,6 +1147,12 @@ function ArticleCard({ article }: { article: NewsItem }) {
                         </p>
                     </div>
                 </div>
+                {article.is_hero_featured && (
+                    <div className="mb-2 inline-flex w-fit items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 font-bdo text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                        <Sparkles size={11} />
+                        Hero newspage slot {article.hero_sort_order ?? "-"}
+                    </div>
+                )}
 
                 <h3 className="line-clamp-2 font-clash text-[1.05rem] font-bold leading-[1.08] text-slate-950 sm:text-[1.16rem] lg:text-[1.05rem] xl:text-[1.16rem]">
                     {article.title}
@@ -1306,8 +1363,9 @@ export default function NewsIndex() {
     const published = news.filter((article) => article.status === "published").length;
     const draft = news.filter((article) => article.status === "draft").length;
     const archived = news.filter((article) => article.status === "archived").length;
+    const heroArticles = useMemo(() => getHeroOrderedArticles(news), [news]);
     const activeBanners = info_banners.filter((banner) => banner.is_active).length;
-    const featured = news[0] ?? null;
+    const featured = heroArticles[0] ?? news[0] ?? null;
 
     return (
         <AdminLayout

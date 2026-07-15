@@ -25,11 +25,11 @@ interface Props {
 }
 
 const SECTION_CONTAINER_CLASS =
-    "mx-auto max-w-[1920px] px-[clamp(1.5rem,4.6vw,5.5rem)]";
+    "mx-auto max-w-[1920px] px-6 xl:px-[clamp(1.5rem,4.6vw,5.5rem)]";
 const DARK_HEADING_CLASS =
-    "font-bdo text-[clamp(3rem,3.02vw,3.65rem)] font-medium leading-[1.08] tracking-[-0.04em] text-white";
+    "font-bdo text-[1.42rem] font-medium leading-[0.97] tracking-[-0.052em] text-white xl:text-[clamp(3rem,3.02vw,3.65rem)] xl:leading-[1.08] xl:tracking-[-0.04em]";
 const SECTION_DIVIDER_WRAP_CLASS =
-    "mx-auto px-[clamp(1.5rem,2.7vw,5.5rem)] pb-16 pt-12 sm:pb-20 md:pt-14 lg:pt-16 xl:pb-16 xl:pt-14";
+    "mx-auto px-6 pb-8 pt-6 xl:block xl:px-[clamp(1.5rem,2.7vw,5.5rem)] xl:pb-16 xl:pt-14";
 
 const DUMMY_ACCORDION: ClassAccordionData[] = [
     {
@@ -126,13 +126,13 @@ export default function PricingAccordionSection({ facilities = [] }: Props) {
                 />
             </div>
 
-            <div className={`${SECTION_CONTAINER_CLASS} pb-2 pt-[1.75rem]`}>
+            <div className={`${SECTION_CONTAINER_CLASS} pb-0 pt-3 xl:pb-2 xl:pt-[1.75rem]`}>
                 {/* ── MOBILE LAYOUT (xl:hidden) ───────────────────────────────── */}
                 <div className="xl:hidden">
-                    <div className="mb-10 flex flex-col gap-6">
-                        <div className="mt-5 flex items-center gap-4">
+                    <div className="mb-7 flex flex-col gap-6">
+                        <div className="flex items-center gap-2.5">
                             <span className="section-label-diamond" />
-                            <ScrollTextReveal className="font-bdo text-[clamp(1.16rem,1.32vw,1.45rem)] font-medium tracking-[-0.025em] text-white">
+                            <ScrollTextReveal className="font-bdo text-[1rem] font-medium tracking-[-0.025em] text-white">
                                 Gabung Member Sekarang
                             </ScrollTextReveal>
                         </div>
@@ -140,17 +140,17 @@ export default function PricingAccordionSection({ facilities = [] }: Props) {
                             as="h2"
                             split="block"
                             delay={80}
-                            className={`${DARK_HEADING_CLASS} mt-5`}
+                            className={`${DARK_HEADING_CLASS} mt-2`}
                         >
-                            Area gym ini dirancang kardio yang nyaman bagi seluruh pengguna yang ada di UB Sport Center.®
+                            Area gym ini dirancang sebagai kardio yang sangat nyaman bagi seluruh pengguna yang ada di UB Sport Center®
                         </ScrollTextReveal>
                         <AnimatedBookingLink
                             label="Ikuti Keseruan Kami"
                             href="/coming-soon"
+                            width="15rem"
                         />
                     </div>
 
-                    <div className="border-t border-white/50" />
                     {activeData.map((item, idx) => (
                         <PricingAccordionItem
                             key={item.id}
@@ -201,7 +201,7 @@ export default function PricingAccordionSection({ facilities = [] }: Props) {
                                 delay={80}
                                 className={`${DARK_HEADING_CLASS} max-w-[73rem]`}
                             >
-                                Area gym ini dirancang sebagai kardio yang sangat nyaman bagi seluruh pengguna yang ada di UB Sport Center.®
+                                Area gym ini dirancang sebagai kardio yang sangat nyaman bagi seluruh pengguna yang ada di UB Sport Center®
                             </ScrollTextReveal>
 
                             <div className="mt-[8.3rem] flex flex-col">

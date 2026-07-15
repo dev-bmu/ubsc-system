@@ -62,13 +62,13 @@ function AccordionBodyImage({
             <img
                 src={image}
                 alt={alt}
-                className="aspect-[309/160] w-full rounded-[2px] object-cover"
+                className="h-[4.65rem] w-full rounded-[2px] object-cover xl:aspect-[309/160] xl:h-auto"
             />
-            <div className="flex items-center justify-between px-3 py-[0.75rem]">
-                <span className="font-bdo text-[0.72rem] font-medium text-black">
+            <div className="flex items-center justify-between px-[0.38rem] py-[0.32rem] xl:px-3 xl:py-[0.75rem]">
+                <span className="font-bdo text-[0.42rem] font-semibold leading-none text-black xl:text-[0.72rem] xl:font-medium">
                     UBSC
                 </span>
-                <span className="font-bdo text-[0.72rem] font-medium text-black/55">
+                <span className="font-bdo text-[0.4rem] font-medium leading-none text-black/55 xl:text-[0.72rem]">
                     Sport Center
                 </span>
             </div>
@@ -89,20 +89,22 @@ export default function PricingAccordionItem({
         <div>
             <button
                 onClick={onToggle}
-                className={`group grid w-full grid-cols-[10.35rem_minmax(0,1fr)_4rem] items-center text-left ${
-                    isOpen ? "pb-[2.25rem] pt-[3.25rem]" : "border-b border-white/35 py-[3.45rem]"
+                className={`group grid w-full grid-cols-[3.5rem_minmax(0,1fr)_2.75rem] items-center text-left xl:grid-cols-[10.35rem_minmax(0,1fr)_4rem] ${
+                    isOpen
+                        ? "pb-[1.35rem] pt-[2.25rem] xl:pb-[2.25rem] xl:pt-[3.25rem]"
+                        : "border-b border-white/35 py-[1.65rem] xl:py-[3.45rem]"
                 }`}
             >
                 <div className="contents">
-                    <span className="font-bdo text-[1.75rem] font-medium leading-none tracking-[-0.035em] text-white">
+                    <span className="font-bdo text-[0.98rem] font-medium leading-none tracking-[-0.035em] text-white xl:text-[1.75rem]">
                         {item.id}
                     </span>
-                    <span className="font-bdo text-[2.7rem] font-medium leading-none tracking-[-0.055em] text-white transition-colors">
+                    <span className="font-bdo text-[1.35rem] font-medium leading-none tracking-[-0.055em] text-white transition-colors xl:text-[2.7rem]">
                         {titleText}
                     </span>
                 </div>
                 <div
-                    className={`flex size-[3.95rem] flex-shrink-0 items-center justify-center justify-self-end rounded-full transition-colors ${
+                    className={`flex size-[2.15rem] flex-shrink-0 items-center justify-center justify-self-end rounded-full transition-colors xl:size-[3.95rem] ${
                         isOpen
                             ? "bg-[#FF0000] text-white"
                             : "bg-white text-black group-hover:bg-white/90"
@@ -119,35 +121,32 @@ export default function PricingAccordionItem({
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.3, ease: "easeOut" }}
                 >
-                    <div className="flex flex-col border-b border-white/50 py-6 xl:hidden">
+                    <div className="flex flex-col border-b border-white/35 pb-[1.75rem] pt-0 xl:hidden">
                         <FacilityBadge
                             location={item.badgeLocation}
                             category={item.badgeType}
-                            variant="red"
+                            variant="blue-red"
                         />
-                        <div className="mt-4 flex w-full flex-row items-start gap-4">
+                        <div className="mt-8 flex w-full flex-row items-start gap-7">
                             <AccordionBodyImage
                                 image={item.image}
                                 alt={item.title}
-                                className="w-[153px]"
+                                className="w-[9.75rem]"
                             />
-                            <div className="flex flex-col gap-2">
+                            <div className="flex flex-col gap-3 pt-0.5">
                                 {item.pricingDetails.map((detail, i) => (
                                     <div
                                         key={i}
                                         className="flex items-center gap-2"
                                     >
                                         <div className="size-1.5 flex-shrink-0 rounded-full bg-white/60" />
-                                        <span className="font-bdo text-[clamp(0.875rem,1vw,1.125rem)] font-medium text-white">
+                                        <span className="whitespace-nowrap font-bdo text-[0.73rem] font-semibold tracking-[-0.02em] text-white">
                                             {detail.label}
                                         </span>
                                     </div>
                                 ))}
                             </div>
                         </div>
-                        <p className="mt-3 font-bdo text-[0.65rem] font-regular tracking-widest text-white">
-                            {item.classCode}
-                        </p>
                     </div>
 
                     <div className="hidden border-b border-white/35 pb-[4.65rem] xl:block">

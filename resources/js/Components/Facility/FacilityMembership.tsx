@@ -1,149 +1,220 @@
-import SectionDivider from "@/Components/Landing/SectionDivider";
-import ReservasiButton from "@/Components/Landing/ReservasiButton";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import LogoMarquee from "@/Components/Landing/LogoMarquee";
-import CurvedLoop from "@/Components/Landing/CurvedLoop";
+import ReservasiButton from "@/Components/Landing/ReservasiButton";
 import ScrollTextReveal from "@/Components/Landing/ScrollTextReveal";
-import person from "@/../assets/images/person.avif";
-import bg from "@/../assets/images/bg-about.avif";
+import SectionDivider from "@/Components/Landing/SectionDivider";
+import FacilitySectionLabel from "./FacilitySectionLabel";
+import "./FacilityMembership.css";
 
-const SECTION_CONTAINER_CLASS =
-    "mx-auto max-w-8xl px-[clamp(1.5rem,4.5vw,5.5rem)]";
-const SECTION_HEADING_CLASS =
-    "font-bdo text-[clamp(1.75rem,2.5vw,3rem)] font-medium leading-[1.1] tracking-[-0.021em] text-black";
-const BODY_TEXT_CLASS =
-    "font-bdo text-[clamp(0.75rem,0.8vw,0.875rem)] font-normal leading-relaxed text-gray-500";
-const SECTION_DIVIDER_WRAP_CLASS =
-    "mx-auto px-[clamp(1.5rem,2.7vw,5.5rem)] pb-16 pt-12 sm:pb-20 md:pt-14 lg:pt-16 xl:pb-16 xl:pt-14";
+const MEMBERSHIP_COPY =
+    "Daftarkan diri Anda sekarang dan rasakan pengalaman berolahraga yang sesungguhnya. Pilih paket membership yang sesuai dengan target dan jadwal Anda di UB Sport Center.";
+
+const MEMBERSHIP_HEADING =
+    "Bergabunglah dengan komunitas olahraga terbaik dan capai target Anda. Kami sedia program terstruktur - semua di satu tempat.";
+
+function MembershipHeadline() {
+    return (
+        <h2
+            className="facility-membership__heading section-two-headline-weight max-w-[1100px] text-left font-bdo text-[clamp(2.05rem,8.15vw,2.82rem)] font-medium leading-[1.01] tracking-[-0.058em] text-black md:text-[clamp(2.08rem,4.5vw,2.6rem)] lg:text-[clamp(2.2rem,3.8vw,2.7rem)] xl:max-w-[980px] xl:text-[clamp(2.05rem,2.38vw,2.36rem)] min-[1440px]:text-[clamp(2.45rem,2.82vw,2.7rem)] 2xl:max-w-[1120px] 2xl:text-[clamp(2.7rem,2.55vw,3.15rem)]"
+        >
+            <ScrollTextReveal
+                split="lines"
+                delay={110}
+                stagger={95}
+                className="facility-membership__heading-reveal"
+            >
+                {MEMBERSHIP_HEADING}
+            </ScrollTextReveal>
+        </h2>
+    );
+}
+
+function MembershipObjectReveal({
+    children,
+    className = "",
+}: {
+    children: ReactNode;
+    className?: string;
+}) {
+    const elementRef = useRef<HTMLDivElement>(null);
+    const [isVisible, setIsVisible] = useState(false);
+
+    useEffect(() => {
+        const element = elementRef.current;
+        if (!element) return;
+
+        if (!("IntersectionObserver" in window)) {
+            setIsVisible(true);
+            return;
+        }
+
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (!entry?.isIntersecting) return;
+
+                setIsVisible(true);
+                observer.disconnect();
+            },
+            {
+                threshold: 0.08,
+                rootMargin: "160px 0px -5% 0px",
+            },
+        );
+
+        observer.observe(element);
+
+        return () => observer.disconnect();
+    }, []);
+
+    return (
+        <div
+            ref={elementRef}
+            className={`facility-membership__object-reveal ${
+                isVisible ? "is-visible" : ""
+            } ${className}`}
+        >
+            {children}
+        </div>
+    );
+}
+
+function MembershipVisual() {
+    return (
+        <MembershipObjectReveal className="facility-membership__visual">
+            <figure>
+                <div className="facility-membership__media">
+                    <img
+                        src="/assets/images/gym-konten-2-olahraga-ub-sport-center.avif"
+                        alt="UB Sport Center membership"
+                        width="960"
+                        height="432"
+                        loading="lazy"
+                        decoding="async"
+                    />
+                    <span
+                        className="facility-membership__media-wash"
+                        aria-hidden="true"
+                    />
+                    <span
+                        className="facility-membership__media-marker"
+                        aria-hidden="true"
+                    />
+                    <span className="facility-membership__media-index font-bdo">
+                        01 / MEMBER
+                    </span>
+                    <span
+                        className="facility-membership__media-line"
+                        aria-hidden="true"
+                    />
+                </div>
+                <figcaption className="font-bdo">
+                    <span>Built for progress</span>
+                    <span>UBSC / Malang</span>
+                </figcaption>
+            </figure>
+        </MembershipObjectReveal>
+    );
+}
 
 export default function FacilityMembership() {
     return (
-        <section className="overflow-x-clip bg-white" id="facility-membership">
-            <div className={SECTION_DIVIDER_WRAP_CLASS}>
+        <section className="facility-membership" id="facility-membership">
+            <div className="facility-membership__divider">
                 <SectionDivider
                     number="01"
                     title="Fasilitas Gym"
-                    subtitle="04 facility page"
+                    subtitle="04 facilitypage"
                     theme="light"
                 />
             </div>
 
-            <div className={`${SECTION_CONTAINER_CLASS} pb-16 xl:pb-20`}>
-                <div className="flex flex-col gap-6 xl:hidden">
-                    <div className="flex items-center gap-4">
-                        <span className="section-label-diamond" />
-                        <ScrollTextReveal className="font-bdo text-[clamp(1.16rem,1.32vw,1.45rem)] font-medium tracking-[-0.025em]">
-                            Program Membership
-                        </ScrollTextReveal>
+            <div className="facility-membership__shell">
+                <div className="facility-membership__masthead">
+                    <FacilitySectionLabel className="facility-membership__label">
+                        Program Membership
+                    </FacilitySectionLabel>
+
+                    <div className="facility-membership__meta font-bdo">
+                        <span>01 / Membership</span>
+                        <span>UB Sport Center / 2026</span>
                     </div>
-
-                    <ScrollTextReveal
-                        as="h2"
-                        split="block"
-                        delay={80}
-                        className={SECTION_HEADING_CLASS}
-                    >
-                        Bergabunglah dengan komunitas olahraga terbaik dan capai
-                        target Anda. Kami sedia program terstruktur - semua di
-                        satu tempat.
-                    </ScrollTextReveal>
-
-                    <div className="aspect-[480/216] w-full overflow-hidden rounded-[5px] bg-gray-100">
-                        <img
-                            src="/assets/images/gym-konten-2-olahraga-ub-sport-center.avif"
-                            alt="UB Sport Center membership"
-                            className="h-full w-full object-cover"
-                        />
-                    </div>
-
-                    <ScrollTextReveal
-                        as="p"
-                        split="words"
-                        delay={150}
-                        className={BODY_TEXT_CLASS}
-                    >
-                        Daftarkan diri Anda sekarang dan rasakan pengalaman
-                        berolahraga yang sesungguhnya. Pilih paket membership
-                        yang sesuai dengan kebutuhan dan jadwal Anda di UB Sport
-                        Center.
-                    </ScrollTextReveal>
-
-                    <ReservasiButton label="Daftar Sekarang" href="#" />
                 </div>
 
-                <div className="hidden xl:grid xl:grid-cols-[minmax(28rem,30rem)_minmax(0,1fr)] xl:gap-x-[clamp(5rem,6.25vw,7.5rem)]">
-                    <div className="flex flex-col gap-[9.4rem]">
-                        <div className="flex items-center gap-4">
-                            <span className="section-label-diamond" />
-                            <ScrollTextReveal className="font-bdo text-[clamp(1.16rem,1.32vw,1.45rem)] font-medium tracking-[-0.025em]">
-                                Program Membership
-                            </ScrollTextReveal>
-                        </div>
+                <div className="facility-membership__composition">
+                    <MembershipVisual />
 
-                        <div className="aspect-[480/216] w-[82%] overflow-hidden rounded-[5px] bg-gray-100 ml-5">
-                            <img
-                                src="/assets/images/gym-konten-2-olahraga-ub-sport-center.avif"
-                                alt="UB Sport Center membership"
-                                className="h-full w-full object-cover"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="flex min-w-0 flex-col -ml-16">
-                        <ScrollTextReveal
-                            as="h2"
-                            split="block"
-                            delay={80}
-                            className={`${SECTION_HEADING_CLASS} max-w-[62rem]`}
+                    <div className="facility-membership__content">
+                        <span
+                            className="facility-membership__watermark font-clash"
+                            aria-hidden="true"
                         >
-                            Bergabunglah dengan komunitas olahraga terbaik dan
-                            capai target Anda. Kami sedia program terstruktur -
-                            semua di satu tempat.
-                        </ScrollTextReveal>
+                            MEMBERSHIP
+                        </span>
 
-                        <div className="mt-[8.85rem] grid grid-cols-[minmax(0,33rem)_auto] items-center gap-x-[1rem]">
-                            <ScrollTextReveal
-                                as="p"
-                                split="words"
-                                delay={150}
-                                className="max-w-[27rem] font-bdo text-[clamp(1rem,1.05vw,1.18rem)] font-normal leading-[1.35] tracking-[-0.03em] text-[#242424]"
+                        <MembershipHeadline />
+
+                        <MembershipObjectReveal className="facility-membership__details">
+                            <MembershipObjectReveal className="facility-membership__action">
+                                <span className="facility-membership__action-label font-bdo">
+                                    Your next movement
+                                </span>
+                                <ReservasiButton
+                                    label="Daftar Sekarang"
+                                    href="#"
+                                    size="compact"
+                                />
+                            </MembershipObjectReveal>
+
+                            <MembershipObjectReveal
+                                className="facility-membership__index-rail font-bdo"
                             >
-                                Daftarkan diri Anda sekarang dan rasakan
-                                pengalaman berolahraga yang sesungguhnya. Pilih
-                                paket membership yang sesuai dengan kebutuhan
-                                dan jadwal Anda di UB Sport Center.
-                            </ScrollTextReveal>
-                            <ReservasiButton label="Daftar Sekarang" href="#" />
-                        </div>
+                                <span
+                                    className="facility-membership__index-label"
+                                    aria-hidden="true"
+                                >
+                                    Membership
+                                </span>
+                                <i
+                                    className="facility-membership__index-datum"
+                                    aria-hidden="true"
+                                />
+                                <span
+                                    className="facility-membership__index-code"
+                                    aria-hidden="true"
+                                >
+                                    <span>Program</span>
+                                    <strong>01</strong>
+                                </span>
+                            </MembershipObjectReveal>
+
+                            <div className="facility-membership__copy">
+                                <ScrollTextReveal
+                                    as="p"
+                                    split="words"
+                                    delay={160}
+                                    stagger={11}
+                                    className="font-bdo"
+                                >
+                                    {MEMBERSHIP_COPY}
+                                </ScrollTextReveal>
+
+                                <div
+                                    className="facility-membership__copy-meta font-bdo"
+                                    aria-hidden="true"
+                                >
+                                    <span>Membership / UBSC</span>
+                                    <span>Malang / 2026</span>
+                                </div>
+                            </div>
+                        </MembershipObjectReveal>
                     </div>
                 </div>
 
-                <hr className="my-[4.35rem] w-full border-gray-200" />
-                <LogoMarquee density="compact" label="/WORKED WITH" />
-            </div>
-
-            <div
-                className="relative mx-4 mb-10 overflow-hidden py-36 xl:mx-16 xl:mb-12 xl:py-52"
-                style={{
-                    backgroundImage: `url(${bg})`,
-                    backgroundSize: "cover",
-                    backgroundPosition: "center",
-                    backgroundRepeat: "no-repeat",
-                }}
-            >
-                <CurvedLoop
-                    marqueeText="UB   *   SPORT  *  CENTER   *   UBSC   *   "
-                    speed={1.5}
-                    curveAmount={200}
-                    direction="left"
-                    interactive
-                    className="z-100 absolute -top-12 h-full xl:-top-16"
-                />
-
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                    <img
-                        src={person}
-                        alt="UB Sport Center athlete"
-                        className="h-44 w-auto object-cover shadow-2xl md:h-64 xl:h-80"
+                <div className="facility-membership__sponsors">
+                    <LogoMarquee
+                        density="compact"
+                        label="/SUPPORTED BY"
+                        variant="facilityMembership"
                     />
                 </div>
             </div>

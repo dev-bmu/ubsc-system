@@ -142,30 +142,28 @@ export default function HomePage() {
                     </div>
                 </div>
                 <div className="home-post-section-two-flow">
-                    <FadeIn lightweight>
-                        <SectionThree />
-                    </FadeIn>
+                    <SectionThree />
                     <SectionFour facilities={facilities} />
                     <div className="home-post-section-four-flow">
-                        <FadeIn>
-                            <SectionFive news={news} reels={reels} />
-                        </FadeIn>
+                        <SectionFive news={news} reels={reels} />
                         <FadeIn>
                             <SectionSix facilities={facilities} />
                         </FadeIn>
-                        <FadeIn>
-                            <SectionSeven
-                                testimonials={testimonials}
-                                reviews={reviews}
-                            />
-                        </FadeIn>
-                        <FadeIn>
-                            <SectionEight />
-                        </FadeIn>
+                        <SectionSeven
+                            testimonials={testimonials}
+                            reviews={reviews}
+                        />
                     </div>
                 </div>
             </main>
-            <Footer />
+            <div className="home-footer-reveal-root">
+                <div className="home-footer-reveal-stage">
+                    <SectionEight />
+                </div>
+                <div className="home-footer-reveal-footer">
+                    <Footer />
+                </div>
+            </div>
             <FlashToast />
         </>
     );

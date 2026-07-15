@@ -20,12 +20,16 @@ class News extends Model implements HasMedia
         'excerpt',
         'content',
         'status',
+        'is_hero_featured',
+        'hero_sort_order',
         'published_at',
     ];
 
     protected function casts(): array
     {
         return [
+            'is_hero_featured' => 'boolean',
+            'hero_sort_order' => 'integer',
             'published_at' => 'datetime',
         ];
     }
@@ -47,6 +51,16 @@ class News extends Model implements HasMedia
 
     public function scopePublished(Builder $query): Builder
     {
-        return $query->where('status', 'published');
+        return $query
+            ->where('status', 'published')
+            ->whereNotNull('published_at')
+            ->where('published_at', '<=', now());
+    }
+
+    public function scopeHeroFeatured(Builder $query): Builder
+    {
+        return $query
+            ->where('is_hero_featured', true)
+            ->whereBetween('hero_sort_order', [1, 6]);
     }
 }

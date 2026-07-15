@@ -42,4 +42,9 @@ return [
         'http_verify'   => env('GOOGLE_HTTP_VERIFY', true),
     ],
 
+    'payment' => [
+        'mock' => env('PAYMENT_GATEWAY_MOCK', true),
+        'transaction_fee' => (int) env('BOOKING_TRANSACTION_FEE', 6000),
+    ],
+
 ];

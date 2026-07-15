@@ -21,3 +21,18 @@ Schedule::call(function () {
             }
         });
 })->everyFifteenMinutes()->name('expire-unpaid-transactions');
+
+Schedule::command('gallery:publish-scheduled')
+    ->everyMinute()
+    ->withoutOverlapping(5)
+    ->name('publish-scheduled-gallery-items');
+
+Schedule::command('gallery:prune')
+    ->dailyAt('02:30')
+    ->withoutOverlapping()
+    ->name('prune-gallery-operational-data');
+
+Schedule::command('gallery:aggregate-analytics')
+    ->dailyAt('00:15')
+    ->withoutOverlapping()
+    ->name('aggregate-gallery-analytics');

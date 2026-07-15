@@ -20,13 +20,46 @@ interface ReservasiButtonProps {
     label?: string;
     href?: string;
     size?: "default" | "compact";
+    onClick?: () => void;
 }
 
 export default function ReservasiButton({
     label = "Mulai Reservasi",
     href = "/coming-soon",
     size = "default",
+    onClick,
 }: ReservasiButtonProps) {
+    const className = `reservasi-btn ${
+        size === "compact" ? "reservasi-btn--compact" : ""
+    }`;
+    const content = (
+        <>
+            <div className="reservasi-btn-fill" />
+
+            <div className="reservasi-icon-wrap">
+                <div className="reservasi-arrow-track">
+                    <div className="reservasi-arrow-slot">
+                        <ArrowIcon />
+                    </div>
+                    <div className="reservasi-arrow-slot">
+                        <ArrowIcon />
+                    </div>
+                </div>
+            </div>
+
+            <div className="reservasi-text-wrap">
+                <div className="reservasi-text-track">
+                    <div className="reservasi-text-slot reservasi-text-1">
+                        {label}
+                    </div>
+                    <div className="reservasi-text-slot reservasi-text-2">
+                        {label}
+                    </div>
+                </div>
+            </div>
+        </>
+    );
+
     return (
         <>
             <style>{`
@@ -184,41 +217,28 @@ export default function ReservasiButton({
                 .reservasi-text-2 { color: #FFFFFF; }
             `}</style>
 
-            <a
-                href={href}
-                target={href.startsWith("http") ? "_blank" : undefined}
-                rel={
-                    href.startsWith("http") ? "noopener noreferrer" : undefined
-                }
-                className={`reservasi-btn ${
-                    size === "compact" ? "reservasi-btn--compact" : ""
-                }`}
-                aria-label={label}
-            >
-                <div className="reservasi-btn-fill" />
-
-                <div className="reservasi-icon-wrap">
-                    <div className="reservasi-arrow-track">
-                        <div className="reservasi-arrow-slot">
-                            <ArrowIcon />
-                        </div>
-                        <div className="reservasi-arrow-slot">
-                            <ArrowIcon />
-                        </div>
-                    </div>
-                </div>
-
-                <div className="reservasi-text-wrap">
-                    <div className="reservasi-text-track">
-                        <div className="reservasi-text-slot reservasi-text-1">
-                            {label}
-                        </div>
-                        <div className="reservasi-text-slot reservasi-text-2">
-                            {label}
-                        </div>
-                    </div>
-                </div>
-            </a>
+            {onClick ? (
+                <button
+                    type="button"
+                    onClick={onClick}
+                    className={className}
+                    aria-label={label}
+                >
+                    {content}
+                </button>
+            ) : (
+                <a
+                    href={href}
+                    target={href.startsWith("http") ? "_blank" : undefined}
+                    rel={
+                        href.startsWith("http") ? "noopener noreferrer" : undefined
+                    }
+                    className={className}
+                    aria-label={label}
+                >
+                    {content}
+                </a>
+            )}
         </>
     );
 }

@@ -2,12 +2,15 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Booking;
 use App\Models\InfoBanner;
+use App\Models\Membership;
 use App\Models\SystemSetting;
 use App\Support\AdminNotificationCenter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Middleware;
+use Tighten\Ziggy\Ziggy;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -26,27 +29,33 @@ class HandleInertiaRequests extends Middleware
 
         return [
             ...parent::share($request),
+            'ziggy' => fn () => [
+                ...(new Ziggy)->toArray(),
+                'location' => $request->url(),
+            ],
             'auth' => [
                 'user' => $user ? [
-                    'id'                => $user->id,
-                    'name'              => $user->name,
-                    'email'             => $user->email,
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
                     'email_verified_at' => $user->email_verified_at,
-                    'avatar'            => $user->avatar_url,
-                    'avatar_url'        => $user->avatar_url,
-                    'phone_number'      => $user->phone_number,
-                    'birth_place'       => $user->birth_place,
-                    'birth_date'        => $user->birth_date?->format('Y-m-d'),
+                    'avatar' => $user->avatar_url,
+                    'avatar_url' => $user->avatar_url,
+                    'phone_number' => $user->phone_number,
+                    'birth_place' => $user->birth_place,
+                    'birth_date' => $user->birth_date?->format('Y-m-d'),
                     'identity_category' => $user->identity_category,
-                    'identity_number'   => $user->identity_number,
-                    'identity_status'   => $user->identity_status,
-                    'role'              => $staffRole,
-                    'permissions'       => $permissions,
+                    'identity_number' => $user->identity_number,
+                    'identity_status' => $user->identity_status,
+                    'is_google' => ! is_null($user->google_id),
+                    'role' => $staffRole,
+                    'permissions' => $permissions,
+                    'member_status' => $this->getMemberStatus($user),
                 ] : null,
             ],
             'flash' => [
                 'success' => $request->session()->get('success'),
-                'error'   => $request->session()->get('error'),
+                'error' => $request->session()->get('error'),
             ],
             'announcements' => fn () => Schema::hasTable('info_banners')
                 ? InfoBanner::active()->ordered()->pluck('message')
@@ -88,5 +97,39 @@ class HandleInertiaRequests extends Middleware
             ->sort()
             ->values()
             ->all();
+    }
+
+    /**
+     * Determine member status based on active gym membership
+     * and active (upcoming/ongoing) facility bookings.
+     *
+     * Returns: 'none' | 'gym_only' | 'booked_only' | 'gym_and_booked'
+     */
+    private function getMemberStatus($user): string
+    {
+        $now = now();
+
+        $hasGym = Membership::where('user_id', $user->id)
+            ->where('status', 'active')
+            ->where('start_date', '<=', $now->toDateString())
+            ->where('end_date', '>=', $now->toDateString())
+            ->exists();
+
+        $hasBooking = Booking::where('user_id', $user->id)
+            ->where('status', 'confirmed')
+            ->where(function ($q) use ($now) {
+                $q->where('booking_date', '>', $now->toDateString())
+                  ->orWhere(function ($q2) use ($now) {
+                      $q2->where('booking_date', '=', $now->toDateString())
+                         ->where('end_time', '>', $now->format('H:i'));
+                  });
+            })
+            ->exists();
+
+        if ($hasGym && $hasBooking) return 'gym_and_booked';
+        if ($hasGym)                return 'gym_only';
+        if ($hasBooking)            return 'booked_only';
+
+        return 'none';
     }
 }

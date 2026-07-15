@@ -3,10 +3,13 @@ import FacilityBadge from "@/Components/Landing/FacilityBadge";
 import ReservasiButton from "@/Components/Landing/ReservasiButton";
 
 interface TimeSlot {
+    start_time: string;
+    end_time: string;
     time: string;
     price: string;
     status: "available" | "selected" | "booked";
     facilityUnitId?: number | null;
+    priceAmount?: number;
 }
 
 interface FacilityUnitOption {
@@ -28,13 +31,27 @@ export interface BookingFacility {
     availableSlots: TimeSlot[];
 }
 
+export interface PublicSlotCartItem {
+    facility_id: number;
+    facility_unit_id: number | null;
+    facility_name: string;
+    facility_unit_name: string | null;
+    booking_date: string;
+    start_time: string;
+    end_time: string;
+    label: string;
+    price: string;
+    price_amount: number;
+}
+
 interface Props {
     item: BookingFacility;
     isOpen: boolean;
     onToggle: () => void;
-    selectedDate: string;
-    onDateChange: (date: string) => void;
     onUnitChange: (unitId: number) => void;
+    selectedDate: string;
+    selectedSlotKeys: string[];
+    onToggleSlot: (slot: PublicSlotCartItem) => void;
     loadingSlots?: boolean;
     slotError?: string | null;
 }
@@ -54,45 +71,30 @@ const XIcon = () => (
 );
 
 function CalendarUI({
-    slots,
+    item,
     selectedDate,
-    onDateChange,
+    slots,
     units,
     selectedUnitId,
     onUnitChange,
+    selectedSlotKeys,
+    onToggleSlot,
     loading,
     slotError,
 }: {
-    slots: TimeSlot[];
+    item: BookingFacility;
     selectedDate: string;
-    onDateChange: (date: string) => void;
+    slots: TimeSlot[];
     units: FacilityUnitOption[];
     selectedUnitId: number | null;
     onUnitChange: (unitId: number) => void;
+    selectedSlotKeys: string[];
+    onToggleSlot: (slot: PublicSlotCartItem) => void;
     loading?: boolean;
     slotError?: string | null;
 }) {
-    const today = (() => {
-        const now = new Date();
-        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-    })();
-
     return (
         <div className="rounded-2xl border border-gray-200 p-6 xl:p-8">
-            {/* Date picker */}
-            <div className="flex items-center justify-between mb-6">
-                <label className="font-bdo text-sm font-medium text-gray-600">
-                    Pilih Tanggal
-                </label>
-                <input
-                    type="date"
-                    value={selectedDate}
-                    min={today}
-                    onChange={(e) => { if (e.target.value) onDateChange(e.target.value); }}
-                    className="rounded-lg border border-gray-200 px-3 py-2 font-bdo text-sm text-gray-700 hover:bg-gray-50 focus:border-slate-400 focus:outline-none transition-colors"
-                />
-            </div>
-
             {units.length > 0 && (
                 <div className="mb-6 rounded-2xl border border-[#F8B5A8]/70 bg-[#FFF7F5]/70 p-3 sm:p-4">
                     <div className="mb-3 flex items-center justify-between gap-3">
@@ -184,20 +186,51 @@ function CalendarUI({
                     <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
                         {slots.map((slot, i) => {
                             const isBooked = slot.status === "booked";
+                            const slotKey = [
+                                item.facilityId,
+                                slot.facilityUnitId ?? "parent",
+                                selectedDate,
+                                slot.start_time,
+                                slot.end_time,
+                            ].join("|");
+                            const isSelected = selectedSlotKeys.includes(slotKey);
+                            const selectedUnit = units.find((unit) => unit.id === selectedUnitId);
                             return (
-                                <div
+                                <button
                                     key={i}
+                                    type="button"
+                                    disabled={isBooked}
+                                    onClick={() => {
+                                        if (isBooked) return;
+                                        onToggleSlot({
+                                            facility_id: item.facilityId,
+                                            facility_unit_id: slot.facilityUnitId ?? selectedUnitId ?? null,
+                                            facility_name: item.title.replace(/^\/+/, ""),
+                                            facility_unit_name: selectedUnit?.name ?? null,
+                                            booking_date: selectedDate,
+                                            start_time: slot.start_time,
+                                            end_time: slot.end_time,
+                                            label: slot.time,
+                                            price: slot.price,
+                                            price_amount: slot.priceAmount ?? 0,
+                                        });
+                                    }}
                                     className={`relative flex flex-col items-center py-4 px-2 rounded-xl text-sm transition-colors ${
                                         isBooked
                                             ? "bg-rose-50 text-rose-300 pointer-events-none opacity-40 cursor-not-allowed"
-                                            : slot.status === "selected"
-                                            ? "bg-slate-500 text-white cursor-pointer"
-                                            : "bg-gray-50 text-gray-400 cursor-pointer hover:bg-gray-100"
+                                            : isSelected
+                                            ? "border border-[#0B4A72] bg-[#0B4A72] text-white shadow-[0_16px_28px_-22px_rgba(11,74,114,.85)]"
+                                            : "border border-transparent bg-gray-50 text-gray-400 hover:border-[#0B4A72]/25 hover:bg-white hover:text-gray-700"
                                     }`}
                                 >
                                     {isBooked && (
                                         <span className="absolute -top-2 left-1/2 -translate-x-1/2 rounded-full bg-rose-500 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white">
                                             Penuh
+                                        </span>
+                                    )}
+                                    {isSelected && (
+                                        <span className="absolute -top-2 right-2 rounded-full bg-white px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#0B4A72]">
+                                            Dipilih
                                         </span>
                                     )}
                                     <span className="font-bdo font-medium text-xs xl:text-sm">
@@ -208,7 +241,7 @@ function CalendarUI({
                                             {slot.price}
                                         </span>
                                     )}
-                                </div>
+                                </button>
                             );
                         })}
                     </div>
@@ -218,7 +251,17 @@ function CalendarUI({
     );
 }
 
-export default function BookingListItem({ item, isOpen, onToggle, selectedDate, onDateChange, onUnitChange, loadingSlots, slotError }: Props) {
+export default function BookingListItem({
+    item,
+    isOpen,
+    onToggle,
+    onUnitChange,
+    selectedDate,
+    selectedSlotKeys,
+    onToggleSlot,
+    loadingSlots,
+    slotError,
+}: Props) {
     return (
         <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] xl:grid-cols-[320px_1fr] gap-6 xl:gap-8 py-6 border-b border-gray-200 w-full items-start">
 
@@ -281,12 +324,14 @@ export default function BookingListItem({ item, isOpen, onToggle, selectedDate, 
                                 </div>
 
                                 <CalendarUI
-                                    slots={item.availableSlots}
+                                    item={item}
                                     selectedDate={selectedDate}
-                                    onDateChange={onDateChange}
+                                    slots={item.availableSlots}
                                     units={item.units}
                                     selectedUnitId={item.selectedUnitId}
                                     onUnitChange={onUnitChange}
+                                    selectedSlotKeys={selectedSlotKeys}
+                                    onToggleSlot={onToggleSlot}
                                     loading={loadingSlots}
                                     slotError={slotError}
                                 />

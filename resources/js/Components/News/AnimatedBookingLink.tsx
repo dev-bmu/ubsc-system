@@ -1,9 +1,8 @@
 import { type CSSProperties, useState } from "react";
 
-const ArrowIcon: React.FC<{ size?: number }> = ({ size = 32 }) => (
+const ArrowIcon: React.FC<{ className?: string }> = ({ className = "" }) => (
     <svg
-        width={size}
-        height={size}
+        className={className}
         viewBox="0 0 64 64"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
@@ -18,24 +17,57 @@ const ArrowIcon: React.FC<{ size?: number }> = ({ size = 32 }) => (
     </svg>
 );
 
+const HeroArrowIcon: React.FC<{ className?: string }> = ({ className = "" }) => (
+    <svg
+        className={className}
+        viewBox="0 0 72 72"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+    >
+        <path
+            d="M24 36H53"
+            stroke="white"
+            strokeWidth="3.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        />
+        <path
+            d="M42 22L56 36L42 50"
+            stroke="white"
+            strokeWidth="3.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        />
+        <path
+            d="M29 32.8C32.6 34.9 36 35.8 40 36"
+            stroke="white"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            opacity="0.48"
+        />
+    </svg>
+);
+
 interface AnimatedBookingLinkProps {
     href?: string;
     label?: string;
     width?: CSSProperties["width"];
     className?: string;
-    labelClassName?: string;
-    arrowSize?: number;
+    textClassName?: string;
+    arrowVariant?: "default" | "hero";
 }
 
 export default function AnimatedBookingLink({
-    href = "/coming-soon",
-    label = "Booking sekarang juga!",
+    href = "#news-content",
+    label = "Lihat selengkapnya",
     width,
     className = "",
-    labelClassName = "",
-    arrowSize = 28,
+    textClassName = "text-md xl:text-2xl",
+    arrowVariant = "default",
 }: AnimatedBookingLinkProps) {
     const [hovered, setHovered] = useState(false);
+    const usesHeroArrow = arrowVariant === "hero";
 
     return (
         <a
@@ -65,20 +97,30 @@ export default function AnimatedBookingLink({
             />
 
             <span className="pointer-events-none relative z-10 flex w-full items-center justify-between">
-                <span className={`font-bdo font-medium text-lg xl:text-2xl leading-tight tracking-tight text-white ${labelClassName}`}>
+                <span
+                    className={`font-bdo font-medium leading-tight tracking-tight text-white ${textClassName}`}
+                >
                     {label}
                 </span>
                 <span
                     className="flex flex-shrink-0 items-center justify-center"
                     style={{
-                        width: "clamp(28px, 2.5vw, 40px)",
-                        height: "clamp(28px, 2.5vw, 40px)",
+                        width: usesHeroArrow
+                            ? "clamp(32px, 3vw, 48px)"
+                            : "clamp(22px, 2.5vw, 40px)",
+                        height: usesHeroArrow
+                            ? "clamp(32px, 3vw, 48px)"
+                            : "clamp(22px, 2.5vw, 40px)",
                         transform: hovered ? "rotate(0deg)" : "rotate(-45deg)",
                         transition:
                             "transform 0.55s cubic-bezier(0.76, 0, 0.24, 1)",
                     }}
                 >
-                    <ArrowIcon size={arrowSize} />
+                    {usesHeroArrow ? (
+                        <HeroArrowIcon className="h-8 w-8" />
+                    ) : (
+                        <ArrowIcon className="h-[18px] w-[18px] xl:h-7 xl:w-7" />
+                    )}
                 </span>
             </span>
         </a>

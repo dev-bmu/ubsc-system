@@ -185,6 +185,8 @@ type FormData = {
     excerpt: string;
     content: string;
     status: NewsStatus;
+    is_hero_featured: boolean;
+    hero_sort_order: number | "";
     published_at: string;
     thumbnail: File | null;
     _method?: string;
@@ -356,6 +358,8 @@ export default function NewsForm() {
         excerpt: article?.excerpt ?? "",
         content: article?.content ?? "",
         status: article?.status ?? "draft",
+        is_hero_featured: article?.is_hero_featured ?? false,
+        hero_sort_order: article?.hero_sort_order ?? "",
         published_at: toDatetimeLocal(article?.published_at),
         thumbnail: null,
         ...(isEdit ? { _method: "PUT" } : {}),
@@ -432,7 +436,12 @@ export default function NewsForm() {
                                         { label: "Kategori", value: selectedCategory?.name ?? "Kosong" },
                                         { label: "Status", value: currentStatus.label },
                                         { label: "Ringkasan", value: `${excerptLength}/500` },
-                                        { label: "Baca", value: readingMinutes > 0 ? `${readingMinutes} menit` : "Belum ada" },
+                                        {
+                                            label: "Hero",
+                                            value: data.is_hero_featured
+                                                ? `Slot ${data.hero_sort_order || "-"}`
+                                                : "Nonaktif",
+                                        },
                                     ].map((item) => (
                                         <div
                                             key={item.label}
@@ -634,6 +643,104 @@ export default function NewsForm() {
                                         ))}
                                     </select>
                                     <FieldError message={errors.news_category_id} />
+                                </div>
+
+                                <div className="news-section-divider" />
+
+                                <div>
+                                    <div className="mb-2 flex items-start justify-between gap-3">
+                                        <div>
+                                            <label className="block font-bdo text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                                                Hero Newspage
+                                            </label>
+                                            <p className="mt-1 font-bdo text-[10px] font-medium leading-4 text-slate-400">
+                                                Maksimal 6 konten pilihan. Hanya tampil publik jika status Terbit dan waktunya sudah aktif.
+                                            </p>
+                                        </div>
+                                        <span className="rounded-full border border-[#F8B5A8]/70 bg-[#FFF7F5] px-2.5 py-1 font-bdo text-[10px] font-bold text-[#B93D2A]">
+                                            1-6
+                                        </span>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const nextValue = !data.is_hero_featured;
+                                            setData({
+                                                ...data,
+                                                is_hero_featured: nextValue,
+                                                hero_sort_order: nextValue
+                                                    ? data.hero_sort_order || 1
+                                                    : "",
+                                            });
+                                        }}
+                                        className={cn(
+                                            "group flex w-full items-center justify-between gap-3 rounded-2xl border px-3.5 py-3 text-left transition-all",
+                                            data.is_hero_featured
+                                                ? "border-[#F8B5A8] bg-[#FFF1EE] text-[#B93D2A] shadow-[0_16px_30px_-26px_rgba(227,83,54,.72)]"
+                                                : "border-slate-200 bg-white text-slate-600 hover:border-[#F8B5A8] hover:bg-[#FFF7F5]",
+                                        )}
+                                    >
+                                        <span className="flex min-w-0 items-center gap-3">
+                                            <span
+                                                className={cn(
+                                                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border",
+                                                    data.is_hero_featured
+                                                        ? "border-white/70 bg-white/78"
+                                                        : "border-slate-200 bg-slate-50",
+                                                )}
+                                            >
+                                                <Sparkles size={16} />
+                                            </span>
+                                            <span className="min-w-0">
+                                                <span className="block font-clash text-sm font-semibold leading-tight">
+                                                    {data.is_hero_featured
+                                                        ? "Masuk hero highlight"
+                                                        : "Tidak masuk hero"}
+                                                </span>
+                                                <span className="mt-1 block font-bdo text-[11px] font-medium text-slate-400">
+                                                    Konten ini menjadi slide pilihan di hero News.
+                                                </span>
+                                            </span>
+                                        </span>
+                                        <span
+                                            className={cn(
+                                                "h-5 w-5 rounded-full border transition",
+                                                data.is_hero_featured
+                                                    ? "border-[#E35336] bg-[#E35336] shadow-[inset_0_0_0_4px_#fff]"
+                                                    : "border-slate-300 bg-white",
+                                            )}
+                                        />
+                                    </button>
+                                    <FieldError message={errors.is_hero_featured} />
+
+                                    {data.is_hero_featured && (
+                                        <div className="mt-3 animate-scale-in">
+                                            <label htmlFor="hero_sort_order" className="mb-1.5 block font-bdo text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                                                Urutan Slide Hero
+                                            </label>
+                                            <select
+                                                id="hero_sort_order"
+                                                name="hero_sort_order"
+                                                value={data.hero_sort_order}
+                                                onChange={(event) =>
+                                                    setData(
+                                                        "hero_sort_order",
+                                                        Number(event.target.value) || "",
+                                                    )
+                                                }
+                                                className="news-input-field"
+                                            >
+                                                {[1, 2, 3, 4, 5, 6].map((slot) => (
+                                                    <option key={slot} value={slot}>
+                                                        Slot {slot}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <FieldError message={errors.hero_sort_order} />
+                                        </div>
+                                    )}
+
                                 </div>
 
                                 {data.status === "published" && (

@@ -15,6 +15,7 @@ import {
     Film,
     HelpCircle,
     ImagePlus,
+    Images,
     LayoutDashboard,
     LogOut,
     MessageSquare,
@@ -707,6 +708,7 @@ export default function Sidebar({ mobileOpen, onClose }: SidebarProps) {
     const facilitiesActive = isCurrent("admin.facilities.*");
     const bookingsActive = isCurrent("admin.bookings.*");
     const newsActive = isCurrent("admin.news.*");
+    const galleryActive = isCurrent("admin.gallery.*");
     const promoActive = isCurrent("admin.promo.*");
     const sponsorsActive = isCurrent("admin.sponsors.*");
     const reelsActive = isCurrent("admin.reels.*");
@@ -787,6 +789,18 @@ export default function Sidebar({ mobileOpen, onClose }: SidebarProps) {
         {
             label: "Content",
             items: [
+                {
+                    icon: Images,
+                    label: "Galeri Fasilitas",
+                    href: safeRoute("admin.gallery.index"),
+                    active: galleryActive,
+                    permissions: [
+                        "view-facility-gallery",
+                        "manage-facility-gallery",
+                        "publish-facility-gallery",
+                        "delete-facility-gallery",
+                    ],
+                },
                 {
                     icon: Newspaper,
                     label: "News",

@@ -5,6 +5,7 @@ import ImageCarousel, {
 import LogoMarquee, {
     type SponsorItem,
 } from "@/Components/Landing/LogoMarquee";
+import MembershipModal from "@/Components/Landing/MembershipModal";
 import ReservasiButton from "@/Components/Landing/ReservasiButton";
 import ScrollTextReveal from "@/Components/Landing/ScrollTextReveal";
 import SectionDivider from "@/Components/Landing/SectionDivider";
@@ -127,10 +128,6 @@ function planFeatures(plan: MembershipPlanItem) {
 
 function SectionTwoCurtainEdge() {
     const rootRef = useRef<HTMLDivElement>(null);
-    const [curtain, setCurtain] = useState({
-        height: 0,
-        shape: 0,
-    });
 
     useEffect(() => {
         const root = rootRef.current;
@@ -141,33 +138,42 @@ function SectionTwoCurtainEdge() {
         const postSectionFlow = document.querySelector<HTMLElement>(
             ".home-post-section-two-flow",
         );
-        const footerEl = document.querySelector<HTMLElement>("footer");
+        const curtainSteps = Array.from(
+            root?.querySelectorAll<HTMLElement>(
+                ".section-two-curtain-edge__step",
+            ) ?? [],
+        );
 
-        if (!root || !section || !content) return;
+        if (!root || !section || !content || curtainSteps.length === 0) return;
 
         let frame = 0;
+        let disposed = false;
+        let needsMeasure = true;
+        let isNearCurtain = true;
+        let viewportHeight = 1;
+        let sectionTop = 0;
+        let followStart = 0.22;
+        let followHold = 0.62;
+        let maxFollow = 0;
+        let lastTravel = -1;
+        let lastShape = -1;
+        let lastFollowOffset = Number.NaN;
+        let postFlowReleased = false;
+        const mainEl = postSectionFlow?.parentElement;
+        const measuredSibling = section.previousElementSibling;
 
-        const update = () => {
-            frame = 0;
-
-            const rect = section.getBoundingClientRect();
-            const viewportHeight =
-                window.innerHeight ||
-                document.documentElement.clientHeight ||
-                1;
-            const travel = Math.min(
-                1,
-                Math.max(0, (viewportHeight - rect.top) / viewportHeight),
-            );
-            const shape = Math.sin(travel * Math.PI);
-            const nextCurtain = {
-                height: Math.round(travel * viewportHeight),
-                shape,
-            };
+        const measure = () => {
             const viewportWidth =
                 window.innerWidth ||
                 document.documentElement.clientWidth ||
                 1;
+            viewportHeight =
+                window.innerHeight ||
+                document.documentElement.clientHeight ||
+                1;
+            sectionTop =
+                section.getBoundingClientRect().top +
+                (window.scrollY || document.documentElement.scrollTop || 0);
             const isMobile = viewportWidth < 640;
             const isTabletPortrait =
                 viewportWidth >= 640 &&
@@ -177,143 +183,215 @@ function SectionTwoCurtainEdge() {
                 viewportWidth >= 900 &&
                 viewportWidth < 1440 &&
                 viewportHeight <= viewportWidth;
-            const usesStackedSectionLayout = viewportWidth < 1280;
             const followRatio = isMobile
                 ? 0.72
                 : isTabletPortrait
-                  ? 0.18
+                  ? 0.68
                   : isTabletLandscape
                     ? 0.7
-                    : 0.35;
+                    : 0.78;
             const followInset = isMobile
-                ? 290
+                ? 150
                 : isTabletPortrait
                   ? 190
                   : isTabletLandscape
-                    ? 190
-                    : 223;
-            const followStart = isMobile
+                    ? 170
+                    : 124;
+
+            followStart = isMobile
                 ? 0.18
-                : isTabletPortrait
+                : isTabletPortrait || isTabletLandscape
                   ? 0.2
-                  : isTabletLandscape
-                    ? 0.2
-                    : 0.22;
-            const followHold = isMobile
+                  : 0.22;
+            followHold = isMobile
                 ? 0.58
-                : isTabletPortrait
+                : isTabletPortrait || isTabletLandscape
                   ? 0.6
-                  : isTabletLandscape
-                    ? 0.6
-                    : 0.62;
+                  : 0.62;
+
+            const holdShape = Math.sin(followHold * Math.PI);
+            maxFollow = Math.max(
+                0,
+                followHold * viewportHeight * followRatio - followInset,
+            ) * Math.pow(holdShape, 0.68);
+
+            root.style.height = `${viewportHeight}px`;
+
+            // Keep the document height stable while the following content moves.
+            // Changing this margin on every scroll frame caused scroll feedback and jank.
+            if (mainEl) mainEl.style.marginBottom = `${-maxFollow}px`;
+            needsMeasure = false;
+        };
+
+        const update = () => {
+            frame = 0;
+            if (!isNearCurtain && !needsMeasure) return;
+            if (needsMeasure) measure();
+
+            const scrollTop =
+                window.scrollY || document.documentElement.scrollTop || 0;
+            const sectionViewportTop = sectionTop - scrollTop;
+            const travel = Math.min(
+                1,
+                Math.max(
+                    0,
+                    (viewportHeight - sectionViewportTop) / viewportHeight,
+                ),
+            );
+            const shape = Math.sin(travel * Math.PI);
+
+            if (Math.abs(travel - lastTravel) > 0.0001) {
+                root.style.transform = `translate3d(0, 0, 0) scaleY(${travel})`;
+                lastTravel = travel;
+            }
+
+            if (Math.abs(shape - lastShape) > 0.0005) {
+                curtainSteps.forEach((step, index) => {
+                    const minimumHeight = CURTAIN_STEPS[index] / 100;
+                    const scale = 1 - shape * (1 - minimumHeight);
+                    step.style.transform = `translate3d(0, 0, 0) scaleY(${scale})`;
+                });
+                lastShape = shape;
+            }
+
             const followProgress = Math.min(
                 1,
                 Math.max(0, (travel - followStart) / (followHold - followStart)),
             );
             const followEase =
                 followProgress * followProgress * (3 - 2 * followProgress);
-            const holdShape = Math.sin(followHold * Math.PI);
-            const maxFollow = Math.max(
-                0,
-                followHold * viewportHeight * followRatio - followInset,
-            );
-            const followOffset = Math.round(
-                -maxFollow * Math.pow(holdShape, 0.68) * followEase,
-            );
+            const followOffset = -maxFollow * followEase;
+            const followChanged =
+                !Number.isFinite(lastFollowOffset) ||
+                Math.abs(followOffset - lastFollowOffset) > 0.05;
 
-            section.style.setProperty(
-                "--section-two-curtain-follow",
-                `${followOffset}px`,
-            );
-            content.style.transform = `translate3d(0, ${followOffset}px, 0)`;
-            content.style.willChange = "transform";
+            if (followChanged) {
+                section.style.setProperty(
+                    "--section-two-curtain-follow",
+                    `${followOffset}px`,
+                );
+                content.style.transform = `translate3d(0, ${followOffset}px, 0)`;
+                lastFollowOffset = followOffset;
+            }
 
             if (postSectionFlow) {
-                postSectionFlow.style.removeProperty("position");
-                postSectionFlow.style.removeProperty("top");
-                postSectionFlow.style.removeProperty("padding-bottom");
-                postSectionFlow.style.removeProperty("transform");
-                postSectionFlow.style.removeProperty("will-change");
-            }
+                // Release the large downstream layer as soon as its movement is
+                // complete, while Section Three is still outside the viewport.
+                // Waiting until the section boundary caused a visible one-frame
+                // stall when the browser had to rebuild the whole page layer.
+                const shouldReleaseSticky = followProgress >= 0.999;
 
-            if (footerEl) {
-                footerEl.style.removeProperty("transform");
-                footerEl.style.removeProperty("will-change");
-            }
-
-            setCurtain((previous) => {
-                if (
-                    Math.abs(previous.height - nextCurtain.height) < 1 &&
-                    Math.abs(previous.shape - nextCurtain.shape) < 0.003
-                ) {
-                    return previous;
+                if (shouldReleaseSticky) {
+                    if (!postFlowReleased || followChanged) {
+                        postSectionFlow.style.removeProperty("transform");
+                        postSectionFlow.style.position = "relative";
+                        postSectionFlow.style.top = `${followOffset}px`;
+                    }
+                    postFlowReleased = true;
+                } else {
+                    const modeChanged = postFlowReleased;
+                    if (modeChanged) {
+                        postSectionFlow.style.removeProperty("position");
+                        postSectionFlow.style.removeProperty("top");
+                    }
+                    if (modeChanged || followChanged) {
+                        // GPU movement is retained only while the curtain is active.
+                        // Releasing it afterwards keeps sticky cards working on iOS.
+                        postSectionFlow.style.willChange = "transform";
+                        postSectionFlow.style.transform = `translate3d(0, ${followOffset}px, 0)`;
+                    }
+                    postFlowReleased = false;
                 }
 
-                return nextCurtain;
-            });
+                if (
+                    followProgress <= 0.001 ||
+                    followProgress >= 0.999
+                ) {
+                    postSectionFlow.style.removeProperty("will-change");
+                }
+            }
         };
 
         const requestUpdate = () => {
-            if (frame) return;
+            if (disposed || frame) return;
             frame = window.requestAnimationFrame(update);
         };
 
+        const requestMeasure = () => {
+            if (disposed) return;
+            needsMeasure = true;
+            requestUpdate();
+        };
+
+        const proximityObserver =
+            "IntersectionObserver" in window
+                ? new IntersectionObserver(
+                      ([entry]) => {
+                          isNearCurtain = entry.isIntersecting;
+                          if (isNearCurtain) {
+                              requestMeasure();
+                          }
+                      },
+                      { rootMargin: "100% 0px 100% 0px" },
+                  )
+                : null;
+
+        proximityObserver?.observe(section);
+
+        const resizeObserver =
+            "ResizeObserver" in window
+                ? new ResizeObserver(requestMeasure)
+                : null;
+
+        if (measuredSibling instanceof Element) {
+            resizeObserver?.observe(measuredSibling);
+        }
+
         update();
         window.addEventListener("scroll", requestUpdate, { passive: true });
-        window.addEventListener("resize", requestUpdate);
+        window.addEventListener("resize", requestMeasure, { passive: true });
+        window.addEventListener("load", requestMeasure, { once: true });
+        void document.fonts?.ready.then(requestMeasure);
 
         return () => {
+            disposed = true;
             window.removeEventListener("scroll", requestUpdate);
-            window.removeEventListener("resize", requestUpdate);
+            window.removeEventListener("resize", requestMeasure);
+            window.removeEventListener("load", requestMeasure);
+            proximityObserver?.disconnect();
+            resizeObserver?.disconnect();
             section.style.removeProperty("--section-two-curtain-follow");
             content.style.removeProperty("transform");
-            content.style.removeProperty("will-change");
+            root.style.removeProperty("height");
+            root.style.removeProperty("transform");
+            curtainSteps.forEach((step) =>
+                step.style.removeProperty("transform"),
+            );
             postSectionFlow?.style.removeProperty("transform");
-            postSectionFlow?.style.removeProperty("will-change");
             postSectionFlow?.style.removeProperty("position");
             postSectionFlow?.style.removeProperty("top");
-            postSectionFlow?.style.removeProperty("padding-bottom");
-            if (footerEl) {
-                footerEl.style.removeProperty("transform");
-                footerEl.style.removeProperty("will-change");
-            }
+            postSectionFlow?.style.removeProperty("will-change");
+            mainEl?.style.removeProperty("margin-bottom");
             if (frame) window.cancelAnimationFrame(frame);
         };
     }, []);
-
-    const stepWidth = 100 / CURTAIN_STEPS.length;
-    const stepTopOffsets = CURTAIN_STEPS.map(
-        (height) => curtain.shape * (100 - height),
-    );
-    const polygonPoints = [
-        "0 100%",
-        `0 ${stepTopOffsets[0]}%`,
-        ...stepTopOffsets.flatMap((offset, index) => {
-            const right = (index + 1) * stepWidth;
-            const nextOffset = stepTopOffsets[index + 1];
-
-            return nextOffset === undefined
-                ? [`${right}% ${offset}%`]
-                : [`${right}% ${offset}%`, `${right}% ${nextOffset}%`];
-        }),
-        "100% 100%",
-    ].join(", ");
 
     return (
         <div
             ref={rootRef}
             className="section-two-curtain-edge"
-            style={
-                {
-                    height: `${curtain.height}px`,
-                } as CSSProperties
-            }
             aria-hidden="true"
         >
-            <span
-                className="section-two-curtain-edge__shape"
-                style={{ clipPath: `polygon(${polygonPoints})` }}
-            />
+            {CURTAIN_STEPS.map((_, index) => (
+                <span
+                    key={index}
+                    className="section-two-curtain-edge__step"
+                    style={{
+                        left: `calc(${(index * 100) / CURTAIN_STEPS.length}% - ${index === 0 ? 0 : 1}px)`,
+                        width: `calc(${100 / CURTAIN_STEPS.length}% + 2px)`,
+                    }}
+                />
+            ))}
         </div>
     );
 }
@@ -338,12 +416,15 @@ function SectionTwoHeadline() {
         "UB Sport Center\u00ae.",
     ];
     const compactMobileLines = [
-        "Area gym ini dirancang",
-        "sebagai ruang latihan yang",
-        "nyaman dan fungsional untuk",
+        "Area gym ini",
+        "dirancang sebagai",
+        "ruang latihan yang",
+        "nyaman dan",
+        "fungsional untuk",
         "mendukung, latihan",
-        "kekuatan, dan kardio bagi",
-        "seluruh pengguna UB Sport",
+        "kekuatan, dan kardio",
+        "bagi seluruh",
+        "pengguna UB Sport",
         "Center\u00ae.",
     ];
 
@@ -371,11 +452,11 @@ function SectionTwoHeadline() {
     return (
         <h2
             aria-label={headline}
-            className="section-two-headline-weight w-full max-w-[1100px] text-left font-bdo text-[clamp(1.28rem,6.15vw,1.55rem)] font-medium leading-[1.02] tracking-[-0.058em] text-black sm:text-[clamp(2.05rem,8.15vw,2.82rem)] sm:leading-[1.01] md:text-[clamp(2.08rem,4.5vw,2.6rem)] lg:text-[clamp(2.2rem,3.8vw,2.7rem)] xl:max-w-[980px] xl:text-[clamp(2.05rem,2.38vw,2.36rem)] min-[1440px]:text-[clamp(2.45rem,2.82vw,2.7rem)] 2xl:max-w-[1120px] 2xl:text-[clamp(2.7rem,2.55vw,3.15rem)]"
+            className="section-two-headline-weight max-w-[1100px] text-left font-bdo text-[clamp(2.05rem,8.15vw,2.82rem)] font-medium leading-[1.01] tracking-[-0.058em] text-black md:text-[clamp(2.08rem,4.5vw,2.6rem)] lg:text-[clamp(2.2rem,3.8vw,2.7rem)] xl:max-w-[980px] xl:text-[clamp(2.05rem,2.38vw,2.36rem)] min-[1440px]:text-[clamp(2.45rem,2.82vw,2.7rem)] 2xl:max-w-[1120px] 2xl:text-[clamp(2.7rem,2.55vw,3.15rem)]"
         >
             {renderLines(
                 compactMobileLines,
-                "",
+                "pl-[clamp(3rem,13vw,4.85rem)]",
                 "block sm:hidden",
             )}
             {renderLines(
@@ -433,9 +514,12 @@ export function MembershipPlanCarousel({ plans }: { plans: MembershipPlanItem[] 
         <div className="w-full">
             <div ref={emblaRef} className="overflow-hidden">
                 <div className="flex">
-                    {plans.map((plan) => (
+                    {plans.map((plan, index) => (
                         <div key={plan.id} className="min-w-0 flex-[0_0_100%]">
-                            <MembershipPlanCard plan={plan} />
+                            <MembershipPlanCard
+                                plan={plan}
+                                eager={index === 0}
+                            />
                         </div>
                     ))}
                 </div>
@@ -475,7 +559,13 @@ export function MembershipPlanCarousel({ plans }: { plans: MembershipPlanItem[] 
     );
 }
 
-function MembershipPlanCard({ plan }: { plan: MembershipPlanItem }) {
+function MembershipPlanCard({
+    plan,
+    eager,
+}: {
+    plan: MembershipPlanItem;
+    eager: boolean;
+}) {
     const image =
         plan.card_image_url ||
         "/assets/images/poster-gym-konten-program-ub-sport-center.avif";
@@ -496,16 +586,20 @@ function MembershipPlanCard({ plan }: { plan: MembershipPlanItem }) {
                     src={image}
                     alt={plan.name}
                     className="h-full w-full object-cover object-[center_45%]"
-                    loading="lazy"
+                    loading={eager ? "eager" : "lazy"}
+                    decoding="async"
+                    fetchPriority="low"
+                    width={960}
+                    height={320}
                     draggable={false}
                 />
             </div>
 
             <div
-                className="mt-3 overflow-hidden rounded-[5px] bg-cover bg-center bg-no-repeat text-white xl:mt-3"
+                className="mt-3 overflow-hidden rounded-[5px] bg-[#061322] text-white xl:mt-3"
                 style={{
                     backgroundImage:
-                        "url('/assets/images/ub-sport-card-membership.png')",
+                        "radial-gradient(circle at 72% 42%, rgba(74, 179, 228, 0.72), transparent 25%), radial-gradient(circle at 58% 78%, rgba(15, 92, 146, 0.58), transparent 31%), linear-gradient(135deg, #061322 0%, #082D4B 48%, #02070D 100%)",
                 }}
             >
                 <div className="m-2.5 min-h-[218px] rounded-[5px] bg-white px-3.5 py-3.5 text-black shadow-[0_18px_45px_rgba(0,0,0,0.16)] sm:m-3 sm:min-h-[232px] sm:px-5 sm:py-[18px] md:min-h-[240px] md:px-6 xl:m-[10px] xl:min-h-[202px] xl:px-5 xl:py-[14px]">
@@ -595,6 +689,8 @@ export default function SectionTwo({
     promos,
     sponsors,
 }: SectionTwoProps) {
+    const sectionRef = useRef<HTMLElement>(null);
+    const [membershipModalOpen, setMembershipModalOpen] = useState(false);
     const plans = useMemo(
         () =>
             membershipPlans && membershipPlans.length > 0
@@ -603,25 +699,77 @@ export default function SectionTwo({
         [membershipPlans],
     );
 
+    useEffect(() => {
+        const section = sectionRef.current;
+        if (!section) return;
+
+        const elements = Array.from(
+            section.querySelectorAll<HTMLElement>(
+                "[data-section-two-reveal]",
+            ),
+        );
+
+        const reveal = (element: HTMLElement) => {
+            element.classList.add("is-visible");
+        };
+
+        if (
+            !("IntersectionObserver" in window) ||
+            window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ) {
+            elements.forEach(reveal);
+            return;
+        }
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                entries.forEach((entry) => {
+                    if (!entry.isIntersecting) return;
+                    reveal(entry.target as HTMLElement);
+                    observer.unobserve(entry.target);
+                });
+            },
+            {
+                threshold: 0.035,
+                rootMargin: "0px 0px -3% 0px",
+            },
+        );
+
+        elements.forEach((element) => observer.observe(element));
+
+        return () => observer.disconnect();
+    }, []);
+
     return (
         <section
+            ref={sectionRef}
             id="about"
             className="section-two-curtain relative overflow-x-clip bg-white text-black"
         >
             <SectionTwoCurtainEdge />
             <div className="section-two-curtain-content relative z-10">
-                <div className="mx-auto px-[clamp(1.5rem,4.5vw,5.5rem)] pb-6 pt-12 sm:pb-8 md:pt-14 lg:pt-16 xl:pb-8 xl:pt-14">
-                    <SectionDivider
-                        number="01"
-                        title="Fasilitas Gym"
-                        subtitle="01 homepage"
-                        theme="light"
-                        outerClassName="-mx-[clamp(0rem,1.65vw,2rem)]"
-                        contentClassName="px-3"
-                    />
+                <div className="mx-auto px-[clamp(1.5rem,4.5vw,5.5rem)] pb-16 pt-12 sm:pb-20 md:pt-14 lg:pt-16 xl:pb-16 xl:pt-14">
+                    <div>
+                        <SectionDivider
+                            number="01"
+                            title="Fasilitas Gym"
+                            subtitle="01 homepage"
+                            theme="light"
+                            outerClassName="-mx-[clamp(0rem,1.65vw,2rem)]"
+                            contentClassName="px-3"
+                        />
+                    </div>
 
                     <div className="mt-12 grid gap-12 md:mt-14 lg:mt-16 xl:mt-14 xl:grid-cols-[clamp(360px,27vw,422px)_minmax(0,1fr)] xl:gap-[clamp(3.75rem,5.2vw,7.25rem)] 2xl:grid-cols-[clamp(390px,24vw,470px)_minmax(0,1fr)] 2xl:gap-[clamp(5rem,6vw,9rem)]">
-                        <div className="order-2 flex min-w-0 flex-col xl:order-1">
+                        <div
+                            data-section-two-reveal
+                            className="section-two-object-reveal section-two-object-reveal--left order-2 flex min-w-0 flex-col xl:order-1"
+                            style={
+                                {
+                                    "--section-two-reveal-delay": "90ms",
+                                } as CSSProperties
+                            }
+                        >
                             <div className="hidden items-center gap-4 xl:mb-6 xl:flex xl:gap-3">
                                 <span className="section-label-diamond" />
                                 <ScrollTextReveal
@@ -648,12 +796,28 @@ export default function SectionTwo({
 
                             <SectionTwoHeadline />
 
-                            <div className="mt-8 flex flex-col gap-5 sm:mt-12 md:flex-row md:items-center md:justify-between xl:mt-[4.8rem] xl:max-w-[980px] 2xl:max-w-[1120px]">
-                                <ReservasiButton
-                                    label="Daftar Sekarang"
-                                    href="/pricing"
-                                />
-                                <div className="md:ml-auto">
+                            <div className="mt-12 flex flex-col gap-5 md:flex-row md:items-center md:justify-between xl:mt-[4.8rem] xl:max-w-[980px] 2xl:max-w-[1120px]">
+                                <div
+                                    data-section-two-reveal
+                                    className="section-two-object-reveal section-two-object-reveal--left"
+                                >
+                                    <ReservasiButton
+                                        label="Daftar Sekarang"
+                                        onClick={() =>
+                                            setMembershipModalOpen(true)
+                                        }
+                                    />
+                                </div>
+                                <div
+                                    data-section-two-reveal
+                                    className="section-two-object-reveal section-two-object-reveal--right md:ml-auto"
+                                    style={
+                                        {
+                                            "--section-two-reveal-delay":
+                                                "90ms",
+                                        } as CSSProperties
+                                    }
+                                >
                                     <GymTrafficBadge
                                         animate
                                         disableHover
@@ -663,7 +827,10 @@ export default function SectionTwo({
                             </div>
 
                             <div className="mt-14 grid gap-10 md:grid-cols-2 xl:mt-[4.8rem] xl:max-w-[980px] xl:gap-[clamp(3rem,4.2vw,5.5rem)] 2xl:max-w-[1120px]">
-                                <div>
+                                <div
+                                    data-section-two-reveal
+                                    className="section-two-object-reveal"
+                                >
                                     <ScrollTextReveal
                                         as="h3"
                                         delay={70}
@@ -681,7 +848,16 @@ export default function SectionTwo({
                                         UB Sport Center buka setiap hari pukul 06.00 - 21.00 dengan pilihan paket bulanan dan tahunan yang fleksibel serta akses fasilitas lengkap untuk mendukung kebutuhan latihan Anda.
                                     </ScrollTextReveal>
                                 </div>
-                                <div>
+                                <div
+                                    data-section-two-reveal
+                                    className="section-two-object-reveal"
+                                    style={
+                                        {
+                                            "--section-two-reveal-delay":
+                                                "100ms",
+                                        } as CSSProperties
+                                    }
+                                >
                                     <ScrollTextReveal
                                         as="h3"
                                         delay={160}
@@ -703,12 +879,18 @@ export default function SectionTwo({
                         </div>
                     </div>
 
-                    <div className="mt-20 xl:mt-[5.6rem]">
+                    <div
+                        data-section-two-reveal
+                        className="section-two-object-reveal section-two-object-reveal--media mt-20 xl:mt-[5.6rem]"
+                    >
                         <ImageCarousel images={promos ?? DUMMY_IMAGES} density="compact" />
                     </div>
 
                     <div className="relative mt-[clamp(2.4rem,2.96vw,3.6rem)] grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(288px,0.72fr)] lg:items-center xl:gap-6">
-                        <div className="min-w-0">
+                        <div
+                            data-section-two-reveal
+                            className="section-two-object-reveal section-two-object-reveal--left min-w-0"
+                        >
                             <ScrollTextReveal
                                 as="h2"
                                 split="words"
@@ -720,9 +902,27 @@ export default function SectionTwo({
                             </ScrollTextReveal>
                         </div>
                         <div className="flex items-center justify-start lg:pointer-events-none lg:absolute lg:left-1/2 lg:top-1/2 lg:-translate-x-1/2 lg:-translate-y-1/2 lg:justify-center">
-                            <StarRating className="h-5 w-[108px] drop-shadow-[0_8px_14px_rgba(0,34,68,0.18)] lg:h-[23px] lg:w-[124px] xl:h-[18px] xl:w-[98px]" />
+                            <span
+                                data-section-two-reveal
+                                className="section-two-object-reveal section-two-object-reveal--scale block"
+                                style={
+                                    {
+                                        "--section-two-reveal-delay": "80ms",
+                                    } as CSSProperties
+                                }
+                            >
+                                <StarRating className="h-5 w-[108px] drop-shadow-[0_8px_14px_rgba(0,34,68,0.18)] lg:h-[23px] lg:w-[124px] xl:h-[18px] xl:w-[98px]" />
+                            </span>
                         </div>
-                        <div className="lg:justify-self-end">
+                        <div
+                            data-section-two-reveal
+                            className="section-two-object-reveal section-two-object-reveal--right lg:justify-self-end"
+                            style={
+                                {
+                                    "--section-two-reveal-delay": "130ms",
+                                } as CSSProperties
+                            }
+                        >
                             <p className="max-w-[470px] font-bdo text-[clamp(0.9rem,1.06vw,1.16rem)] font-medium leading-[1.55] tracking-[-0.035em] text-black/55 xl:max-w-[376px]">
                                 <ScrollTextReveal delay={120}>
                                     Fasilitas gym lengkap
@@ -736,8 +936,17 @@ export default function SectionTwo({
                     </div>
                 </div>
 
-                <LogoMarquee sponsors={sponsors} density="compact" />
+                <div
+                    data-section-two-reveal
+                    className="section-two-object-reveal section-two-object-reveal--marquee"
+                >
+                    <LogoMarquee sponsors={sponsors} density="compact" />
+                </div>
             </div>
+            <MembershipModal
+                isOpen={membershipModalOpen}
+                onClose={() => setMembershipModalOpen(false)}
+            />
         </section>
     );
 }

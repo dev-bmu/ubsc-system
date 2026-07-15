@@ -105,14 +105,16 @@ function SectionFourCurtainEdge() {
         const content = section?.querySelector<HTMLElement>(
             ".section-four-curtain-content",
         );
-        const outdoorSection = document.getElementById("facility-outdoor");
+        const postSectionFlow = document.querySelector<HTMLElement>(
+            ".home-post-section-four-flow",
+        );
 
         if (!root || !section || !content) return;
 
         let frame = 0;
         let lastHeight = -1;
         let lastContentOffset = 1;
-        let lastOutdoorMargin = 0;
+        let lastFollowOffset = 1;
 
         const update = () => {
             frame = 0;
@@ -162,6 +164,7 @@ function SectionFourCurtainEdge() {
                     : 64;
             const followEase = progress * progress * (3 - 2 * progress);
             const maxFollow = Math.max(0, viewportHeight * followRatio - followInset);
+            const followOffset = Math.round(-maxFollow * followEase);
             const contentPaddingReserve = isMobile
                 ? 48
                 : isTabletPortrait
@@ -180,17 +183,23 @@ function SectionFourCurtainEdge() {
                 content.style.transform = `translate3d(0, ${contentFollowOffset}px, 0)`;
                 content.style.willChange =
                     contentFollowOffset === 0 ? "auto" : "transform";
-
-                // Compensate outdoor section margin to close parallax gap
-                if (outdoorSection) {
-                    const targetMargin = contentFollowOffset;
-                    if (Math.abs(lastOutdoorMargin - targetMargin) >= 1) {
-                        lastOutdoorMargin = targetMargin;
-                        outdoorSection.style.marginTop = `${targetMargin}px`;
-                    }
+                // Compensate section height gap caused by content transform
+                if (section) {
+                    section.style.marginBottom = `${contentFollowOffset}px`;
                 }
             }
 
+            const postFlowOffset = rect.top > 0 ? followOffset : 0;
+
+            if (Math.abs(lastFollowOffset - postFlowOffset) >= 1) {
+                lastFollowOffset = postFlowOffset;
+
+                if (postSectionFlow) {
+                    postSectionFlow.style.transform = `translate3d(0, ${postFlowOffset}px, 0)`;
+                    postSectionFlow.style.willChange =
+                        postFlowOffset === 0 ? "auto" : "transform";
+                }
+            }
         };
 
         const requestUpdate = () => {
@@ -208,9 +217,9 @@ function SectionFourCurtainEdge() {
             root.style.removeProperty("height");
             content.style.removeProperty("transform");
             content.style.removeProperty("will-change");
-            if (outdoorSection) {
-                outdoorSection.style.removeProperty("margin-top");
-            }
+            section?.style.removeProperty("margin-bottom");
+            postSectionFlow?.style.removeProperty("transform");
+            postSectionFlow?.style.removeProperty("will-change");
             if (frame) window.cancelAnimationFrame(frame);
         };
     }, []);
@@ -295,9 +304,10 @@ export default function SectionFour({
             mapLink: null,
         }));
     return (
+        <>
         <section
             id="facilities"
-            className="section-four-curtain w-full bg-[#FAFAFA] pb-0 pt-12 md:pt-14 lg:pt-16 xl:pt-14"
+            className="section-four-curtain w-full bg-white pb-0 pt-12 md:pt-14 lg:pt-16 xl:pt-14"
         >
             <SectionFourCurtainEdge />
             <div className="section-four-curtain-content">
@@ -367,7 +377,7 @@ export default function SectionFour({
                         </div>
                     </div>
 
-                    <div className="mb-10 mt-10 grid grid-cols-2 items-center gap-3 sm:gap-6 md:mt-12 xl:mb-16 xl:mt-16 xl:flex xl:justify-between">
+                    <div className="mt-10 grid grid-cols-2 items-center gap-3 pb-10 sm:gap-6 md:mt-12 xl:mt-16 xl:flex xl:justify-between xl:pb-16">
                         <ScrollObjectReveal
                             delay={360}
                             className="min-w-0 xl:-ml-1.5"
@@ -392,26 +402,33 @@ export default function SectionFour({
                     }
                     isLandingPage={isLandingPage}
                 />
-                <FacilityClassSection
-                    sectionNumber="05"
-                    sectionTitle="Kelas Indoor"
-                    sectionSubtitle="01 homepage"
-                    classes={
-                        classFacilities.length > 0 ? classFacilities : undefined
-                    }
-                    isLandingPage={isLandingPage}
-                />
+                <div className="bg-[#252525]">
+                    <FacilityClassSection
+                        sectionNumber="05"
+                        sectionTitle="Kelas Indoor"
+                        sectionSubtitle="01 homepage"
+                        classes={
+                            classFacilities.length > 0 ? classFacilities : undefined
+                        }
+                        isLandingPage={isLandingPage}
+                    />
+                </div>
             </div>
+        </section>
+        <div className="relative z-10 bg-[#252525]">
             <FacilityOutdoorSection
                 sectionNumber="06"
                 sectionTitle="Fasilitas Outdoor"
                 sectionSubtitle="01 homepage"
                 totalFacilitiesCount={facilities.length}
                 facilities={
-                    outdoorFacilities.length > 0 ? outdoorFacilities : undefined
+                    outdoorFacilities.length > 0
+                        ? outdoorFacilities
+                        : undefined
                 }
                 isLandingPage={isLandingPage}
             />
-        </section>
+        </div>
+        </>
     );
 }

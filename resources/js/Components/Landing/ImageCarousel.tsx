@@ -85,7 +85,7 @@ export default function ImageCarousel({
                         >
                             <ProgramImage
                                 image={image}
-                                eager={index < 3}
+                                eager={index < 2}
                                 compact={isCompact}
                                 active={selectedIndex === index}
                             />
@@ -158,6 +158,10 @@ function ProgramImage({
                     className="h-full w-full object-cover object-center"
                     draggable={false}
                     loading={eager ? "eager" : "lazy"}
+                    decoding="async"
+                    fetchPriority="low"
+                    width={1600}
+                    height={748}
                 />
                 <span className="pointer-events-none absolute inset-0 rounded-[5px] ring-1 ring-inset ring-white/16" />
             </div>

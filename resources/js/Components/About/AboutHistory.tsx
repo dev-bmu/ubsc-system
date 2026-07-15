@@ -1,68 +1,116 @@
-import { useEffect, useState } from "react";
-import { useMotionValue, useAnimationFrame } from "framer-motion";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import SectionDivider from "@/Components/Landing/SectionDivider";
 import CurvedLoop from "@/Components/Landing/CurvedLoop";
+import HeroCurtainEdge from "@/Components/Landing/HeroCurtainEdge";
+import ScrollTextReveal from "@/Components/Landing/ScrollTextReveal";
 import person from "@/../assets/images/person.avif";
 import bg from "@/../assets/images/bg-about.avif";
 
-function useCountUp(target: number, duration: number = 2.3) {
-    const motionValue = useMotionValue(0);
-    const [value, setValue] = useState(0);
-    useEffect(() => {
-        const start = performance.now();
-        function animate(now: number) {
-            const elapsed = (now - start) / 1000;
-            const progress = Math.min(elapsed / duration, 1);
-            const current = target * progress;
-            motionValue.set(current);
-            if (progress < 1) {
-                requestAnimationFrame(animate);
-            }
-        }
-        requestAnimationFrame(animate);
-    }, [target, duration, motionValue]);
-    useAnimationFrame(() => {
-        setValue(motionValue.get());
-    });
-    return value;
-}
-
 const STATS = [
-    { value: 81.5, suffix: "%", label: "Tingkat Kepuasan" },
-    { value: 122, suffix: "+", label: "Karyawan" },
-    { value: 17, suffix: "+", label: "Fasilitas" },
-    { value: 231, suffix: "", label: "Membership" },
-];
+    { value: 81.5, decimals: 1, suffix: "%", label: "Tingkat Kepuasan" },
+    { value: 122, decimals: 0, suffix: "+", label: "Karyawan" },
+    { value: 17, decimals: 0, suffix: "+", label: "Fasilitas" },
+    { value: 231, decimals: 0, suffix: "", label: "Membership" },
+] as const;
 
-function StatItem({
-    value,
-    suffix,
-    label,
+type Stat = (typeof STATS)[number];
+
+function CountUpValue({
+    stat,
+    active,
+    delay,
 }: {
-    value: number;
-    suffix: string;
-    label: string;
+    stat: Stat;
+    active: boolean;
+    delay: number;
 }) {
-    const animated = useCountUp(value, 1.4);
-    let display: string;
-    if (suffix === "%") {
-        display = `${animated.toFixed(1)}%`;
-    } else if (suffix === "+") {
-        if (value >= 1000) display = `${Math.round(animated / 1000)}K+`;
-        else display = `${Math.round(animated)}+`;
-    } else {
-        display = `${Math.round(animated)}`;
-    }
+    const valueRef = useRef<HTMLSpanElement>(null);
+
+    useEffect(() => {
+        if (!active || !valueRef.current) return;
+
+        const node = valueRef.current;
+        const finalValue = `${stat.value.toFixed(stat.decimals)}${stat.suffix}`;
+        const reducedMotion = window.matchMedia(
+            "(prefers-reduced-motion: reduce)",
+        ).matches;
+
+        if (reducedMotion) {
+            node.textContent = finalValue;
+            return;
+        }
+
+        let animationFrame = 0;
+        const delayTimer = window.setTimeout(() => {
+            const startedAt = performance.now();
+            const duration = 2600;
+
+            const tick = (now: number) => {
+                const progress = Math.min((now - startedAt) / duration, 1);
+                const eased =
+                    progress < 0.5
+                        ? 4 * progress * progress * progress
+                        : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+                const current = stat.value * eased;
+
+                node.textContent = `${current.toFixed(stat.decimals)}${stat.suffix}`;
+
+                if (progress < 1) {
+                    animationFrame = window.requestAnimationFrame(tick);
+                } else {
+                    node.textContent = finalValue;
+                }
+            };
+
+            animationFrame = window.requestAnimationFrame(tick);
+        }, delay);
+
+        return () => {
+            window.clearTimeout(delayTimer);
+            window.cancelAnimationFrame(animationFrame);
+        };
+    }, [active, delay, stat]);
 
     return (
-        <div className="flex h-full flex-col gap-4 px-5 py-8 sm:px-8 sm:py-10 xl:gap-[30px] xl:px-[clamp(3.4rem,3.45vw,4.2rem)] xl:py-[clamp(3rem,3vw,3.65rem)]">
-            <span className="font-bdo text-[clamp(3rem,4.15vw,80px)] font-normal leading-none tracking-[-0.045em] text-black">
-                {display}
-            </span>
-            <span className="font-bdo text-[clamp(1rem,1.25vw,24px)] font-light normal-case tracking-normal text-black/40">
-                {label}
-            </span>
-        </div>
+        <span ref={valueRef} aria-label={`${stat.value}${stat.suffix}`}>
+            0{stat.suffix}
+        </span>
+    );
+}
+
+function StatItem({
+    stat,
+    active,
+    index,
+}: {
+    stat: Stat;
+    active: boolean;
+    index: number;
+}) {
+    return (
+        <article
+            className="about-history-stat relative min-w-0"
+            style={
+                {
+                    "--about-history-line-delay": `${590 + index * 90}ms`,
+                    "--about-history-content-delay": `${560 + index * 105}ms`,
+                    "--about-history-mobile-line-delay": `${680 + index * 90}ms`,
+                } as CSSProperties
+            }
+        >
+            <div className="about-history-stat-content">
+                <span className="about-history-stat-value font-bdo font-normal leading-none text-black">
+                    <CountUpValue
+                        stat={stat}
+                        active={active}
+                        delay={620 + index * 120}
+                    />
+                </span>
+                <span className="about-history-stat-label font-bdo font-light normal-case tracking-normal text-black/40">
+                    {stat.label}
+                </span>
+            </div>
+        </article>
     );
 }
 
@@ -72,86 +120,215 @@ function useResponsiveCurve(mobile: number, desktop: number): number {
             ? mobile
             : desktop,
     );
+
     useEffect(() => {
         const update = () =>
             setCurve(window.innerWidth < 1280 ? mobile : desktop);
-        window.addEventListener("resize", update);
+
+        window.addEventListener("resize", update, { passive: true });
+
         return () => window.removeEventListener("resize", update);
     }, [mobile, desktop]);
+
     return curve;
 }
 
+function useInViewOnce<T extends HTMLElement>(
+    rootMargin: string,
+    threshold = 0.08,
+) {
+    const elementRef = useRef<T>(null);
+    const [isVisible, setIsVisible] = useState(false);
+
+    useEffect(() => {
+        const element = elementRef.current;
+        if (!element) return;
+
+        if (
+            !("IntersectionObserver" in window) ||
+            window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ) {
+            setIsVisible(true);
+            return;
+        }
+
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (!entry?.isIntersecting) return;
+                setIsVisible(true);
+                observer.disconnect();
+            },
+            { rootMargin, threshold },
+        );
+
+        observer.observe(element);
+        return () => observer.disconnect();
+    }, [rootMargin, threshold]);
+
+    return [elementRef, isVisible] as const;
+}
+
 export default function AboutHistory() {
-    const curveAmount = useResponsiveCurve(120, 200);
+    const [introRef, isIntroVisible] = useInViewOnce<HTMLDivElement>(
+        "0px 0px -14% 0px",
+        0.06,
+    );
+    const [statsRef, isStatsVisible] = useInViewOnce<HTMLDivElement>(
+        "0px 0px -10% 0px",
+        0.08,
+    );
+    const [mediaRef, isMediaVisible] = useInViewOnce<HTMLDivElement>(
+        "0px 0px -34% 0px",
+        0.18,
+    );
+    const [isComplete, setIsComplete] = useState(false);
+    const curveAmount = useResponsiveCurve(128, 124);
+    const loopFontSize = useResponsiveCurve(112, 58);
+    const loopSpeed = useResponsiveCurve(2.65, 1.5);
+
+    useEffect(() => {
+        if (!isIntroVisible || !isStatsVisible || !isMediaVisible || isComplete)
+            return;
+
+        const timeout = window.setTimeout(() => setIsComplete(true), 2800);
+        return () => window.clearTimeout(timeout);
+    }, [isComplete, isIntroVisible, isMediaVisible, isStatsVisible]);
+
     return (
-        <section className="w-full bg-white" id="about-history">
-            <div className="mx-auto w-full px-6 pb-16 pt-10 sm:px-10 sm:pb-20 sm:pt-14 lg:px-12 xl:px-[clamp(2.8rem,2.85vw,3.5rem)] xl:pb-[9.5rem] xl:pt-[6.65rem]">
-                <SectionDivider
-                    number="01"
-                    title="Lokasi Kami"
-                    subtitle="01 homepage"
-                    theme="light"
-                />
+        <section
+            className={`about-history-stage section-two-curtain relative z-[18] w-full overflow-x-clip bg-transparent ${
+                isIntroVisible ? "is-intro-visible" : ""
+            } ${isStatsVisible ? "is-stats-visible" : ""} ${
+                isMediaVisible ? "is-media-visible" : ""
+            } ${isComplete ? "is-complete" : ""}`}
+            id="about-history"
+        >
+            <HeroCurtainEdge postFlowSelector=".about-post-history-flow" />
 
-                <div className="mt-14 grid grid-cols-1 gap-8 sm:mt-16 xl:mt-[5.65rem] xl:grid-cols-[clamp(24rem,25vw,30rem)_minmax(0,0.97fr)_minmax(0,1.03fr)] xl:gap-[clamp(4rem,4.2vw,5rem)]">
-                    <h2 className="font-bdo text-[clamp(2rem,2.82vw,54px)] font-semibold leading-[1.34] tracking-[-0.035em] text-black">
-                        <span className="block">Sejarah dan</span>
-                        <span className="block">Perkembangan</span>
-                    </h2>
-                    <p className="max-w-[590px] font-bdo text-[clamp(1rem,1.04vw,20px)] font-normal leading-[1.34] tracking-[-0.018em] text-black/70 xl:pt-2">
-                        UB Sport Center merupakan pusat olahraga milik
-                        Universitas Brawijaya yang dikelola oleh PT Brawijaya
-                        Multi Usaha, dengan tujuan menyediakan fasilitas
-                        olahraga yang representatif bagi sivitas akademika dan
-                        masyarakat umum.
-                    </p>
-                    <p className="max-w-[590px] font-bdo text-[clamp(1rem,1.04vw,20px)] font-normal leading-[1.34] tracking-[-0.018em] text-black/70 xl:pt-2">
-                        Berdiri sejak tahun 2008 sebagai Fitness Centre di
-                        lingkungan Universitas Brawijaya, UB Sport Center
-                        berkembang menjadi pusat olahraga terpadu berbasis
-                        pendidikan dengan layanan dan fasilitas yang terkelola
-                        secara profesional.
-                    </p>
-                </div>
+            <div className="section-two-curtain-content relative z-10 bg-white">
+                <div
+                    ref={introRef}
+                    className="about-history-shell mx-auto w-full"
+                >
+                    <div className="about-history-divider">
+                        <SectionDivider
+                            number="01"
+                            title="Sejarah"
+                            subtitle="02 aboutpage"
+                            theme="light"
+                            outerClassName="-mx-[clamp(0rem,1.65vw,2rem)]"
+                            contentClassName="px-3"
+                        />
+                    </div>
 
-                <div className="mt-16 grid min-h-[314px] grid-cols-2 border-l border-t border-black/25 sm:mt-[3.65rem] md:grid-cols-4 xl:min-h-[313px]">
-                    {STATS.map((stat, index) => (
-                        <div
-                            key={stat.label}
-                            className={`border-r border-black/25 ${
-                                index < 2 ? "border-b md:border-b-0" : ""
-                            }`}
+                    <div className="about-history-member-label">
+                        <span className="section-label-diamond" />
+                        <ScrollTextReveal
+                            delay={80}
+                            className="font-bdo text-[clamp(1.16rem,1.32vw,1.45rem)] font-medium tracking-[-0.025em] xl:text-[1.25rem]"
                         >
-                            <StatItem {...stat} />
-                        </div>
-                    ))}
+                            Gabung Member Sekarang
+                        </ScrollTextReveal>
+                    </div>
+
+                    <div className="about-history-intro">
+                        <ScrollTextReveal
+                            as="h2"
+                            split="words"
+                            delay={90}
+                            stagger={34}
+                            amount={0.16}
+                            className="about-history-heading font-bdo font-semibold text-black"
+                        >
+                            Sejarah dan Perkembangan
+                        </ScrollTextReveal>
+                        <ScrollTextReveal
+                            as="p"
+                            split="words"
+                            delay={120}
+                            stagger={10}
+                            amount={0.12}
+                            className="about-history-copy font-bdo font-normal text-black/70"
+                        >
+                            UB Sport Center merupakan pusat olahraga milik
+                            Universitas Brawijaya yang dikelola oleh PT Brawijaya
+                            Multi Usaha, dengan tujuan menyediakan fasilitas
+                            olahraga yang representatif bagi sivitas akademika
+                            dan masyarakat umum.
+                        </ScrollTextReveal>
+                        <ScrollTextReveal
+                            as="p"
+                            split="words"
+                            delay={180}
+                            stagger={10}
+                            amount={0.12}
+                            className="about-history-copy font-bdo font-normal text-black/70"
+                        >
+                            Berdiri sejak tahun 2008 sebagai Fitness Centre di
+                            lingkungan Universitas Brawijaya, UB Sport Center
+                            berkembang menjadi pusat olahraga terpadu berbasis
+                            pendidikan dengan layanan dan fasilitas yang
+                            terkelola secara profesional.
+                        </ScrollTextReveal>
+                    </div>
+
+                    <div
+                        ref={statsRef}
+                        className="about-history-stats"
+                    >
+                        {STATS.map((stat, index) => (
+                            <StatItem
+                                key={stat.label}
+                                stat={stat}
+                                active={isStatsVisible}
+                                index={index}
+                            />
+                        ))}
+                    </div>
                 </div>
-            </div>
 
-            <div
-                className="relative mx-4 overflow-hidden py-36 xl:mx-16 xl:mb-12 xl:py-52"
-                style={{
-                    backgroundImage: `url(${bg})`,
-                    backgroundSize: "cover",
-                    backgroundPosition: "center",
-                    backgroundRepeat: "no-repeat",
-                }}
-            >
-                <CurvedLoop
-                    marqueeText="UB   ✦   SPORT  ✦  CENTER   ✦   UBSC   ✦   "
-                    speed={1.5}
-                    curveAmount={curveAmount}
-                    direction="left"
-                    interactive
-                    className="z-100 absolute -top-12 h-full xl:-top-16"
-                />
-
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                <div
+                    ref={mediaRef}
+                    className="about-history-media relative isolate overflow-hidden"
+                >
                     <img
-                        src={person}
-                        alt="UB Sport Center athlete"
-                        className="h-44 w-auto object-cover shadow-2xl md:h-64 xl:h-80"
+                        src={bg}
+                        alt=""
+                        aria-hidden
+                        className="about-history-media-bg absolute inset-0 h-full w-full object-cover object-center"
+                        loading="lazy"
+                        decoding="async"
                     />
+                    <div className="absolute inset-0 z-0 bg-black/25" />
+                    <div
+                        className="about-history-media-shine absolute inset-y-0 z-[1]"
+                        aria-hidden="true"
+                    />
+                    <CurvedLoop
+                        marqueeText={
+                            "P   \u2726   UB   \u2726   SPORT   \u2726   CENTER   \u2726   UB   \u2726   "
+                        }
+                        speed={loopSpeed}
+                        curveAmount={curveAmount}
+                        fontSize={loopFontSize}
+                        direction="left"
+                        interactive
+                        className="about-history-loop absolute top-1/2 z-10"
+                    />
+
+                    <div className="about-history-media-person-wrap pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
+                        <span
+                            className="about-history-person-aura"
+                            aria-hidden="true"
+                        />
+                        <img
+                            src={person}
+                            alt="UB Sport Center athlete"
+                            className="about-history-media-person w-auto object-cover shadow-2xl"
+                            loading="lazy"
+                            decoding="async"
+                        />
+                    </div>
                 </div>
             </div>
         </section>

@@ -1,5 +1,34 @@
 import { motion } from "framer-motion";
-import ScrollTextReveal from "@/Components/Landing/ScrollTextReveal";
+
+const DIVIDER_EASE = [0.16, 1, 0.3, 1] as const;
+
+const dividerContainerMotion = {
+    hidden: {},
+    visible: {
+        transition: {
+            delayChildren: 0.28,
+            staggerChildren: 0.16,
+        },
+    },
+};
+
+const dividerLineMotion = {
+    hidden: { scaleX: 0, opacity: 0.2 },
+    visible: {
+        scaleX: 1,
+        opacity: 1,
+        transition: { duration: 1.55, ease: DIVIDER_EASE },
+    },
+};
+
+const dividerItemMotion = {
+    hidden: { opacity: 0, y: 16 },
+    visible: {
+        opacity: 1,
+        y: 0,
+        transition: { duration: 1.05, ease: DIVIDER_EASE },
+    },
+};
 
 interface SectionDividerProps {
     number: string;
@@ -10,6 +39,8 @@ interface SectionDividerProps {
     contentClassName?: string;
     size?: "default" | "compact";
     titlePlacement?: "center" | "right";
+    animated?: boolean;
+    viewportReveal?: boolean;
 }
 
 export default function SectionDivider({
@@ -21,6 +52,8 @@ export default function SectionDivider({
     contentClassName = "",
     size = "compact",
     titlePlacement = "right",
+    animated = true,
+    viewportReveal = true,
 }: SectionDividerProps) {
     const isDark = theme === "dark";
     const isCompact = size === "compact";
@@ -35,12 +68,27 @@ export default function SectionDivider({
     const isRightTitle = titlePlacement === "right";
 
     return (
-        <div
-            className={`border-t ${rootPadding} ${
-                isDark ? "border-white/20" : "border-black/55"
-            } ${outerClassName}`}
+        <motion.div
+            className={`relative ${rootPadding} ${outerClassName}`}
+            variants={dividerContainerMotion}
+            initial={viewportReveal ? "hidden" : false}
+            animate={viewportReveal ? undefined : "visible"}
+            whileInView={viewportReveal ? "visible" : undefined}
+            viewport={
+                viewportReveal
+                    ? { once: true, amount: 0.35, margin: "0px 0px -6% 0px" }
+                    : undefined
+            }
         >
-            <div
+            <motion.span
+                aria-hidden="true"
+                variants={dividerLineMotion}
+                className={`absolute inset-x-0 top-0 h-px origin-left ${
+                    isDark ? "bg-white/20" : "bg-black/55"
+                }`}
+            />
+
+            <motion.div
                 className={`grid ${
                     isRightTitle
                         ? "grid-cols-[auto_1fr] md:grid-cols-[1fr_auto_1fr]"
@@ -49,65 +97,76 @@ export default function SectionDivider({
                     isDark ? "text-white" : "text-black"
                 } ${contentClassName}`}
             >
-                <span className={`flex items-center ${numberGap} font-bdo font-light`}>
-                    <motion.span
-                        className={`${dotSize} flex-shrink-0 rounded-full bg-[#ff0000]`}
-                        animate={{
-                            scale: [1, 1.7, 1],
-                            boxShadow: [
-                                "0 0 0px 0px rgba(220,38,38,0)",
-                                "0 0 6px 3px rgba(220,38,38,0.35)",
-                                "0 0 0px 0px rgba(220,38,38,0)",
-                            ],
-                        }}
-                        transition={{
-                            duration: 2.2,
-                            repeat: Infinity,
-                            ease: "easeInOut",
-                        }}
-                    />
-                    <ScrollTextReveal delay={20}>
-                        {`(${number})`}
-                    </ScrollTextReveal>
-                </span>
+                <motion.span
+                    variants={dividerItemMotion}
+                    className={`flex items-center ${numberGap} font-bdo font-light`}
+                >
+                    {animated ? (
+                        <motion.span
+                            className={`${dotSize} flex-shrink-0 rounded-full bg-[#ff0000]`}
+                            animate={{
+                                scale: [1, 1.7, 1],
+                                boxShadow: [
+                                    "0 0 0px 0px rgba(220,38,38,0)",
+                                    "0 0 6px 3px rgba(220,38,38,0.35)",
+                                    "0 0 0px 0px rgba(220,38,38,0)",
+                                ],
+                            }}
+                            transition={{
+                                duration: 2.2,
+                                repeat: Infinity,
+                                ease: "easeInOut",
+                            }}
+                        />
+                    ) : (
+                        <span
+                            className={`${dotSize} flex-shrink-0 rounded-full bg-[#ff0000]`}
+                        />
+                    )}
+                    <span>{`(${number})`}</span>
+                </motion.span>
                 {isRightTitle ? (
                     <>
-                        <span className="justify-self-end font-bdo font-medium md:justify-self-center">
-                            <ScrollTextReveal delay={70}>
-                                {`(${title})`}
-                            </ScrollTextReveal>
-                        </span>
-                        <span className="hidden justify-self-end font-bdo md:inline-flex">
-                            <ScrollTextReveal delay={120} className="font-thin">
-                                {`/${subtitleNumber}`}
-                            </ScrollTextReveal>
+                        <motion.span
+                            variants={dividerItemMotion}
+                            className="justify-self-end font-bdo font-medium md:justify-self-center"
+                        >
+                            {`(${title})`}
+                        </motion.span>
+                        <motion.span
+                            variants={dividerItemMotion}
+                            className="hidden justify-self-end font-bdo md:inline-flex"
+                        >
+                            <span className="font-thin">{`/${subtitleNumber}`}</span>
                             {subtitleLabel && (
-                                <ScrollTextReveal delay={150} className="ml-1 font-medium">
+                                <span className="ml-1 font-medium">
                                     {subtitleLabel}
-                                </ScrollTextReveal>
+                                </span>
                             )}
-                        </span>
+                        </motion.span>
                     </>
                 ) : (
                     <>
-                        <span className="font-bdo font-medium">
-                            <ScrollTextReveal delay={70}>
-                                {`(${title})`}
-                            </ScrollTextReveal>
-                        </span>
-                        <span className="hidden justify-self-end font-bdo md:inline-flex">
-                            <ScrollTextReveal delay={120} className="font-thin">
-                                {`/${subtitleNumber}`}
-                            </ScrollTextReveal>
+                        <motion.span
+                            variants={dividerItemMotion}
+                            className="font-bdo font-medium"
+                        >
+                            {`(${title})`}
+                        </motion.span>
+                        <motion.span
+                            variants={dividerItemMotion}
+                            className="hidden justify-self-end font-bdo md:inline-flex"
+                        >
+                            <span className="font-thin">{`/${subtitleNumber}`}</span>
                             {subtitleLabel && (
-                                <ScrollTextReveal delay={150} className="ml-1 font-medium">
+                                <span className="ml-1 font-medium">
                                     {subtitleLabel}
-                                </ScrollTextReveal>
+                                </span>
                             )}
-                        </span>
+                        </motion.span>
                     </>
                 )}
-            </div>
-        </div>
+            </motion.div>
+        </motion.div>
     );
 }

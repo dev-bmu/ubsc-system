@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 
 interface EntranceLoaderProps {
@@ -28,28 +28,32 @@ export default function EntranceLoader({
     onExitStart,
 }: EntranceLoaderProps) {
     const [phase, setPhase] = useState<"intro" | "exit" | "done">("intro");
-
     const [mounted, setMounted] = useState(false);
+    const onCompleteRef = useRef(onComplete);
+    const onExitStartRef = useRef(onExitStart);
+
+    onCompleteRef.current = onComplete;
+    onExitStartRef.current = onExitStart;
 
     useEffect(() => {
         setMounted(true);
         // Start exit phase after intro animations complete
         const exitTimer = window.setTimeout(() => {
             setPhase("exit");
-            onExitStart?.();
+            onExitStartRef.current?.();
         }, 1480);
 
         // Fully remove after curtain animation
         const doneTimer = window.setTimeout(() => {
             setPhase("done");
-            onComplete();
+            onCompleteRef.current();
         }, 2140);
 
         return () => {
             window.clearTimeout(exitTimer);
             window.clearTimeout(doneTimer);
         };
-    }, [onComplete, onExitStart]);
+    }, []);
 
     if (phase === "done" || !mounted) return null;
 

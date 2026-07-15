@@ -1,3 +1,4 @@
+import { Link } from "@inertiajs/react";
 import FacilityBadge from "@/Components/Landing/FacilityBadge";
 import ScrollTextReveal from "@/Components/Landing/ScrollTextReveal";
 
@@ -8,6 +9,7 @@ export interface FacilityItem {
     image: string;
     badgeLocation: string;
     badgeType: string;
+    slug?: string;
 }
 
 interface Props {
@@ -21,9 +23,14 @@ function formatCode(code: string): string {
 
 export default function FacilityListItem({ item, revealDelay = 0 }: Props) {
     const formattedCode = formatCode(item.code);
+    const Wrapper = item.slug ? Link : "div";
+    const wrapperProps = item.slug ? { href: route("facilities.show", item.slug) } : {};
 
     return (
-        <div className="group grid w-full cursor-pointer grid-cols-[86px_minmax(0,1fr)] border-b border-white/20 transition-colors hover:bg-white/[0.025] xl:grid-cols-[minmax(360px,496px)_minmax(0,1fr)_190px] xl:items-start xl:gap-x-[clamp(2rem,3.6vw,4.25rem)] xl:py-1">
+        <Wrapper
+            {...wrapperProps}
+            className="group grid w-full cursor-pointer grid-cols-[86px_minmax(0,1fr)] border-b border-white/20 transition-colors hover:bg-white/[0.025] xl:grid-cols-[minmax(360px,496px)_minmax(0,1fr)_190px] xl:items-start xl:gap-x-[clamp(2rem,3.6vw,4.25rem)] xl:py-1"
+        >
             <div className="relative aspect-[86/148] w-[86px] overflow-hidden rounded-[5px] xl:aspect-[496/220] xl:w-full">
                 <img
                     src={item.image}
@@ -72,6 +79,6 @@ export default function FacilityListItem({ item, revealDelay = 0 }: Props) {
                     {formattedCode}
                 </ScrollTextReveal>
             </span>
-        </div>
+        </Wrapper>
     );
 }

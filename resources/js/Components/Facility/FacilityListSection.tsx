@@ -1,4 +1,3 @@
-import { motion } from "framer-motion";
 import {
     type CSSProperties,
     type ReactNode,
@@ -7,11 +6,10 @@ import {
     useState,
 } from "react";
 import ScrollTextReveal from "@/Components/Landing/ScrollTextReveal";
+import FacilityTextMarquee from "./FacilityTextMarquee";
 import FacilityListItem from "./FacilityListItem";
 import type { FacilityItem } from "./FacilityListItem";
 import person from "@/../assets/images/person.avif";
-
-const MARQUEE_ITEMS = Array(40).fill(null);
 
 const FACILITIES: FacilityItem[] = [
     {
@@ -192,26 +190,7 @@ export default function FacilityListSection({
         <section className="bg-[#242424] overflow-x-clip" id="facility-content">
             {/* --- MARQUEE STRIP --- */}
             <ScrollObjectReveal delay={20}>
-                <div className="relative z-0 overflow-hidden bg-black border-b border-white/10 py-2">
-                    <motion.div
-                        className="flex items-center"
-                        animate={{ x: ["0%", "-50%"] }}
-                        transition={{
-                            repeat: Infinity,
-                            ease: "linear",
-                            duration: 30,
-                        }}
-                    >
-                        {[...MARQUEE_ITEMS, ...MARQUEE_ITEMS].map((_, i) => (
-                            <span
-                                key={i}
-                                className="pr-12 font-clash font-semibold text-[12px] lg:text-[16px] tracking-widest uppercase text-white/70 flex-shrink-0"
-                            >
-                                UBSC
-                            </span>
-                        ))}
-                    </motion.div>
-                </div>
+                <FacilityTextMarquee text="INDOOR" className="relative z-0 py-2 md:py-2" />
             </ScrollObjectReveal>
 
             <div className="mx-auto px-[clamp(1.75rem,4.5vw,5.5rem)] py-6">

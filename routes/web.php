@@ -16,6 +16,16 @@ use App\Http\Controllers\Admin\TransactionController;
 use App\Http\Controllers\Admin\FacilityController;
 use App\Http\Controllers\Admin\FacilityPriceController;
 use App\Http\Controllers\Admin\FacilityUnitController;
+use App\Http\Controllers\Admin\GalleryBatchController;
+use App\Http\Controllers\Admin\GalleryBulkController;
+use App\Http\Controllers\Admin\GalleryController;
+use App\Http\Controllers\Admin\GalleryCurationController;
+use App\Http\Controllers\Admin\GalleryCsvController;
+use App\Http\Controllers\Admin\GalleryItemController;
+use App\Http\Controllers\Admin\GalleryLocationController;
+use App\Http\Controllers\Admin\GallerySavedViewController;
+use App\Http\Controllers\Admin\GalleryStatusController;
+use App\Http\Controllers\Admin\GalleryUploadSessionController;
 use App\Http\Controllers\Admin\IdentityQueueController;
 use App\Http\Controllers\Admin\NewsCategoryController;
 use App\Http\Controllers\Admin\NewsController;
@@ -26,7 +36,14 @@ use App\Http\Controllers\Admin\TestimonialController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Public\PublicBookingController;
+use App\Http\Controllers\Public\PublicBranchController;
+use App\Http\Controllers\Public\InvoiceController;
+use App\Http\Controllers\Public\MockPaymentController;
+use App\Http\Controllers\Public\PublicCheckoutController;
 use App\Http\Controllers\Public\PublicFacilityController;
+use App\Http\Controllers\Public\FacilityGalleryController;
+use App\Http\Controllers\Public\GalleryAnalyticsController;
+use App\Http\Controllers\Public\GallerySitemapController;
 use App\Http\Controllers\Public\PublicNewsController;
 use App\Http\Controllers\Public\ReviewController;
 use App\Http\Resources\Public\FacilityResource;
@@ -36,6 +53,7 @@ use App\Models\Facility;
 use App\Models\Membership;
 use App\Models\MembershipPlan;
 use App\Models\Review;
+use App\Models\Testimonial;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -45,12 +63,37 @@ use Inertia\Inertia;
 Route::get('/', [HomeController::class, 'index'])->middleware([RedirectStaffFromPublic::class, 'throttle:60,1']);
 
 Route::get('/about', function () {
-    return Inertia::render('AboutPage');
+    return Inertia::render('AboutPage', [
+        'testimonials' => Testimonial::active()->ordered()->with('media')->get()->map(fn ($t) => [
+            'id'         => $t->id,
+            'image'      => $t->imageUrl(),
+            'quote'      => $t->quote,
+            'authorName' => $t->author_name,
+            'authorRole' => $t->author_role,
+            'authorLogo' => $t->logoUrl(),
+        ])->values()->all(),
+    ]);
 })->middleware(RedirectStaffFromPublic::class)->name('about');
+
+Route::redirect('/branches', '/about#about-branches')
+    ->middleware(RedirectStaffFromPublic::class)
+    ->name('branches');
+
+Route::get('/branches/{slug}', [PublicBranchController::class, 'show'])
+    ->middleware([RedirectStaffFromPublic::class, 'throttle:60,1'])
+    ->name('branches.show');
 
 Route::get('/news', [PublicNewsController::class, 'index'])
     ->middleware([RedirectStaffFromPublic::class, 'throttle:60,1'])
     ->name('news');
+
+Route::get('/news-feed', [PublicNewsController::class, 'feed'])
+    ->middleware([RedirectStaffFromPublic::class, 'throttle:120,1'])
+    ->name('news.feed');
+
+Route::get('/news/{slug}', [PublicNewsController::class, 'show'])
+    ->middleware([RedirectStaffFromPublic::class, 'throttle:60,1'])
+    ->name('news.show');
 
 Route::get('/pricing', function () {
     return Inertia::render('PricingPage', [
@@ -88,60 +131,43 @@ Route::get('/facilities', [PublicFacilityController::class, 'index'])
     ->middleware([RedirectStaffFromPublic::class, 'throttle:60,1'])
     ->name('facility');
 
-Route::get('/branches/{slug}', function (string $slug) {
-    // Static branch data — replace with Branch model when available
-    $branches = [
-        'ubsc-veteran' => [
-            'id'               => 1,
-            'title'            => 'UB Sport Center Veteran',
-            'slug'             => 'ubsc-veteran',
-            'category_badge'   => 'Pusat Kebugaran Utama',
-            'description'      => "UB Sport Center Veteran merupakan pusat kebugaran utama yang berlokasi strategis di kawasan Veteran, Malang. Fasilitas ini menyediakan berbagai jenis peralatan gym modern, studio kelas kelompok, dan area latihan fungsional yang dirancang untuk memenuhi kebutuhan olahraga seluruh kalangan.\n\nDengan suasana yang nyaman dan dukungan pelatih profesional, UB Sport Center Veteran menjadi pilihan utama bagi mahasiswa dan masyarakat umum yang ingin menjalani gaya hidup sehat dan aktif. Tersedia berbagai program latihan mulai dari yoga, zumba, hingga kelas kekuatan dan ketahanan.",
-            'gmaps_embed_url'  => 'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3947.8!2d112.615!3d-7.965!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2sUB+Sport+Center!5e0!3m2!1sen!2sid!4v1',
-            'address'          => 'Jl. Veteran, Ketawanggede, Kec. Lowokwaru, Kota Malang, Jawa Timur 65145',
-            'contact'          => '+62 341 123 4567',
-            'operating_hours'  => 'Senin – Minggu, 06.00 – 21.00 WIB',
-            'images_array'     => [
-                '/assets/images/ub-sport-center-kantor-pusat-malang.avif',
-                '/assets/images/fasilitas-bulutangkis-ub-sport-center.avif',
-            ],
-        ],
-        'ubsc-dieng' => [
-            'id'               => 2,
-            'title'            => 'UB Sport Center Dieng',
-            'slug'             => 'ubsc-dieng',
-            'category_badge'   => 'Cabang Arena Terbuka',
-            'description'      => "UB Sport Center Dieng merupakan cabang arena terbuka yang menawarkan fasilitas olahraga outdoor berkualitas di kawasan Dieng, Malang. Dengan lapangan luas dan pemandangan yang asri, cabang ini cocok untuk berbagai aktivitas olahraga mulai dari sepak bola, voli, hingga lari.\n\nFasilitas ini dilengkapi dengan tribun, area parkir luas, dan musholla. Cocok untuk kegiatan komunitas, turnamen, maupun latihan rutin.",
-            'gmaps_embed_url'  => 'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3947.5!2d112.61!3d-7.97!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2sUB+Sport+Center+Dieng!5e0!3m2!1sen!2sid!4v1',
-            'address'          => 'Jl. Dieng, Kota Malang, Jawa Timur',
-            'contact'          => '+62 341 765 4321',
-            'operating_hours'  => 'Senin – Minggu, 06.00 – 18.00 WIB',
-            'images_array'     => [
-                '/assets/images/fasilitas-arena-terbuka-dieng-ub-sport-center-malang.avif',
-            ],
-        ],
-    ];
+Route::get('/facilities/gallery', [FacilityGalleryController::class, 'index'])
+    ->middleware([RedirectStaffFromPublic::class, 'throttle:90,1'])
+    ->name('gallery.index');
+Route::get('/facilities/gallery/media/{galleryItem}', [FacilityGalleryController::class, 'media'])
+    ->middleware([RedirectStaffFromPublic::class, 'throttle:120,1'])
+    ->whereUuid('galleryItem')
+    ->name('gallery.media');
+Route::post('/facilities/gallery/events', [GalleryAnalyticsController::class, 'store'])
+    ->middleware('throttle:120,1')
+    ->name('gallery.events');
+Route::get('/facilities/gallery/{section}', [FacilityGalleryController::class, 'section'])
+    ->middleware([RedirectStaffFromPublic::class, 'throttle:90,1'])
+    ->where('section', 'indoor|eksklusif|outdoor')
+    ->name('gallery.section');
 
-    $branchItem = $branches[$slug] ?? null;
-    abort_unless($branchItem, 404);
+Route::get('/facilities/{slug}', [PublicFacilityController::class, 'show'])
+    ->middleware([RedirectStaffFromPublic::class, 'throttle:60,1'])
+    ->name('facilities.show');
 
-    $otherBranches = collect($branches)
-        ->reject(fn ($b) => $b['slug'] === $slug)
-        ->map(fn ($b) => [
-            'id'      => $b['id'],
-            'title'   => $b['title'],
-            'slug'    => $b['slug'],
-            'address' => $b['address'],
-            'image'   => $b['images_array'][0] ?? '/assets/images/comingsoon.avif',
-        ])
-        ->values()
-        ->all();
+Route::get('/galeri-fasilitas', fn () => redirect()->route('gallery.index', request()->query(), 301));
+Route::get('/galeri-fasilitas/media/{galleryItem}', fn (string $galleryItem) => redirect()->route(
+    'gallery.media',
+    [...request()->query(), 'galleryItem' => $galleryItem],
+    301,
+))->whereUuid('galleryItem');
+Route::get('/galeri-fasilitas/{section}', fn (string $section) => redirect()->route(
+    'gallery.section',
+    [...request()->query(), 'section' => $section],
+    301,
+))->where('section', 'indoor|eksklusif|outdoor');
+Route::post('/galeri-fasilitas/events', [GalleryAnalyticsController::class, 'store'])
+    ->middleware('throttle:120,1');
 
-    return Inertia::render('Branches/Show', [
-        'branchItem'    => $branchItem,
-        'otherBranches' => $otherBranches,
-    ]);
-})->middleware([RedirectStaffFromPublic::class, 'throttle:60,1'])->name('branches.show');
+Route::get('/sitemap.xml', [GallerySitemapController::class, 'index'])->name('gallery.sitemap.index');
+Route::get('/sitemap-gallery-pages.xml', [GallerySitemapController::class, 'pages'])->name('gallery.sitemap.pages');
+Route::get('/sitemap-gallery-images.xml', [GallerySitemapController::class, 'images'])->name('gallery.sitemap.images');
+Route::get('/sitemap-gallery-videos.xml', [GallerySitemapController::class, 'videos'])->name('gallery.sitemap.videos');
 
 Route::get('/booking', function () {
     $user           = auth()->user();
@@ -185,6 +211,17 @@ Route::get('/coming-soon', function () {
 
 Route::middleware(['auth', 'verified', RedirectStaffFromPublic::class])->group(function () {
     Route::post('/reviews', [ReviewController::class, 'store'])->name('reviews.store');
+
+    Route::post('/checkout/booking', [PublicCheckoutController::class, 'store'])
+        ->name('checkout.booking.store');
+    Route::get('/checkout/booking/{bookingOrder}', [PublicCheckoutController::class, 'show'])
+        ->name('checkout.booking.show');
+    Route::post('/checkout/booking/{bookingOrder}/pay', [MockPaymentController::class, 'pay'])
+        ->name('checkout.booking.mock-pay');
+    Route::get('/checkout/booking/{bookingOrder}/success', [PublicCheckoutController::class, 'success'])
+        ->name('checkout.booking.success');
+    Route::get('/checkout/booking/{bookingOrder}/invoice.pdf', [InvoiceController::class, 'booking'])
+        ->name('checkout.booking.invoice');
 
     Route::get('/profile', function (Request $request) {
         if ($request->user()?->hasAnyRole([
@@ -514,6 +551,60 @@ Route::middleware([
             ->name('facilities.gallery.add');
         Route::delete('facilities/gallery/{media}', [FacilityController::class, 'destroyGalleryMedia'])
             ->name('facilities.gallery.destroy');
+
+        // Standalone facility gallery
+        Route::prefix('content/facility-gallery')->name('gallery.')->group(function () {
+            Route::get('', [GalleryController::class, 'index'])->name('index');
+            Route::post('batches', [GalleryBatchController::class, 'store'])->name('batches.store');
+            Route::patch('batches/{galleryUploadBatch}/finalize', [GalleryBatchController::class, 'finalize'])
+                ->name('batches.finalize');
+            Route::post('upload-sessions', [GalleryUploadSessionController::class, 'store'])
+                ->middleware('throttle:60,1')
+                ->name('upload-sessions.store');
+            Route::put('upload-sessions/{galleryUploadSession}/chunks/{index}', [GalleryUploadSessionController::class, 'chunk'])
+                ->whereNumber('index')
+                ->middleware('throttle:600,1')
+                ->name('upload-sessions.chunks.store');
+            Route::post('upload-sessions/{galleryUploadSession}/complete', [GalleryUploadSessionController::class, 'complete'])
+                ->middleware('throttle:30,1')
+                ->name('upload-sessions.complete');
+            Route::delete('upload-sessions/{galleryUploadSession}', [GalleryUploadSessionController::class, 'destroy'])
+                ->name('upload-sessions.destroy');
+            Route::post('bulk', [GalleryBulkController::class, 'store'])
+                ->middleware('throttle:30,1')
+                ->name('bulk.store');
+            Route::get('export', [GalleryCsvController::class, 'export'])->name('csv.export');
+            Route::post('import', [GalleryCsvController::class, 'import'])
+                ->middleware('throttle:10,1')
+                ->name('csv.import');
+            Route::post('duplicates', [GalleryItemController::class, 'duplicate'])->name('duplicates');
+            Route::post('items', [GalleryItemController::class, 'store'])->name('items.store');
+            Route::put('items/{galleryItem}', [GalleryItemController::class, 'update'])->name('items.update');
+            Route::delete('items/{galleryItem}', [GalleryItemController::class, 'destroy'])->name('items.destroy');
+            Route::post('items/{galleryItem}/retry', [GalleryItemController::class, 'retry'])->name('items.retry');
+            Route::post('items/{galleryItem}/submit', [GalleryStatusController::class, 'submit'])->name('items.submit');
+            Route::post('items/{galleryItem}/publish', [GalleryStatusController::class, 'publish'])->name('items.publish');
+            Route::post('items/{galleryItem}/schedule', [GalleryStatusController::class, 'schedule'])->name('items.schedule');
+            Route::post('items/{galleryItem}/unpublish', [GalleryStatusController::class, 'unpublish'])->name('items.unpublish');
+            Route::post('items/{galleryItem}/draft', [GalleryStatusController::class, 'draft'])->name('items.draft');
+            Route::post('items/{galleryItem}/review', [GalleryStatusController::class, 'review'])->name('items.review');
+
+            Route::get('sections/{gallerySection}/candidates', [GalleryCurationController::class, 'candidates'])
+                ->name('sections.candidates');
+            Route::put('sections/{gallerySection}/curation', [GalleryCurationController::class, 'update'])
+                ->name('sections.curation');
+            Route::post('sections/{gallerySection}/activate', [GalleryCurationController::class, 'activate'])
+                ->name('sections.activate');
+            Route::post('sections/{gallerySection}/deactivate', [GalleryCurationController::class, 'deactivate'])
+                ->name('sections.deactivate');
+
+            Route::post('locations', [GalleryLocationController::class, 'store'])->name('locations.store');
+            Route::put('locations/{galleryLocation}', [GalleryLocationController::class, 'update'])
+                ->name('locations.update');
+            Route::post('saved-views', [GallerySavedViewController::class, 'store'])->name('saved-views.store');
+            Route::delete('saved-views/{gallerySavedView}', [GallerySavedViewController::class, 'destroy'])
+                ->name('saved-views.destroy');
+        });
 
         // System Settings
         Route::put('settings/gym-traffic', function (\Illuminate\Http\Request $request) {

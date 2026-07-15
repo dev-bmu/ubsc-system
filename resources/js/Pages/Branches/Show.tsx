@@ -1,13 +1,24 @@
 import Navbar from "@/Components/Landing/Navbar";
 import Footer from "@/Components/Landing/Footer";
-import { Head, usePage } from "@inertiajs/react";
-import { useState } from "react";
+import { Head, Link, usePage } from "@inertiajs/react";
 import type { PageProps } from "@/types";
+import { ArrowUpRight } from "lucide-react";
+import type { ReactNode } from "react";
+import ig from "../../../assets/icons/ig.svg";
+import x from "../../../assets/icons/x.svg";
+import tiktok from "../../../assets/icons/tiktok.svg";
+import facebook from "../../../assets/icons/fb.svg";
 
-interface BranchItem {
+interface SocialLink {
+    label: string;
+    href: string;
+}
+
+interface BranchDetailItem {
     id: number;
-    title: string;
     slug: string;
+    title: string;
+    category: string;
     category_badge: string;
     description: string;
     gmaps_embed_url: string;
@@ -15,206 +26,235 @@ interface BranchItem {
     contact: string;
     operating_hours: string;
     images_array: string[];
+    cover_image?: string | null;
+    map_url?: string;
+    social_links?: SocialLink[];
 }
 
-interface OtherBranch {
-    id: number;
-    title: string;
-    slug: string;
-    address: string;
-    image: string;
-}
-
-type BranchShowProps = PageProps<{
-    branchItem: BranchItem;
-    otherBranches: OtherBranch[];
+type BranchShowPageProps = PageProps<{
+    branchItem: BranchDetailItem;
+    otherBranches: BranchDetailItem[];
 }>;
 
+const FALLBACK_IMAGE = "/assets/images/ub-sport-center-kantor-pusat-malang.avif";
+const socialIconMap: Record<string, string> = {
+    instagram: ig,
+    "twitter/x": x,
+    tiktok,
+    facebook,
+};
+
+function isHtml(value: string): boolean {
+    return /<\/?[a-z][\s\S]*>/i.test(value);
+}
+
+function textToHtml(value: string): string {
+    return value
+        .split(/\n{2,}/)
+        .map((paragraph) => paragraph.trim())
+        .filter(Boolean)
+        .map((paragraph) => `<p>${paragraph.replace(/\n/g, "<br />")}</p>`)
+        .join("");
+}
+
+function DetailHero({ branchItem }: { branchItem: BranchDetailItem }) {
+    const image = branchItem.images_array?.[0] || branchItem.cover_image || FALLBACK_IMAGE;
+
+    return (
+        <section className="relative h-[clamp(560px,45.45vw,698px)] min-h-[560px] overflow-hidden bg-black text-white">
+            <div className="absolute inset-0 overflow-hidden">
+                <img
+                    src={image}
+                    alt={branchItem.title}
+                    className="absolute inset-0 h-full w-full object-cover"
+                    loading="eager"
+                    draggable={false}
+                />
+                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.28)_0%,rgba(0,0,0,0.08)_40%,rgba(0,0,0,0.72)_100%)]" />
+            </div>
+
+            <Navbar activeSection="About" />
+
+            <div className="relative z-10 flex h-full items-end">
+                <div className="w-full px-[clamp(1.5rem,4.5vw,5.5rem)] pb-[clamp(2.2rem,4.2vw,4.8rem)]">
+                    <div className="max-w-[980px]">
+                        <h1 className="max-w-[1060px] font-bdo text-[clamp(2.2rem,3.3vw,4rem)] font-semibold leading-[1.08] tracking-[-0.045em] text-white">
+                            {branchItem.title}
+                        </h1>
+                        {branchItem.description && (
+                            <p className="mt-6 max-w-[760px] font-bdo text-[clamp(0.95rem,1.04vw,1.22rem)] font-normal leading-[1.45] text-white/70 line-clamp-2">
+                                {branchItem.description}
+                            </p>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </section>
+    );
+}
+
+function MetaCard({
+    label,
+    children,
+    clamp = false,
+}: {
+    label: string;
+    children: ReactNode;
+    clamp?: boolean;
+}) {
+    return (
+        <article className="min-h-[88px] rounded-xl border border-black/5 bg-[#F7F7F7] p-5">
+            <div className="mb-3 flex items-center justify-between gap-3">
+                <span className="font-bdo text-[0.78rem] font-medium text-black/45">
+                    {label}
+                </span>
+                <span className="font-bdo text-sm leading-none text-black/20">..</span>
+            </div>
+            <div className={clamp ? "line-clamp-2" : ""}>{children}</div>
+        </article>
+    );
+}
+
+function SocialLinksRow({ links = [] }: { links?: SocialLink[] }) {
+    return (
+        <div className="flex items-center gap-3">
+            {links.slice(0, 4).map((link) => {
+                const icon = socialIconMap[link.label.toLowerCase()];
+
+                return (
+                    <a
+                        key={link.label}
+                        href={link.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={link.label}
+                        className="flex size-8 items-center justify-center rounded-full bg-white text-black ring-1 ring-black/5 transition hover:-translate-y-0.5 hover:bg-black hover:[&>img]:invert"
+                    >
+                        {icon ? (
+                            <img
+                                src={icon}
+                                alt=""
+                                className="size-3.5 transition"
+                                draggable={false}
+                            />
+                        ) : (
+                            <span className="font-bdo text-[0.65rem] font-semibold">
+                                {link.label.slice(0, 1)}
+                            </span>
+                        )}
+                    </a>
+                );
+            })}
+        </div>
+    );
+}
+
+function BranchRecommendationCard({ item }: { item: BranchDetailItem }) {
+    return (
+        <article className="group block">
+            <Link href={route("branches.show", item.slug)} className="block">
+                <div className="relative mb-4 aspect-[16/11] w-full overflow-hidden rounded-2xl bg-[#F7F7F7]">
+                    <img
+                        src={item.cover_image || item.images_array?.[0] || FALLBACK_IMAGE}
+                        alt={item.title}
+                        className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+                        loading="lazy"
+                        draggable={false}
+                    />
+                </div>
+                <h3 className="line-clamp-2 font-bdo text-lg font-semibold leading-tight tracking-[-0.025em] text-black">
+                    {item.title}
+                </h3>
+            </Link>
+            <a
+                href={item.map_url || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.title)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1 block line-clamp-2 font-bdo text-sm font-normal leading-relaxed text-gray-500 transition hover:text-black"
+            >
+                {item.address}
+            </a>
+        </article>
+    );
+}
+
 export default function BranchShow() {
-    const { branchItem, otherBranches = [] } =
-        usePage<BranchShowProps>().props;
-    const [currentSlide, setCurrentSlide] = useState(0);
-    const slides =
-        branchItem.images_array?.length > 0
-            ? branchItem.images_array
-            : ["/assets/images/comingsoon.avif"];
+    const { branchItem, otherBranches } = usePage<BranchShowPageProps>().props;
+    const contentHtml = isHtml(branchItem.description)
+        ? branchItem.description
+        : textToHtml(branchItem.description);
+    const recommendations = otherBranches.slice(0, 6);
 
     return (
         <>
-            <Head>
-                <title>
-                    {branchItem.title} | Cabang | UB Sport Center
-                </title>
+            <Head title={branchItem.title}>
+                <meta name="description" content={branchItem.description} />
+                <meta property="og:title" content={branchItem.title} />
+                <meta property="og:description" content={branchItem.description} />
                 <meta
-                    name="description"
-                    content={`${branchItem.title} — ${branchItem.address}`}
+                    property="og:image"
+                    content={branchItem.images_array?.[0] ?? branchItem.cover_image ?? FALLBACK_IMAGE}
                 />
             </Head>
 
-            <main className="relative bg-white">
-                <Navbar activeSection="About" />
+            <main className="bg-white text-black">
+                <DetailHero branchItem={branchItem} />
 
-                {/* ── MODULE 1: Hero Banner ── */}
-                <section className="relative h-[60vh] min-h-[420px] w-full overflow-hidden sm:h-[70vh] xl:h-[80vh] xl:min-h-[600px]">
-                    {slides.map((img, idx) => (
-                        <div
-                            key={idx}
-                            className="absolute inset-0 transition-opacity duration-700"
-                            style={{
-                                opacity: idx === currentSlide ? 1 : 0,
-                            }}
-                        >
-                            <img
-                                src={img}
-                                alt={`${branchItem.title} - ${idx + 1}`}
-                                className="h-full w-full object-cover object-center"
-                            />
-                        </div>
-                    ))}
-                    <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.18)_0%,rgba(0,0,0,0.06)_40%,rgba(0,0,0,0.55)_100%)]" />
-                    <div className="relative z-10 flex h-full flex-col justify-end px-6 pb-12 sm:px-10 sm:pb-16 xl:px-[clamp(2.75rem,4.65vw,5.5rem)] xl:pb-20">
-                        <span className="mb-4 inline-flex w-fit rounded-full bg-[#D50000] px-3 py-1 font-bdo text-[10px] font-semibold uppercase tracking-wider text-white sm:px-4 sm:py-1.5 sm:text-xs">
-                            {branchItem.category_badge}
-                        </span>
-                        <h1 className="max-w-[800px] font-bdo text-[clamp(1.75rem,4vw,3.5rem)] font-semibold leading-[1.08] tracking-[-0.04em] text-white">
-                            {branchItem.title}
-                        </h1>
-                        {slides.length > 1 && (
-                            <div className="mt-6 flex gap-2">
-                                {slides.map((_, idx) => (
-                                    <button
-                                        key={idx}
-                                        onClick={() =>
-                                            setCurrentSlide(idx)
-                                        }
-                                        className={`h-2 rounded-full transition-all duration-300 ${
-                                            idx === currentSlide
-                                                ? "w-8 bg-white"
-                                                : "w-2 bg-white/40"
-                                        }`}
-                                    />
-                                ))}
-                            </div>
-                        )}
-                    </div>
+                <section className="mx-auto max-w-[1200px] px-6 pt-12 xl:px-0">
+                    <h2 className="max-w-[760px] font-bdo text-[clamp(2rem,2.35vw,3rem)] font-semibold leading-[1.08] tracking-[-0.045em] text-black">
+                        {branchItem.title}
+                    </h2>
                 </section>
 
-                {/* ── MODULE 2: Metadata Cards ── */}
-                <div className="mx-auto mt-10 max-w-[1440px] px-6 sm:mt-12 xl:mt-14 xl:px-20">
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:gap-6">
-                        {[
-                            {
-                                label: "Address",
-                                value: branchItem.address,
-                            },
-                            {
-                                label: "Operating Hours",
-                                value: branchItem.operating_hours,
-                            },
-                            {
-                                label: "Contact",
-                                value: branchItem.contact,
-                            },
-                        ].map((card) => (
-                            <div
-                                key={card.label}
-                                className="rounded-xl border border-black/5 bg-[#F7F7F7] p-5"
-                            >
-                                <p className="font-bdo text-[10px] font-medium uppercase tracking-[0.14em] text-black/40">
-                                    {card.label}
-                                </p>
-                                <p className="mt-2 line-clamp-2 font-bdo text-sm font-medium leading-snug text-black sm:text-base">
-                                    {card.value}
-                                </p>
-                            </div>
-                        ))}
-                    </div>
-                </div>
+                <section className="mx-auto mt-10 grid max-w-[720px] grid-cols-1 gap-4 px-6 md:grid-cols-3 xl:gap-6 xl:px-0">
+                    <MetaCard label="Category">
+                        <p className="font-bdo text-[0.9rem] font-medium leading-tight text-black">
+                            {branchItem.category || "Indoor, Outdoor, & Hybrid"}
+                        </p>
+                    </MetaCard>
+                    <MetaCard label="Sosmed">
+                        <SocialLinksRow links={branchItem.social_links} />
+                    </MetaCard>
+                    <MetaCard label="Address" clamp>
+                        <a
+                            href={branchItem.map_url || "https://maps.app.goo.gl/X7uRTbmnwqKAGfXr8"}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-bdo text-[0.9rem] font-medium leading-tight text-black transition hover:text-gray-500"
+                        >
+                            {branchItem.address}
+                        </a>
+                    </MetaCard>
+                </section>
 
-                {/* ── MODULE 3: Content & Maps ── */}
-                <div className="mx-auto mt-10 max-w-[1200px] px-6 sm:mt-12 xl:mt-14 xl:px-8">
-                    <div className="w-full rounded-3xl bg-[#F7F7F7] p-6 sm:p-12 xl:p-16">
-                        <div className="grid grid-cols-1 gap-10 lg:grid-cols-12">
-                            <div className="lg:col-span-7">
-                                <h3 className="mb-6 font-bdo text-lg font-semibold text-black sm:text-xl">
-                                    Tentang Cabang Ini
-                                </h3>
-                                <div className="max-w-none space-y-6 font-bdo text-sm font-normal leading-relaxed text-gray-600 sm:text-base">
-                                    {branchItem.description
-                                        .split("\n")
-                                        .filter(Boolean)
-                                        .map((p, i) => (
-                                            <p key={i}>{p}</p>
-                                        ))}
-                                </div>
-                            </div>
-                            <div className="lg:col-span-5">
-                                <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-gray-200 shadow-inner lg:aspect-[4/5]">
-                                    {branchItem.gmaps_embed_url ? (
-                                        <iframe
-                                            src={
-                                                branchItem.gmaps_embed_url
-                                            }
-                                            className="h-full w-full border-0"
-                                            allowFullScreen
-                                            loading="lazy"
-                                            title="Google Maps"
-                                        />
-                                    ) : (
-                                        <div className="flex h-full items-center justify-center">
-                                            <p className="font-bdo text-sm text-gray-400">
-                                                Peta tidak tersedia
-                                            </p>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <section className="mx-auto mt-16 w-full max-w-[1200px] rounded-[24px] bg-[#F7F7F7] p-6 sm:p-12 xl:p-16">
+                    <div
+                        className="news-detail-prose max-w-none font-bdo text-sm font-normal leading-relaxed text-gray-600 sm:text-base"
+                        dangerouslySetInnerHTML={{ __html: contentHtml }}
+                    />
+                </section>
 
-                {/* ── MODULE 4: Other Branches ── */}
-                {otherBranches.length > 0 && (
-                    <div className="mx-auto mt-16 max-w-[1440px] px-6 pb-24 sm:mt-20 xl:mt-24 xl:px-20">
-                        <div className="flex items-end justify-between">
-                            <h2 className="font-bdo text-[clamp(1.5rem,2.4vw,2.5rem)] font-semibold tracking-[-0.04em] text-black">
+                {recommendations.length > 0 && (
+                    <section className="mx-auto mt-10 max-w-[1200px] px-6 pb-24 xl:px-0">
+                        <div className="flex items-center justify-between gap-6">
+                            <h2 className="font-bdo text-[clamp(1.65rem,1.95vw,2.4rem)] font-medium leading-none tracking-[-0.045em] text-black">
                                 Cabang Lainnya
                             </h2>
-                            <a
-                                href="/facilities"
-                                className="font-bdo text-xs font-semibold uppercase tracking-[0.12em] text-black/50 transition-colors hover:text-black sm:text-sm"
+                            <Link
+                                href="/branches"
+                                className="inline-flex h-9 items-center gap-2 rounded-full bg-[#EFEFEF] px-5 font-bdo text-[0.62rem] font-semibold uppercase tracking-[0.32em] text-black transition hover:bg-black hover:text-white"
                             >
-                                LIHAT SEMUA ↗
-                            </a>
+                                Lihat semua
+                                <ArrowUpRight className="size-3.5" />
+                            </Link>
                         </div>
-                        <div className="mt-10 grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3 xl:mt-12">
-                            {otherBranches.map((branch) => (
-                                <a
-                                    key={branch.id}
-                                    href={`/branches/${branch.slug}`}
-                                    className="group flex flex-col"
-                                >
-                                    <div className="relative mb-4 aspect-[16/11] w-full overflow-hidden rounded-2xl">
-                                        <img
-                                            src={
-                                                branch.image ||
-                                                "/assets/images/comingsoon.avif"
-                                            }
-                                            alt={branch.title}
-                                            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-                                            loading="lazy"
-                                        />
-                                    </div>
-                                    <h3 className="line-clamp-2 font-bdo text-lg font-semibold text-black">
-                                        {branch.title}
-                                    </h3>
-                                    <p className="mt-1 line-clamp-2 font-bdo text-sm text-gray-500">
-                                        {branch.address}
-                                    </p>
-                                </a>
+
+                        <div className="mt-12 grid grid-cols-1 gap-x-8 gap-y-12 md:grid-cols-2 lg:grid-cols-3">
+                            {recommendations.map((item) => (
+                                <BranchRecommendationCard key={item.id} item={item} />
                             ))}
                         </div>
-                    </div>
+                    </section>
                 )}
             </main>
 

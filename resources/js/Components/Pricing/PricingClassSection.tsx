@@ -58,11 +58,11 @@ interface Props {
 }
 
 const SECTION_CONTAINER_CLASS =
-    "mx-auto max-w-[1920px] px-[clamp(1.5rem,4.6vw,5.5rem)]";
+    "mx-auto max-w-[1920px] px-4 xl:px-[clamp(1.5rem,4.6vw,5.5rem)]";
 const DARK_HEADING_CLASS =
-    "font-bdo text-[clamp(1.5rem,2.82vw,3.65rem)] font-medium leading-[1.08] tracking-[-0.04em] text-white";
+    "font-bdo text-[1.48rem] font-medium leading-[0.98] tracking-[-0.05em] text-white text-[clamp(1.5rem,2.5vw,3rem)] xl:text-[clamp(1.5rem,2.82vw,3.65rem)] xl:leading-[1.08] xl:tracking-[-0.04em]";
 const SECTION_DIVIDER_WRAP_CLASS =
-    "mx-auto px-[clamp(1.5rem,2.7vw,5.5rem)]  pb-16 pt-12 sm:pb-20 md:pt-14 lg:pt-16 xl:pb-16 xl:pt-14";
+    "mx-auto px-4 pb-10 pt-6 xl:px-[clamp(1.5rem,2.7vw,5.5rem)] xl:pb-16 xl:pt-14";
 
 const DEFAULT_DAFTAR_HARGA = {
     left: [
@@ -119,12 +119,12 @@ export default function PricingClassSection({ facilities = [] }: Props) {
                     theme="dark"
                 />
             </div>
-            <div className={`${SECTION_CONTAINER_CLASS} pb-0 pt-[1.85rem]`}>
-                <div className="mb-[6.75rem] grid grid-cols-1 gap-8 xl:grid-cols-12 xl:gap-10">
-                    <div className="flex flex-col gap-[3.2rem] xl:col-span-8">
-                        <div className="flex items-center gap-4">
+            <div className={`${SECTION_CONTAINER_CLASS} pb-0 pt-2 xl:pt-[1.85rem]`}>
+                <div className="mb-5 grid grid-cols-1 gap-6 xl:mb-[6.75rem] xl:grid-cols-12 xl:gap-10">
+                    <div className="flex flex-col gap-[2.05rem] xl:col-span-8 xl:gap-[3.2rem]">
+                        <div className="flex items-center gap-3 xl:gap-4">
                             <span className="section-label-diamond" />
-                            <ScrollTextReveal className="font-bdo text-[clamp(1.16rem,1.32vw,1.45rem)] font-medium tracking-[-0.025em] text-white">
+                            <ScrollTextReveal className="font-bdo text-[1rem] font-medium tracking-[-0.025em] text-white xl:text-[clamp(1.16rem,1.32vw,1.45rem)]">
                                 Gabung Member Sekarang
                             </ScrollTextReveal>
                         </div>
@@ -139,24 +139,31 @@ export default function PricingClassSection({ facilities = [] }: Props) {
                         </ScrollTextReveal>
                     </div>
 
-                    <div className="flex flex-col gap-4 xl:col-span-4 xl:items-end xl:justify-start xl:gap-[4.2rem] xl:pt-[4.95rem]">
+                    <div className="flex flex-col gap-[1.75rem] xl:col-span-4 xl:items-end xl:justify-start xl:gap-[4.2rem] xl:pt-[4.95rem]">
+                        <AnimatedBookingLink
+                            label="Ikuti Keseruan Kami"
+                            href="/coming-soon"
+                            className="xl:hidden"
+                            width="15rem"
+                        />
                         <AnimatedBookingLink
                             label="More about me"
                             href="/coming-soon"
                             width="18rem"
+                            className="hidden xl:block"
                         />
-                        <div className="flex items-center gap-5">
+                        <div className="flex items-center gap-3 xl:gap-5">
                             <button
                                 onClick={() => emblaApi?.scrollPrev()}
                                 aria-label="Previous"
-                                className="flex size-[2.75rem] flex-shrink-0 items-center justify-center rounded-full border border-white text-white transition-colors hover:bg-white/10"
+                                className="flex size-[2rem] flex-shrink-0 items-center justify-center rounded-full border border-white text-white transition-colors hover:bg-white/10 xl:size-[2.75rem]"
                             >
                                 <ArrowLeft />
                             </button>
                             <button
                                 onClick={() => emblaApi?.scrollNext()}
                                 aria-label="Next"
-                                className="flex size-[2.75rem] flex-shrink-0 items-center justify-center rounded-full bg-white text-black transition-colors hover:bg-white/90"
+                                className="flex size-[2rem] flex-shrink-0 items-center justify-center rounded-full bg-white text-black transition-colors hover:bg-white/90 xl:size-[2.75rem]"
                             >
                                 <ArrowRight />
                             </button>
@@ -165,7 +172,7 @@ export default function PricingClassSection({ facilities = [] }: Props) {
                 </div>
 
                 <div className="min-w-0 overflow-hidden" ref={emblaRef}>
-                    <div className="flex gap-[0.95rem]">
+                    <div className="flex gap-[0.45rem] xl:gap-[0.95rem]">
                         {activeClasses.map((item) => (
                             <PricingClassCard key={item.id} item={item} />
                         ))}

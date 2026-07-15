@@ -1,0 +1,43 @@
+@keyframes gallery-admin-enter {
+    from { opacity: 0; transform: translate3d(0, 10px, 0); }
+    to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes gallery-admin-panel {
+    from { transform: translate3d(24px, 0, 0); opacity: 0; }
+    to { transform: translate3d(0, 0, 0); opacity: 1; }
+}
+
+.gallery-admin-enter {
+    animation: gallery-admin-enter 420ms cubic-bezier(.16, 1, .3, 1) both;
+}
+
+.gallery-admin-panel {
+    animation: gallery-admin-panel 340ms cubic-bezier(.16, 1, .3, 1) both;
+}
+
+.gallery-admin-dialog {
+    animation: gallery-admin-enter 260ms cubic-bezier(.16, 1, .3, 1) both;
+}
+
+.gallery-admin-input {
+    height: 2.5rem;
+    width: 100%;
+    border-radius: .25rem;
+    border-color: #e2e8f0;
+    background: #fff;
+    font-size: .8125rem;
+}
+
+.gallery-admin-input:focus {
+    border-color: #e35336;
+    --tw-ring-color: #e35336;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .gallery-admin-enter,
+    .gallery-admin-panel,
+    .gallery-admin-dialog {
+        animation: none;
+    }
+}

@@ -14,7 +14,9 @@ export interface User {
     identity_category?: IdentityCategory | null;
     identity_number?: string | null;
     identity_status?: IdentityStatus;
+    is_google?: boolean;
     role?: string | null;
+    member_status?: 'none' | 'gym_only' | 'booked_only' | 'gym_and_booked';
     permissions?: string[];
 }
 
@@ -126,6 +128,8 @@ export interface NewsItem {
     slug: string;
     excerpt?: string | null;
     status: NewsStatus;
+    is_hero_featured: boolean;
+    hero_sort_order?: number | null;
     published_at?: string | null;
     updated_at: string;
     category?: NewsCategory | null;

@@ -3,7 +3,13 @@ import HeroBottomBar from "@/Components/Landing/HeroBottomBar";
 import HeroContent from "@/Components/Landing/HeroContent";
 import HeroTitle from "@/Components/Landing/HeroTitle";
 import { Head } from "@inertiajs/react";
-import { type CSSProperties, useEffect, useMemo, useState } from "react";
+import {
+    type CSSProperties,
+    useCallback,
+    useEffect,
+    useMemo,
+    useState,
+} from "react";
 
 import EntranceLoader from "@/Components/Landing/EntranceLoader";
 
@@ -24,6 +30,10 @@ export default function Hero() {
     const [isSettled, setIsSettled] = useState(false);
     const [isConstrainedDevice, setIsConstrainedDevice] = useState(false);
     const isReady = isImageLoaded && isIntroComplete;
+    const handleIntroExitStart = useCallback(() => {
+        setIsIntroComplete(true);
+    }, []);
+    const handleIntroComplete = useCallback(() => {}, []);
 
     const heroClassName = useMemo(
         () =>
@@ -72,9 +82,9 @@ export default function Hero() {
                 <link rel="preload" as="image" href="/assets/hero/Hero.avif" />
                 <link rel="preload" as="image" href="/assets/images/ub-sport-enterence.png" />
             </Head>
-            <EntranceLoader 
-                onExitStart={() => setIsIntroComplete(true)} 
-                onComplete={() => {}} 
+            <EntranceLoader
+                onExitStart={handleIntroExitStart}
+                onComplete={handleIntroComplete}
             />
             <section
                 id="home"
@@ -179,7 +189,6 @@ export default function Hero() {
                         </div>
                     </div>
 
-                    <div className="absolute bottom-0 left-0 right-0 z-20 border-t border-white/10" />
             </section>
 
             <div
@@ -187,7 +196,15 @@ export default function Hero() {
                     isReady ? "ubsc-hero-bottom-shell--ready" : ""
                 }`}
             >
-                <HeroBottomBar showVideo />
+                <HeroBottomBar
+                    showVideo
+                    sectionNumber="01/"
+                    sectionLabel="homepage"
+                    lineInset
+                    sectionInset
+                    mobileCopySmaller
+                    mobileCopyLockRight
+                />
             </div>
         </>
     );

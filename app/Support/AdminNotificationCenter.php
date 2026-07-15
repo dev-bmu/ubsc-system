@@ -4,6 +4,9 @@ namespace App\Support;
 
 use App\Models\Booking;
 use App\Models\InfoBanner;
+use App\Models\Gallery\GalleryAuditLog;
+use App\Models\Gallery\GalleryItem;
+use App\Models\Gallery\GallerySection;
 use App\Models\Membership;
 use App\Models\Transaction;
 use App\Models\User;
@@ -185,6 +188,10 @@ class AdminNotificationCenter
             $this->unpaidTransactionItem($request),
             $this->expiringMembershipItem($request),
             $this->activeBannerItem($request),
+            $this->galleryProcessingFailureItem($request),
+            $this->galleryLateScheduleItem($request),
+            $this->galleryAutofillItem($request),
+            $this->galleryEmptySectionItem($request),
         ])
             ->filter()
             ->values()
@@ -378,6 +385,126 @@ class AdminNotificationCenter
             'href' => route('admin.news.index'),
             'actionLabel' => 'Manage',
             'priority' => 30,
+        ];
+    }
+
+    private function galleryProcessingFailureItem(Request $request): ?array
+    {
+        if (! $this->canSee($request, ['view-facility-gallery'])
+            || ! Schema::hasTable('gallery_items')) {
+            return null;
+        }
+
+        $query = GalleryItem::query()->where('status', 'failed');
+        $count = (clone $query)->count();
+        if ($count < 1) return null;
+        $latest = (clone $query)->latest('updated_at')->first(['updated_at']);
+
+        return [
+            'id' => 'gallery.processing.failed',
+            'fingerprint' => $this->fingerprint('gallery.processing.failed', [$count, $latest?->updated_at?->timestamp]),
+            'title' => 'Gallery media needs attention',
+            'description' => "{$count} gallery media failed during processing.",
+            'time' => $latest?->updated_at?->diffForHumans() ?? 'Today',
+            'read' => false,
+            'important' => true,
+            'tone' => 'critical',
+            'source' => 'Gallery',
+            'href' => route('admin.gallery.index', ['status' => 'failed']),
+            'actionLabel' => 'Inspect',
+            'priority' => 96,
+        ];
+    }
+
+    private function galleryLateScheduleItem(Request $request): ?array
+    {
+        if (! $this->canSee($request, ['publish-facility-gallery'])
+            || ! Schema::hasTable('gallery_items')) {
+            return null;
+        }
+
+        $query = GalleryItem::query()
+            ->where('status', 'scheduled')
+            ->where('publish_at', '<', now()->subMinutes(2));
+        $count = (clone $query)->count();
+        if ($count < 1) return null;
+        $oldest = (clone $query)->oldest('publish_at')->first(['publish_at']);
+
+        return [
+            'id' => 'gallery.schedule.late',
+            'fingerprint' => $this->fingerprint('gallery.schedule.late', [$count, $oldest?->publish_at?->timestamp]),
+            'title' => 'Gallery publication is late',
+            'description' => "{$count} scheduled gallery item has passed its publication time.",
+            'time' => $oldest?->publish_at?->diffForHumans() ?? 'Today',
+            'read' => false,
+            'important' => true,
+            'tone' => 'critical',
+            'source' => 'Gallery',
+            'href' => route('admin.gallery.index', ['status' => 'scheduled']),
+            'actionLabel' => 'Inspect',
+            'priority' => 98,
+        ];
+    }
+
+    private function galleryAutofillItem(Request $request): ?array
+    {
+        if (! $this->canSee($request, ['manage-facility-gallery'])
+            || ! Schema::hasTable('gallery_audit_logs')) {
+            return null;
+        }
+
+        $latest = GalleryAuditLog::query()
+            ->where('action', 'featured_slots_auto_filled')
+            ->where('created_at', '>=', now()->subDays(7))
+            ->latest('created_at')
+            ->first();
+        if (! $latest) return null;
+        $section = data_get($latest->after, 'section', 'gallery');
+
+        return [
+            'id' => 'gallery.featured.autofill',
+            'fingerprint' => $this->fingerprint('gallery.featured.autofill', [$latest->id]),
+            'title' => 'Featured gallery slot auto-filled',
+            'description' => "The {$section} section was kept complete automatically. Review its curation when convenient.",
+            'time' => $latest->created_at?->diffForHumans() ?? 'This week',
+            'read' => false,
+            'important' => false,
+            'tone' => 'info',
+            'source' => 'Gallery',
+            'href' => route('admin.gallery.index'),
+            'actionLabel' => 'Review',
+            'priority' => 58,
+        ];
+    }
+
+    private function galleryEmptySectionItem(Request $request): ?array
+    {
+        if (! $this->canSee($request, ['publish-facility-gallery'])
+            || ! Schema::hasTable('gallery_sections')) {
+            return null;
+        }
+
+        $sections = GallerySection::query()
+            ->where('is_active', true)
+            ->whereDoesntHave('items', fn ($query) => $query
+                ->where('status', 'published')
+                ->whereNotNull('derivatives'))
+            ->pluck('name');
+        if ($sections->isEmpty()) return null;
+
+        return [
+            'id' => 'gallery.section.empty',
+            'fingerprint' => $this->fingerprint('gallery.section.empty', $sections->all()),
+            'title' => 'Active gallery section is empty',
+            'description' => $sections->join(', ').' has no eligible published media and is hidden publicly.',
+            'time' => 'Now',
+            'read' => false,
+            'important' => true,
+            'tone' => 'critical',
+            'source' => 'Gallery',
+            'href' => route('admin.gallery.index'),
+            'actionLabel' => 'Resolve',
+            'priority' => 99,
         ];
     }
 

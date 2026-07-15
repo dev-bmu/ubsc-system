@@ -6,6 +6,31 @@ import {
     MembershipPlanCarousel,
 } from "@/Components/Landing/SectionTwo";
 import type { MembershipPlanItem } from "@/types";
+import "./PricingInfo.css";
+
+const PRICING_MEMBERSHIP_HEADING =
+    "Temukan ritme terbaik untuk latihan Anda bersama fasilitas modern, program terarah, dan membership fleksibel agar tetap konsisten, meningkatkan performa, dan mencapai target.";
+
+const PRICING_MEMBERSHIP_HEADING_CLASS =
+    "pricing-membership__heading section-two-headline-weight max-w-[1100px] text-left font-bdo text-[clamp(2.05rem,8.15vw,2.82rem)] font-medium leading-[1.01] tracking-[-0.058em] text-black md:text-[clamp(2.08rem,4.5vw,2.6rem)] lg:text-[clamp(2.2rem,3.8vw,2.7rem)] xl:max-w-[980px] xl:text-[clamp(2.05rem,2.38vw,2.36rem)] min-[1440px]:text-[clamp(2.45rem,2.82vw,2.7rem)] 2xl:max-w-[1120px] 2xl:text-[clamp(2.7rem,2.55vw,3.15rem)]";
+
+function PricingMembershipHeadline() {
+    return (
+        <h2
+            aria-label={PRICING_MEMBERSHIP_HEADING}
+            className={PRICING_MEMBERSHIP_HEADING_CLASS}
+        >
+            <ScrollTextReveal
+                split="lines"
+                delay={110}
+                stagger={95}
+                className="pricing-membership__heading-reveal"
+            >
+                {PRICING_MEMBERSHIP_HEADING}
+            </ScrollTextReveal>
+        </h2>
+    );
+}
 
 const STATS_DATA = [
     { label: "Jadwal Latihan", value: "Fleksibel 06.00 - 21.00" },
@@ -15,14 +40,12 @@ const STATS_DATA = [
 
 const SECTION_CONTAINER_CLASS =
     "mx-auto max-w-8xl px-[clamp(1.5rem,4.5vw,5.5rem)]";
-const SECTION_HEADING_CLASS =
-    "font-bdo text-[clamp(1.75rem,2.5vw,3rem)] font-medium leading-[1.1] tracking-[-0.021em] text-black indent-[2rem] sm:indent-[4rem] lg:indent-[6rem] xl:indent-[6rem]";
 const BODY_TEXT_CLASS =
-    "font-bdo text-[clamp(0.75rem,0.8vw,0.875rem)] font-normal leading-relaxed text-gray-500";
+    "font-bdo text-[clamp(0.8rem,0.8vw,0.875rem)] font-normal leading-relaxed text-gray-500 lg:text-[clamp(0.75rem,0.8vw,0.875rem)]";
 const RESULT_ROW_CLASS =
     "flex h-[clamp(2.75rem,2.86vw,3.4375rem)] items-center justify-between border-b border-gray-200/80 last:border-b-0";
 const SECTION_DIVIDER_WRAP_CLASS =
-    "mx-auto px-[clamp(1.5rem,2.7vw,5.5rem)]  pb-16 pt-12 sm:pb-20 md:pt-14 lg:pt-16 xl:pb-16 xl:pt-14";
+    "mx-auto px-[clamp(1.5rem,2.7vw,5.5rem)]  pb-10 pt-10 sm:pb-20 md:pt-14 lg:pt-16 xl:pb-16 xl:pt-14";
 
 interface Props {
     membershipPlans?: MembershipPlanItem[];
@@ -45,8 +68,8 @@ export default function PricingSectionTwo({ membershipPlans }: Props) {
                 />
             </div>
 
-            <div className={`${SECTION_CONTAINER_CLASS} pb-16 xl:pb-20`}>
-                <div className="flex flex-col gap-6 xl:hidden">
+            <div className={`${SECTION_CONTAINER_CLASS} pb-10 xl:pb-20`}>
+                <div className="flex flex-col gap-4 xl:hidden">
                     <div className="flex items-center gap-4">
                         <span className="section-label-diamond" />
                         <ScrollTextReveal className="font-bdo text-[clamp(1.16rem,1.32vw,1.45rem)] font-medium tracking-[-0.025em]">
@@ -54,28 +77,21 @@ export default function PricingSectionTwo({ membershipPlans }: Props) {
                         </ScrollTextReveal>
                     </div>
 
-                    <ScrollTextReveal
-                        as="h2"
-                        split="block"
-                        delay={80}
-                        className={SECTION_HEADING_CLASS}
-                    >
-                        Nikmati semua fasilitas olahraga yang pasti modern untuk
-                        mendukung kebugaran, performa, dan gaya hidup. Nikmati
-                        semua fasilitas olahraga yang modern untuk mendukung.
-                    </ScrollTextReveal>
+                    <PricingMembershipHeadline />
 
                     <div className="mx-auto my-6 w-full max-w-[380px]">
                         <MembershipPlanCarousel plans={plans} />
                     </div>
+
                     <ReservasiButton label="Daftar Sekarang" href="#" />
+
                     <div className="mt-2 flex flex-col">
-                        <span className="mb-2 font-bdo text-[clamp(0.75rem,0.8vw,0.875rem)] font-medium text-black/40">
+                        <span className="mb-2 font-bdo text-[clamp(0.75rem,0.8vw,0.875rem)] font-medium text-black">
                             (=Results)
                         </span>
-                        {STATS_DATA.map((stat, index) => (
+                        {STATS_DATA.map((stat) => (
                             <div
-                                key={index}
+                                key={stat.label}
                                 className="flex items-center justify-between border-b border-gray-200/80 py-3 last:border-b-0"
                             >
                                 <span className="font-bdo text-[clamp(0.875rem,1vw,1.125rem)] font-medium text-black">
@@ -101,8 +117,8 @@ export default function PricingSectionTwo({ membershipPlans }: Props) {
                     </ScrollTextReveal>
                 </div>
 
-                <div className="hidden xl:grid xl:grid-cols-12 xl:items-stretch xl:gap-x-10">
-                    <div className="flex flex-col items-start justify-between gap-12 xl:col-span-4">
+                <div className="hidden xl:grid xl:grid-cols-12 xl:items-start xl:gap-x-10">
+                    <div className="flex flex-col items-start xl:col-span-4">
                         <div className="flex items-center gap-4">
                             <span className="section-label-diamond" />
                             <ScrollTextReveal className="font-bdo text-[clamp(1.16rem,1.32vw,1.45rem)] font-medium tracking-[-0.025em]">
@@ -110,55 +126,47 @@ export default function PricingSectionTwo({ membershipPlans }: Props) {
                             </ScrollTextReveal>
                         </div>
 
-                        <div className="mt-auto w-[420px] flex-shrink-0">
+                        <div className="mt-[clamp(2.5rem,3.2vw,3.75rem)] w-full max-w-[420px] flex-shrink-0">
                             <MembershipPlanCarousel plans={plans} />
                         </div>
                     </div>
 
-                    <div className="flex flex-col items-start gap-10 xl:col-span-8 xl:gap-12">
-                        <ScrollTextReveal
-                            as="h2"
-                            split="block"
-                            delay={80}
-                            className={SECTION_HEADING_CLASS}
-                        >
-                            Nikmati semua fasilitas olahraga yang pasti modern
-                            untuk mendukung kebugaran, performa, dan gaya hidup.
-                            Nikmati semua fasilitas olahraga yang modern untuk
-                            mendukung.
-                        </ScrollTextReveal>
+                    <div className="flex flex-col items-start gap-10 xl:col-span-8">
+                        <PricingMembershipHeadline />
 
                         <div
-                            className="mt-6 grid w-full gap-x-8 xl:gap-x-10"
+                            className="pricing-membership__results grid w-full gap-x-8 xl:gap-x-10"
                             style={{
                                 gridTemplateColumns:
-                                    "clamp(210px,12.5vw,240px) minmax(0, clamp(540px,37vw,740px))",
+                                    "clamp(205px,12vw,232px) minmax(0, 1fr)",
                             }}
                         >
                             <div className="pt-1">
-                                <span className="font-bdo text-[clamp(0.875rem,0.95vw,1.125rem)] font-medium text-black">
+                                <span className="pricing-membership__results-label font-bdo text-[clamp(0.875rem,0.95vw,1.125rem)] font-medium text-black">
                                     (=Results)
                                 </span>
                             </div>
-                            <div className="flex w-full max-w-[740px] flex-col">
-                                {STATS_DATA.map((stat, index) => (
+
+                            <div className="pricing-membership__results-table flex w-full flex-col">
+                                {STATS_DATA.map((stat) => (
                                     <div
-                                        key={index}
-                                        className={RESULT_ROW_CLASS}
+                                        key={stat.label}
+                                        className={`${RESULT_ROW_CLASS} pricing-membership__result-row`}
                                     >
-                                        <span className="font-bdo text-[clamp(0.875rem,1vw,1.125rem)] font-medium text-black">
+                                        <span className="pricing-membership__result-label font-bdo text-[clamp(0.875rem,1vw,1.125rem)] font-medium text-black">
                                             {stat.label}
                                         </span>
-                                        <span className="pl-4 text-right font-bdo text-[clamp(0.875rem,1vw,1.125rem)] font-medium text-gray-500">
+                                        <span className="pricing-membership__result-value pl-4 text-right font-bdo text-[clamp(0.875rem,1vw,1.125rem)] font-medium text-gray-500">
                                             {stat.value}
                                         </span>
                                     </div>
                                 ))}
+
                                 <ScrollTextReveal
                                     as="p"
                                     split="words"
                                     delay={150}
-                                    className={`${BODY_TEXT_CLASS} mt-[clamp(2.5rem,2.86vw,3.4375rem)] max-w-[650px] text-[clamp(0.875rem,1vw,1.125rem)]`}
+                                    className={`${BODY_TEXT_CLASS} pricing-membership__summary mt-[clamp(2.25rem,2.5vw,3rem)] max-w-[680px] text-[clamp(0.875rem,1vw,1.125rem)]`}
                                 >
                                     UB Sport Center hadir untuk mendukung gaya
                                     hidup aktif Anda dengan fasilitas olahraga
@@ -170,7 +178,10 @@ export default function PricingSectionTwo({ membershipPlans }: Props) {
                         </div>
 
                         <div className="mt-auto w-full self-start pb-6">
-                            <ReservasiButton label="Daftar Sekarang" href="#" />
+                            <ReservasiButton
+                                label="Daftar Sekarang"
+                                href="#"
+                            />
                         </div>
                     </div>
                 </div>

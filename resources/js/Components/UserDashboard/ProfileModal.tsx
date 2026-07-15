@@ -1,11 +1,51 @@
 import { useState, useEffect, useRef, FormEventHandler } from "react";
-import { CalendarDays, Camera, Eye, EyeOff, MapPin, User, X } from "lucide-react";
+import {
+    CalendarDays,
+    Camera,
+    Check,
+    Eye,
+    EyeOff,
+    Lock,
+    MapPin,
+    Phone,
+    ShieldCheck,
+    User as UserIcon,
+} from "lucide-react";
 import { useForm, usePage } from "@inertiajs/react";
 import { cn } from "@/lib/utils";
 import type { PageProps } from "@/types";
+import AccountModalShell, {
+    PrimaryButton,
+    SecondaryButton,
+} from "./AccountModalShell";
+import { Barcode, Serial } from "./PassKit";
 
 interface Props {
     onClose: () => void;
+}
+
+/* Shared input shell — light, high-contrast, elder-friendly (48px tall) */
+function fieldClasses(hasError?: boolean, hasIcon?: boolean) {
+    return cn(
+        "h-12 w-full rounded-xl border bg-white font-bdo text-[14px] text-navy-900 outline-none transition-all duration-200 placeholder:text-navy-900/30 hover:border-navy-900/25 focus:-translate-y-px",
+        hasIcon ? "pl-11 pr-4" : "px-4",
+        hasError
+            ? "border-rose-400 focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
+            : "border-navy-900/12 focus:border-navy-900/45 focus:ring-2 focus:ring-navy-900/10 focus:shadow-[0_8px_20px_-12px_rgba(11,30,59,0.45)]",
+    );
+}
+
+function Label({ children }: { children: React.ReactNode }) {
+    return (
+        <label className="mb-1.5 block font-bdo text-[12px] font-medium text-navy-900/60">
+            {children}
+        </label>
+    );
+}
+
+function FieldError({ message }: { message?: string }) {
+    if (!message) return null;
+    return <p className="mt-1.5 font-bdo text-[11px] text-rose-500">{message}</p>;
 }
 
 export default function ProfileModal({ onClose }: Props) {
@@ -17,12 +57,14 @@ export default function ProfileModal({ onClose }: Props) {
         name: string;
         birth_place: string;
         birth_date: string;
+        phone_number: string;
         avatar: File | null;
     }>({
         _method: "patch",
         name: user.name,
         birth_place: user.birth_place ?? "",
         birth_date: user.birth_date ?? "",
+        phone_number: user.phone_number ?? "",
         avatar: null,
     });
 
@@ -38,22 +80,11 @@ export default function ProfileModal({ onClose }: Props) {
     const [showNew, setShowNew] = useState(false);
     const avatarInputRef = useRef<HTMLInputElement>(null);
 
-    /* Body scroll lock */
-    useEffect(() => {
-        document.body.style.overflow = "hidden";
-        return () => { document.body.style.overflow = ""; };
-    }, []);
-
-    /* Escape to close */
-    useEffect(() => {
-        const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-        document.addEventListener("keydown", onKey);
-        return () => document.removeEventListener("keydown", onKey);
-    }, [onClose]);
-
     /* Revoke object URL when preview changes or on unmount */
     useEffect(() => {
-        return () => { if (avatarPreview) URL.revokeObjectURL(avatarPreview); };
+        return () => {
+            if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+        };
     }, [avatarPreview]);
 
     const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -98,273 +129,435 @@ export default function ProfileModal({ onClose }: Props) {
     }, [displayAvatar]);
 
     return (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-
-            <div className="relative z-10 flex w-full max-w-lg flex-col overflow-hidden rounded-[24px] border border-white/[0.07] bg-[#0d1422] shadow-2xl">
-                {/* Header */}
-                <div className="flex flex-shrink-0 items-center justify-between border-b border-white/[0.07] px-6 py-4">
-                    <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-orange-500/10">
-                            <User className="h-4 w-4 text-orange-400" />
-                        </div>
-                        <div>
-                            <p className="font-bdo text-[10px] font-bold uppercase tracking-[0.18em] text-orange-400">
-                                Akun Saya
-                            </p>
-                            <h2 className="font-clash text-[16px] font-semibold text-white">
-                                Profil Saya
-                            </h2>
-                        </div>
-                    </div>
+        <AccountModalShell
+            bannerGradient="from-navy-800 via-navy-900 to-navy-950"
+            eyebrow="Akun Saya"
+            title="Profil Saya"
+            subtitle="Kelola informasi pribadi dan keamanan akun Anda."
+            wordmark="Profil"
+            accent="#D50000"
+            onClose={onClose}
+            footer={
+                <div className="flex flex-col gap-2">
+                    <PrimaryButton
+                        type="submit"
+                        form="profile-info-form"
+                        disabled={profileForm.processing}
+                    >
+                        <Check className="h-[18px] w-[18px]" strokeWidth={2.5} />
+                        {profileForm.processing
+                            ? "Menyimpan..."
+                            : "Simpan Perubahan"}
+                    </PrimaryButton>
+                    <SecondaryButton type="button" onClick={onClose}>
+                        Tutup
+                    </SecondaryButton>
+                </div>
+            }
+        >
+            {/* ── Avatar — overlaps banner edge, conic halo ── */}
+            <div className="-mt-[64px] mb-7 flex flex-col items-center">
+                <div className="kl-ring-host kl-stagger relative h-[104px] w-[104px]" style={{ ["--i" as string]: 0 }}>
+                    {/* Rotating conic halo */}
+                    <span className="kl-ring" aria-hidden="true" />
                     <button
                         type="button"
-                        onClick={onClose}
-                        className="flex h-8 w-8 items-center justify-center rounded-xl text-white/30 transition-all hover:bg-white/[0.06] hover:text-white/70"
+                        onClick={() => avatarInputRef.current?.click()}
+                        className="group absolute inset-[7px] overflow-hidden rounded-full bg-navy-900 ring-4 ring-[#FAF9F7] shadow-[0_8px_20px_-8px_rgba(7,21,48,0.5)] transition-all duration-300 hover:scale-[1.02]"
+                        title="Ganti foto profil"
                     >
-                        <X className="h-4 w-4" />
+                        {displayAvatar && !avatarFailed ? (
+                            <img
+                                src={displayAvatar}
+                                alt="Avatar"
+                                className="h-full w-full object-cover"
+                                referrerPolicy="no-referrer"
+                                onError={() => setAvatarFailed(true)}
+                            />
+                        ) : (
+                            <div className="flex h-full w-full items-center justify-center">
+                                <span className="font-clash text-3xl font-bold leading-none text-white">
+                                    {initials}
+                                </span>
+                            </div>
+                        )}
+                        <div className="absolute inset-0 flex items-center justify-center bg-navy-950/50 opacity-0 backdrop-blur-[2px] transition-all duration-300 group-hover:opacity-100">
+                            <Camera className="h-6 w-6 text-white transition-transform duration-300 group-hover:scale-110" />
+                        </div>
                     </button>
                 </div>
+                <button
+                    type="button"
+                    onClick={() => avatarInputRef.current?.click()}
+                    className="kl-stagger mt-3 font-bdo text-[12px] font-medium text-navy-900/50 transition-colors hover:text-navy-900"
+                    style={{ ["--i" as string]: 1 }}
+                >
+                    {profileForm.data.avatar
+                        ? profileForm.data.avatar.name
+                        : "Klik untuk ganti foto"}
+                </button>
+                <input
+                    ref={avatarInputRef}
+                    type="file"
+                    aria-label="Unggah foto profil"
+                    accept="image/jpeg,image/png,image/jpg"
+                    className="hidden"
+                    onChange={handleAvatarChange}
+                />
+                {profileForm.errors.avatar && (
+                    <FieldError message={profileForm.errors.avatar} />
+                )}
 
-                {/* Scrollable body — inner scroll, overscroll contained */}
-                <div className="max-h-[85vh] space-y-8 overflow-y-auto overscroll-contain px-6 py-6">
+                {/* Member identity — barcode + serial */}
+                <div
+                    className="kl-stagger mt-4 flex flex-col items-center gap-1.5"
+                    style={{ ["--i" as string]: 2 }}
+                >
+                    <Barcode className="h-5 w-32 text-navy-900/30" />
+                    <Serial className="text-[10px] font-semibold uppercase text-navy-900/40">
+                        Member № UBSC-{String(user.id).padStart(5, "0")}
+                    </Serial>
+                </div>
+            </div>
 
-                    {/* Avatar upload */}
-                    <div className="flex flex-col items-center gap-2">
-                        <button
-                            type="button"
-                            onClick={() => avatarInputRef.current?.click()}
-                            className="group relative h-20 w-20 overflow-hidden rounded-full ring-2 ring-white/10 transition-all hover:ring-orange-400/40"
-                            title="Ganti foto profil"
-                        >
-                            {displayAvatar && !avatarFailed ? (
-                                <img
-                                    src={displayAvatar}
-                                    alt="Avatar"
-                                    className="h-full w-full object-cover"
-                                    referrerPolicy="no-referrer"
-                                    onError={() => setAvatarFailed(true)}
-                                />
-                            ) : (
-                                <div className="flex h-full w-full items-center justify-center bg-navy-900">
-                                    <span className="font-clash text-2xl font-bold leading-none text-white">
-                                        {initials}
-                                    </span>
-                                </div>
-                            )}
-                            {/* Hover overlay */}
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
-                                <Camera className="h-5 w-5 text-white" />
-                            </div>
-                        </button>
-                        <p className="font-bdo text-[11px] text-white/30">
-                            {profileForm.data.avatar ? profileForm.data.avatar.name : "Klik untuk ganti foto"}
-                        </p>
+            {/* ── Section 01 — Profile info ── */}
+            <form
+                id="profile-info-form"
+                onSubmit={submitProfile}
+                className="space-y-4"
+            >
+                <div className="kl-stagger flex items-center gap-3" style={{ ["--i" as string]: 2 }}>
+                    <span className="font-clash text-[11px] font-bold tracking-[0.1em] text-accent-red">
+                        01
+                    </span>
+                    <span className="font-bdo text-[10px] font-bold uppercase tracking-[0.2em] text-navy-900/70">
+                        Informasi Akun
+                    </span>
+                    <span className="kl-rule h-px flex-1 bg-gradient-to-r from-navy-900/15 to-transparent" style={{ ["--i" as string]: 3 }} />
+                </div>
+
+                <div>
+                    <Label>Nama Lengkap</Label>
+                    <div className="relative">
+                        <UserIcon className="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-navy-900/30" />
                         <input
-                            ref={avatarInputRef}
-                            type="file"
-                            accept="image/jpeg,image/png,image/jpg"
-                            className="hidden"
-                            onChange={handleAvatarChange}
+                            type="text"
+                            value={profileForm.data.name}
+                            onChange={(e) =>
+                                profileForm.setData("name", e.target.value)
+                            }
+                            className={fieldClasses(
+                                !!profileForm.errors.name,
+                                true,
+                            )}
+                            placeholder="Nama lengkap Anda"
                         />
-                        {profileForm.errors.avatar && (
-                            <p className="font-bdo text-[11px] text-rose-400">{profileForm.errors.avatar}</p>
-                        )}
                     </div>
+                    <FieldError message={profileForm.errors.name} />
+                </div>
 
-                    {/* Section 1 — Profile info */}
-                    <form onSubmit={submitProfile} className="space-y-4">
-                        <p className="font-bdo text-[10px] font-medium uppercase tracking-[0.18em] text-white/40">
-                            Informasi Profil
-                        </p>
-
-                        <div className="space-y-1.5">
-                            <label className="font-bdo text-[12px] text-white/60">Nama Lengkap</label>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                        <Label>Tempat Lahir</Label>
+                        <div className="relative">
+                            <MapPin className="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-navy-900/30" />
                             <input
                                 type="text"
-                                value={profileForm.data.name}
-                                onChange={(e) => profileForm.setData("name", e.target.value)}
-                                className={cn(
-                                    "w-full rounded-xl border bg-white/[0.04] px-4 py-2.5 font-bdo text-sm text-white outline-none transition-colors focus:bg-white/[0.07]",
-                                    profileForm.errors.name
-                                        ? "border-rose-500/50 focus:border-rose-500/50"
-                                        : "border-white/[0.08] focus:border-orange-400/40",
+                                value={profileForm.data.birth_place}
+                                onChange={(e) =>
+                                    profileForm.setData(
+                                        "birth_place",
+                                        e.target.value,
+                                    )
+                                }
+                                placeholder="Kota kelahiran"
+                                className={fieldClasses(
+                                    !!profileForm.errors.birth_place,
+                                    true,
                                 )}
                             />
-                            {profileForm.errors.name && (
-                                <p className="font-bdo text-[11px] text-rose-400">{profileForm.errors.name}</p>
-                            )}
                         </div>
+                        <FieldError message={profileForm.errors.birth_place} />
+                    </div>
 
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                            <div className="space-y-1.5">
-                                <label className="font-bdo text-[12px] text-white/60">Tempat Lahir</label>
-                                <div className="relative">
-                                    <MapPin className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/25" />
-                                    <input
-                                        type="text"
-                                        value={profileForm.data.birth_place}
-                                        onChange={(e) => profileForm.setData("birth_place", e.target.value)}
-                                        placeholder="Kota kelahiran"
-                                        className={cn(
-                                            "w-full rounded-xl border bg-white/[0.04] px-4 py-2.5 pl-10 font-bdo text-sm text-white outline-none transition-colors placeholder:text-white/20 focus:bg-white/[0.07]",
-                                            profileForm.errors.birth_place
-                                                ? "border-rose-500/50 focus:border-rose-500/50"
-                                                : "border-white/[0.08] focus:border-orange-400/40",
-                                        )}
-                                    />
-                                </div>
-                                {profileForm.errors.birth_place && (
-                                    <p className="font-bdo text-[11px] text-rose-400">{profileForm.errors.birth_place}</p>
-                                )}
-                            </div>
-
-                            <div className="space-y-1.5">
-                                <label className="font-bdo text-[12px] text-white/60">Tanggal Lahir</label>
-                                <div className="relative">
-                                    <CalendarDays className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/25" />
-                                    <input
-                                        type="date"
-                                        value={profileForm.data.birth_date}
-                                        onChange={(e) => profileForm.setData("birth_date", e.target.value)}
-                                        className={cn(
-                                            "w-full rounded-xl border bg-white/[0.04] px-4 py-2.5 pl-10 font-bdo text-sm text-white outline-none transition-colors focus:bg-white/[0.07]",
-                                            profileForm.errors.birth_date
-                                                ? "border-rose-500/50 focus:border-rose-500/50"
-                                                : "border-white/[0.08] focus:border-orange-400/40",
-                                        )}
-                                    />
-                                </div>
-                                {profileForm.errors.birth_date && (
-                                    <p className="font-bdo text-[11px] text-rose-400">{profileForm.errors.birth_date}</p>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Email — read-only, cannot be changed after registration */}
-                        <div className="space-y-1.5">
-                            <label className="font-bdo text-[12px] text-white/60">
-                                Email
-                                <span className="ml-2 rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] text-white/30">
-                                    tidak dapat diubah
-                                </span>
-                            </label>
+                    <div>
+                        <Label>Tanggal Lahir</Label>
+                        <div className="relative">
+                            <CalendarDays className="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-navy-900/30" />
                             <input
-                                type="email"
-                                value={user.email}
-                                disabled
-                                readOnly
-                                className="w-full cursor-not-allowed rounded-xl border border-white/[0.05] bg-white/[0.02] px-4 py-2.5 font-bdo text-sm text-white/40 outline-none"
+                                type="date"
+                                aria-label="Tanggal Lahir"
+                                value={profileForm.data.birth_date}
+                                onChange={(e) =>
+                                    profileForm.setData(
+                                        "birth_date",
+                                        e.target.value,
+                                    )
+                                }
+                                className={fieldClasses(
+                                    !!profileForm.errors.birth_date,
+                                    true,
+                                )}
                             />
                         </div>
+                        <FieldError message={profileForm.errors.birth_date} />
+                    </div>
+                </div>
 
-                        {profileForm.recentlySuccessful && (
-                            <p className="font-bdo text-[12px] text-emerald-400">Profil berhasil diperbarui.</p>
-                        )}
+                <div>
+                    <Label>No. Telepon</Label>
+                    <div className="relative">
+                        <Phone className="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-navy-900/30" />
+                        <input
+                            type="tel"
+                            inputMode="tel"
+                            value={profileForm.data.phone_number}
+                            onChange={(e) =>
+                                profileForm.setData(
+                                    "phone_number",
+                                    e.target.value,
+                                )
+                            }
+                            placeholder="08xxxxxxxxxx"
+                            className={fieldClasses(
+                                !!profileForm.errors.phone_number,
+                                true,
+                            )}
+                        />
+                    </div>
+                    <FieldError message={profileForm.errors.phone_number} />
+                </div>
 
-                        <button
-                            type="submit"
-                            disabled={profileForm.processing}
-                            className="w-full rounded-xl bg-orange-500 py-2.5 font-clash text-[13px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-                        >
-                            {profileForm.processing ? "Menyimpan..." : "Simpan Perubahan"}
-                        </button>
-                    </form>
+                {/* Email — locked */}
+                <div>
+                    <Label>
+                        <span className="inline-flex items-center gap-2">
+                            Email
+                            <span className="inline-flex items-center gap-1 rounded-full bg-navy-900/[0.06] px-2 py-0.5 text-[10px] font-medium text-navy-900/40">
+                                <Lock className="h-2.5 w-2.5" />
+                                tidak dapat diubah
+                            </span>
+                        </span>
+                    </Label>
+                    <input
+                        type="email"
+                        aria-label="Email"
+                        value={user.email}
+                        disabled
+                        readOnly
+                        className="h-12 w-full cursor-not-allowed rounded-xl border border-navy-900/8 bg-navy-900/[0.03] px-4 font-bdo text-[14px] text-navy-900/45 outline-none"
+                    />
+                </div>
 
-                    <div className="h-px bg-white/[0.06]" />
-
-                    {/* Section 2 — Change password */}
-                    <form onSubmit={submitPassword} className="space-y-4">
-                        <p className="font-bdo text-[10px] font-medium uppercase tracking-[0.18em] text-white/40">
-                            Ganti Password
+                {profileForm.recentlySuccessful && (
+                    <div className="kl-stagger flex items-center gap-2 rounded-xl bg-emerald-500/10 px-3.5 py-2.5 ring-1 ring-emerald-500/15" style={{ ['--i' as string]: 0 }}>
+                        <Check className="h-4 w-4 text-emerald-600" />
+                        <p className="font-bdo text-[12px] font-medium text-emerald-700">
+                            Profil berhasil diperbarui.
                         </p>
+                    </div>
+                )}
+            </form>
 
-                        <div className="space-y-1.5">
-                            <label className="font-bdo text-[12px] text-white/60">Password Saat Ini</label>
+            {/* ── Section 02 — Security ── */}
+            <div className="mt-7 border-t border-navy-900/[0.07] pt-6">
+                <div className="mb-4 flex items-center gap-3">
+                    <span className="font-clash text-[11px] font-bold tracking-[0.1em] text-accent-red">
+                        02
+                    </span>
+                    <span className="font-bdo text-[10px] font-bold uppercase tracking-[0.2em] text-navy-900/70">
+                        Keamanan
+                    </span>
+                    <span className="h-px flex-1 bg-gradient-to-r from-navy-900/15 to-transparent" />
+                </div>
+
+                {user.is_google ? (
+                    /* Google account — no password to change */
+                    <div className="kl-glass-border kl-tactile flex items-start gap-3.5 rounded-2xl bg-white p-4 sm:p-5">
+                        <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl border border-navy-900/[0.07] bg-white shadow-[0_2px_8px_-4px_rgba(7,21,48,0.25)]">
+                            <svg
+                                className="h-5 w-5"
+                                viewBox="0 0 48 48"
+                                aria-hidden="true"
+                            >
+                                <path
+                                    fill="#FFC107"
+                                    d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8a12 12 0 1 1 0-24c3 0 5.8 1.1 7.9 3l5.7-5.7A20 20 0 1 0 24 44a20 20 0 0 0 19.6-23.5z"
+                                />
+                                <path
+                                    fill="#FF3D00"
+                                    d="M6.3 14.7l6.6 4.8A12 12 0 0 1 24 12c3 0 5.8 1.1 7.9 3l5.7-5.7A20 20 0 0 0 6.3 14.7z"
+                                />
+                                <path
+                                    fill="#4CAF50"
+                                    d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2A12 12 0 0 1 12.7 28l-6.6 5.1A20 20 0 0 0 24 44z"
+                                />
+                                <path
+                                    fill="#1976D2"
+                                    d="M43.6 20.5H42V20H24v8h11.3a12 12 0 0 1-4.1 5.6l6.2 5.2C39.9 35.5 44 30.3 44 24c0-1.2-.1-2.4-.4-3.5z"
+                                />
+                            </svg>
+                        </div>
+                        <div className="min-w-0">
+                            <p className="flex items-center gap-2 font-clash text-[14px] font-semibold text-navy-900">
+                                Masuk dengan Google
+                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 font-bdo text-[10px] font-semibold text-emerald-600">
+                                    Terhubung
+                                </span>
+                            </p>
+                            <p className="mt-1.5 font-bdo text-[12.5px] leading-relaxed text-navy-900/55">
+                                Akun Anda terhubung dengan Google, jadi tidak
+                                memerlukan password. Cukup gunakan tombol{" "}
+                                <span className="font-semibold text-navy-900/75">
+                                    Login with Google
+                                </span>{" "}
+                                setiap kali masuk.
+                            </p>
+                        </div>
+                    </div>
+                ) : (
+                    <form
+                        onSubmit={submitPassword}
+                        className="kl-glass-border kl-tactile rounded-2xl p-4 sm:p-5"
+                    >
+                        <div className="mb-4 flex items-start gap-2.5">
+                            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-navy-900/[0.05]">
+                                <ShieldCheck className="h-4 w-4 text-navy-900/60" />
+                            </div>
+                            <p className="font-bdo text-[12px] leading-relaxed text-navy-900/55">
+                                Demi keamanan, masukkan password lama Anda
+                                sebelum menetapkan password baru.
+                            </p>
+                        </div>
+
+                    <div className="space-y-4">
+                        <div>
+                            <Label>Password Saat Ini</Label>
                             <div className="relative">
                                 <input
                                     type={showCurrent ? "text" : "password"}
+                                    aria-label="Password Saat Ini"
                                     value={passwordForm.data.current_password}
-                                    onChange={(e) => passwordForm.setData("current_password", e.target.value)}
+                                    onChange={(e) =>
+                                        passwordForm.setData(
+                                            "current_password",
+                                            e.target.value,
+                                        )
+                                    }
                                     className={cn(
-                                        "w-full rounded-xl border bg-white/[0.04] px-4 py-2.5 pr-10 font-bdo text-sm text-white outline-none transition-colors focus:bg-white/[0.07]",
-                                        passwordForm.errors.current_password
-                                            ? "border-rose-500/50 focus:border-rose-500/50"
-                                            : "border-white/[0.08] focus:border-orange-400/40",
+                                        fieldClasses(
+                                            !!passwordForm.errors
+                                                .current_password,
+                                        ),
+                                        "pr-11",
                                     )}
                                 />
                                 <button
                                     type="button"
                                     onClick={() => setShowCurrent((v) => !v)}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60"
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-navy-900/30 transition-colors hover:text-navy-900/60"
                                 >
-                                    {showCurrent ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                    {showCurrent ? (
+                                        <EyeOff className="h-[18px] w-[18px]" />
+                                    ) : (
+                                        <Eye className="h-[18px] w-[18px]" />
+                                    )}
                                 </button>
                             </div>
-                            {passwordForm.errors.current_password && (
-                                <p className="font-bdo text-[11px] text-rose-400">{passwordForm.errors.current_password}</p>
-                            )}
+                            <FieldError
+                                message={passwordForm.errors.current_password}
+                            />
                         </div>
 
-                        <div className="space-y-1.5">
-                            <label className="font-bdo text-[12px] text-white/60">Password Baru</label>
-                            <div className="relative">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <div>
+                                <Label>Password Baru</Label>
+                                <div className="relative">
+                                    <input
+                                        type={showNew ? "text" : "password"}
+                                        aria-label="Password Baru"
+                                        value={passwordForm.data.password}
+                                        onChange={(e) =>
+                                            passwordForm.setData(
+                                                "password",
+                                                e.target.value,
+                                            )
+                                        }
+                                        className={cn(
+                                            fieldClasses(
+                                                !!passwordForm.errors.password,
+                                            ),
+                                            "pr-11",
+                                        )}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowNew((v) => !v)}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-navy-900/30 transition-colors hover:text-navy-900/60"
+                                    >
+                                        {showNew ? (
+                                            <EyeOff className="h-[18px] w-[18px]" />
+                                        ) : (
+                                            <Eye className="h-[18px] w-[18px]" />
+                                        )}
+                                    </button>
+                                </div>
+                                <FieldError
+                                    message={passwordForm.errors.password}
+                                />
+                            </div>
+
+                            <div>
+                                <Label>Konfirmasi Password</Label>
                                 <input
-                                    type={showNew ? "text" : "password"}
-                                    value={passwordForm.data.password}
-                                    onChange={(e) => passwordForm.setData("password", e.target.value)}
-                                    className={cn(
-                                        "w-full rounded-xl border bg-white/[0.04] px-4 py-2.5 pr-10 font-bdo text-sm text-white outline-none transition-colors focus:bg-white/[0.07]",
-                                        passwordForm.errors.password
-                                            ? "border-rose-500/50 focus:border-rose-500/50"
-                                            : "border-white/[0.08] focus:border-orange-400/40",
+                                    type="password"
+                                    aria-label="Konfirmasi Password"
+                                    value={
+                                        passwordForm.data.password_confirmation
+                                    }
+                                    onChange={(e) =>
+                                        passwordForm.setData(
+                                            "password_confirmation",
+                                            e.target.value,
+                                        )
+                                    }
+                                    className={fieldClasses(
+                                        !!passwordForm.errors
+                                            .password_confirmation,
                                     )}
                                 />
-                                <button
-                                    type="button"
-                                    onClick={() => setShowNew((v) => !v)}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60"
-                                >
-                                    {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                </button>
+                                <FieldError
+                                    message={
+                                        passwordForm.errors
+                                            .password_confirmation
+                                    }
+                                />
                             </div>
-                            {passwordForm.errors.password && (
-                                <p className="font-bdo text-[11px] text-rose-400">{passwordForm.errors.password}</p>
-                            )}
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <label className="font-bdo text-[12px] text-white/60">Konfirmasi Password Baru</label>
-                            <input
-                                type="password"
-                                value={passwordForm.data.password_confirmation}
-                                onChange={(e) => passwordForm.setData("password_confirmation", e.target.value)}
-                                className={cn(
-                                    "w-full rounded-xl border bg-white/[0.04] px-4 py-2.5 font-bdo text-sm text-white outline-none transition-colors focus:bg-white/[0.07]",
-                                    passwordForm.errors.password_confirmation
-                                        ? "border-rose-500/50 focus:border-rose-500/50"
-                                        : "border-white/[0.08] focus:border-orange-400/40",
-                                )}
-                            />
-                            {passwordForm.errors.password_confirmation && (
-                                <p className="font-bdo text-[11px] text-rose-400">{passwordForm.errors.password_confirmation}</p>
-                            )}
                         </div>
 
                         {passwordForm.recentlySuccessful && (
-                            <p className="font-bdo text-[12px] text-emerald-400">Password berhasil diperbarui.</p>
+                            <div className="kl-stagger flex items-center gap-2 rounded-xl bg-emerald-500/10 px-3.5 py-2.5 ring-1 ring-emerald-500/15" style={{ ['--i' as string]: 0 }}>
+                                <Check className="h-4 w-4 text-emerald-600" />
+                                <p className="font-bdo text-[12px] font-medium text-emerald-700">
+                                    Password berhasil diperbarui.
+                                </p>
+                            </div>
                         )}
 
                         <button
                             type="submit"
                             disabled={passwordForm.processing}
-                            className="w-full rounded-xl bg-white/[0.06] py-2.5 font-clash text-[13px] font-semibold text-white transition-all hover:bg-white/[0.1] disabled:opacity-50"
+                            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-navy-900/12 bg-navy-900/[0.03] font-clash text-[14px] font-semibold text-navy-900 transition-all hover:bg-navy-900/[0.06] hover:border-navy-900/18 active:scale-[0.99] disabled:opacity-50"
                         >
-                            {passwordForm.processing ? "Memperbarui..." : "Perbarui Password"}
+                            <Lock className="h-4 w-4" />
+                            {passwordForm.processing
+                                ? "Memperbarui..."
+                                : "Perbarui Password"}
                         </button>
-                    </form>
-                </div>
+                    </div>
+                </form>
+                )}
             </div>
-        </div>
+        </AccountModalShell>
     );
 }

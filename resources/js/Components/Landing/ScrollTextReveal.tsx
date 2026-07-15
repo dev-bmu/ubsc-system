@@ -21,6 +21,8 @@ interface ScrollTextRevealProps {
     amount?: number;
     rootMargin?: string;
     style?: CSSProperties;
+    triggerOnMount?: boolean;
+    trackingEm?: number;
 }
 
 interface MeasuredLine {
@@ -41,6 +43,8 @@ export default function ScrollTextReveal({
     amount = 0.35,
     rootMargin = "0px 0px -14% 0px",
     style: customStyle,
+    triggerOnMount = false,
+    trackingEm,
 }: ScrollTextRevealProps) {
     const rootRef = useRef<HTMLElement | null>(null);
     const measureRef = useRef<HTMLSpanElement | null>(null);
@@ -50,7 +54,45 @@ export default function ScrollTextReveal({
     const revealStyle = {
         ...customStyle,
         "--ubsc-text-delay": `${delay}ms`,
+        ...(trackingEm
+            ? { "--ubsc-text-tracking": `${trackingEm}em` }
+            : {}),
     } as CSSProperties;
+
+    const renderTrackedText = (text: string, keyPrefix: string): ReactNode => {
+        if (!trackingEm) return text;
+
+        return text.split(/(\s+)/).map((token, tokenIndex) => {
+            if (token.length === 0) return null;
+
+            if (token.trim() === "") {
+                return (
+                    <span
+                        key={`${keyPrefix}-space-${tokenIndex}`}
+                        className="ubsc-text-reveal__tracking-space"
+                    >
+                        {token}
+                    </span>
+                );
+            }
+
+            return (
+                <span
+                    key={`${keyPrefix}-word-${tokenIndex}`}
+                    className="ubsc-text-reveal__tracking-word"
+                >
+                    {Array.from(token).map((glyph, glyphIndex) => (
+                        <span
+                            key={`${keyPrefix}-${tokenIndex}-${glyphIndex}`}
+                            className="ubsc-text-reveal__tracking-glyph"
+                        >
+                            {glyph}
+                        </span>
+                    ))}
+                </span>
+            );
+        });
+    };
 
     const measureLines = useCallback(() => {
         const root = rootRef.current;
@@ -106,15 +148,15 @@ export default function ScrollTextReveal({
                 .sort((a, b) => a.top - b.top)
                 .map(({ bottom: _bottom, right: _right, ...line }) => ({
                     ...line,
-                    height: line.height * 1.16,
-                    width: line.width + 3,
+                    height: line.height * 1.24,
+                    width: line.width + 24,
                 })),
         );
     }, [split]);
 
     useEffect(() => {
         const node = rootRef.current;
-        if (!node || hasEntered) return;
+        if (!node || hasEntered || triggerOnMount) return;
 
         if (!("IntersectionObserver" in window)) {
             setHasEntered(true);
@@ -133,7 +175,7 @@ export default function ScrollTextReveal({
         observer.observe(node);
 
         return () => observer.disconnect();
-    }, [amount, hasEntered, rootMargin]);
+    }, [amount, hasEntered, rootMargin, triggerOnMount]);
 
     useEffect(() => {
         if (split !== "lines") return;
@@ -158,12 +200,28 @@ export default function ScrollTextReveal({
         };
     }, [measureLines, split]);
 
+    useEffect(() => {
+        if (!triggerOnMount || hasEntered) return;
+
+        let secondFrame = 0;
+        const firstFrame = window.requestAnimationFrame(() => {
+            secondFrame = window.requestAnimationFrame(() => {
+                setHasEntered(true);
+            });
+        });
+
+        return () => {
+            window.cancelAnimationFrame(firstFrame);
+            if (secondFrame) window.cancelAnimationFrame(secondFrame);
+        };
+    }, [hasEntered, triggerOnMount]);
+
     const content = (() => {
         if (split === "lines") {
             return (
                 <>
                     <span className="ubsc-text-reveal__line-ghost" aria-hidden>
-                        {children}
+                        {renderTrackedText(children, "ghost")}
                     </span>
                     <span
                         ref={measureRef}
@@ -171,14 +229,22 @@ export default function ScrollTextReveal({
                         aria-hidden
                     >
                         {tokens.map((token, index) => {
-                            if (token.trim() === "") return token;
+                            if (token.trim() === "") {
+                                return renderTrackedText(
+                                    token,
+                                    `measure-space-${index}`,
+                                );
+                            }
 
                             return (
                                 <span
                                     key={`${token}-${index}`}
                                     data-ubsc-line-word
                                 >
-                                    {token}
+                                    {renderTrackedText(
+                                        token,
+                                        `measure-word-${index}`,
+                                    )}
                                 </span>
                             );
                         })}
@@ -199,7 +265,10 @@ export default function ScrollTextReveal({
                                 }
                             >
                                 <span className="ubsc-text-reveal__line">
-                                    {line.text}
+                                    {renderTrackedText(
+                                        line.text,
+                                        `line-${index}`,
+                                    )}
                                 </span>
                             </span>
                         ))}

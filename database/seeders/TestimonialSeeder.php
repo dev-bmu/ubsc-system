@@ -16,13 +16,15 @@ class TestimonialSeeder extends Seeder
                 'quote'       => 'Fasilitas lapangan futsal di UB Sport Center sangat terawat dan nyaman. Kami rutin mengadakan latihan di sini setiap minggunya.',
                 'sort_order'  => 1,
                 'image'       => resource_path('assets/icons/testimonial-ub-sport-center.avif'),
+                'logo'        => null,
             ],
             [
                 'author_name' => 'Malang Tennis Academy',
                 'author_role' => 'Akademi Tenis',
                 'quote'       => 'Malang Tenis Academy mengapresiasi kualitas lapangan tenis UB Sport Center. Pencahayaan dan kondisi lapangan sangat mendukung sesi latihan intensif.',
                 'sort_order'  => 2,
-                'image'       => resource_path('assets/icons/ulasan-malang-tennis-academy-ubsc.avif'),
+                'image'       => resource_path('assets/icons/testimonial-ub-sport-center.avif'),
+                'logo'        => resource_path('assets/icons/ulasan-malang-tennis-academy-ubsc.avif'),
             ],
             [
                 'author_name' => 'Brawijaya Badminton Club',
@@ -30,12 +32,15 @@ class TestimonialSeeder extends Seeder
                 'quote'       => 'Pelayanan staf yang ramah dan fasilitas ganti yang bersih membuat pengalaman olahraga kami semakin menyenangkan.',
                 'sort_order'  => 3,
                 'image'       => resource_path('assets/icons/testimonial-ub-sport-center.avif'),
+                'logo'        => null,
             ],
         ];
 
         foreach ($items as $data) {
             $image = $data['image'];
+            $logo = $data['logo'];
             unset($data['image']);
+            unset($data['logo']);
 
             $testimonial = Testimonial::firstOrCreate(
                 ['author_name' => $data['author_name']],
@@ -47,6 +52,13 @@ class TestimonialSeeder extends Seeder
                     ->addMedia($image)
                     ->preservingOriginal()
                     ->toMediaCollection('image');
+            }
+
+            if ($logo && ! $testimonial->hasMedia('logo') && file_exists($logo)) {
+                $testimonial
+                    ->addMedia($logo)
+                    ->preservingOriginal()
+                    ->toMediaCollection('logo');
             }
         }
     }

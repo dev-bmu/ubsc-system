@@ -1,12 +1,20 @@
-import { useRef, useEffect, useState, useMemo, useId } from "react";
+import {
+    type HTMLAttributes,
+    useEffect,
+    useId,
+    useMemo,
+    useRef,
+    useState,
+} from "react";
 
-interface CurvedLoopProps {
+interface CurvedLoopProps extends HTMLAttributes<HTMLDivElement> {
     marqueeText?: string;
     speed?: number;
     className?: string;
     curveAmount?: number;
     direction?: "left" | "right";
     interactive?: boolean;
+    fontSize?: number | string;
 }
 
 export default function CurvedLoop({
@@ -16,21 +24,68 @@ export default function CurvedLoop({
     curveAmount = 200,
     direction = "left",
     interactive = true,
+    fontSize = "4.5rem",
+    style,
+    ...rest
 }: CurvedLoopProps) {
     const uniqueId = useId();
     const pathId = `curved-loop-path-${uniqueId.replace(/:/g, "")}`;
 
+    const rootRef = useRef<HTMLDivElement | null>(null);
     const offsetRef = useRef(0);
     const rafRef = useRef<number | null>(null);
     const isDraggingRef = useRef(false);
     const lastXRef = useRef(0);
     const dragVelocityRef = useRef(0);
+    const measureRef = useRef<SVGTextElement | null>(null);
+    const textPathRef = useRef<SVGTextPathElement | null>(null);
 
-    const [offset, setOffset] = useState(0);
+    const [isInView, setIsInView] = useState(false);
+    const [measuredTextWidth, setMeasuredTextWidth] = useState(0);
+
+    useEffect(() => {
+        const node = rootRef.current;
+        if (!node) return;
+
+        if (!("IntersectionObserver" in window)) {
+            setIsInView(true);
+            return;
+        }
+
+        const observer = new IntersectionObserver(
+            ([entry]) => setIsInView(Boolean(entry?.isIntersecting)),
+            {
+                threshold: 0,
+                rootMargin: "1200px 0px",
+            },
+        );
+
+        observer.observe(node);
+        return () => observer.disconnect();
+    }, []);
+
+    useEffect(() => {
+        if (!isInView) return;
+
+        const measure = () => {
+            const width = measureRef.current?.getComputedTextLength() ?? 0;
+            if (width > 0) {
+                setMeasuredTextWidth((current) =>
+                    Math.abs(current - width) < 0.5 ? current : width,
+                );
+            }
+        };
+
+        measure();
+        document.fonts?.ready.then(measure).catch(() => undefined);
+        window.addEventListener("resize", measure);
+
+        return () => window.removeEventListener("resize", measure);
+    }, [isInView, marqueeText]);
 
     const singleTextWidth = useMemo(() => {
-        return marqueeText.length * 55;
-    }, [marqueeText]);
+        return measuredTextWidth || marqueeText.length * 55;
+    }, [marqueeText, measuredTextWidth]);
 
     const repeatCount = useMemo(() => {
         const viewportWidth = 1440;
@@ -43,9 +98,13 @@ export default function CurvedLoop({
         [marqueeText, repeatCount]
     );
 
-    const loopWidth = singleTextWidth * repeatCount;
-
     useEffect(() => {
+        const reducedMotion = window.matchMedia(
+            "(prefers-reduced-motion: reduce)",
+        ).matches;
+
+        if (!isInView || reducedMotion) return;
+
         const step = direction === "left" ? -speed : speed;
 
         const animate = () => {
@@ -56,20 +115,26 @@ export default function CurvedLoop({
                 dragVelocityRef.current *= 0.95;
             }
 
-            // Wrap offset to prevent unbounded growth
+            // Wrap by the measured phrase width so the repeated text never jumps mid-loop.
             const wrapAt = singleTextWidth;
-            if (offsetRef.current <= -wrapAt) offsetRef.current += wrapAt;
-            if (offsetRef.current >= wrapAt) offsetRef.current -= wrapAt;
+            if (wrapAt > 0) {
+                offsetRef.current = ((offsetRef.current % wrapAt) + wrapAt) % wrapAt;
+                if (direction === "left") offsetRef.current -= wrapAt;
+            }
 
-            setOffset(offsetRef.current);
+            textPathRef.current?.setAttribute(
+                "startOffset",
+                `${offsetRef.current}px`,
+            );
             rafRef.current = requestAnimationFrame(animate);
         };
 
         rafRef.current = requestAnimationFrame(animate);
         return () => {
             if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+            rafRef.current = null;
         };
-    }, [speed, direction, singleTextWidth]);
+    }, [isInView, speed, direction, singleTextWidth]);
 
     const handleMouseDown = (e: React.MouseEvent) => {
         if (!interactive) return;
@@ -93,8 +158,11 @@ export default function CurvedLoop({
 
     return (
         <div
+            {...rest}
+            ref={rootRef}
             className={className}
             style={{
+                ...style,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -113,7 +181,7 @@ export default function CurvedLoop({
                 style={{
                     width: "100%",
                     aspectRatio: "100 / 12",
-                    fontSize: "4.5rem",
+                    fontSize,
                     fill: "white",
                     fontWeight: 700,
                     textTransform: "uppercase",
@@ -124,10 +192,19 @@ export default function CurvedLoop({
                 <defs>
                     <path id={pathId} d={pathD} />
                 </defs>
+                <text
+                    ref={measureRef}
+                    x="-9999"
+                    y="-9999"
+                    style={{ visibility: "hidden", whiteSpace: "pre" }}
+                >
+                    {marqueeText}
+                </text>
                 <text>
                     <textPath
+                        ref={textPathRef}
                         href={`#${pathId}`}
-                        startOffset={`${offset}px`}
+                        startOffset="0px"
                         style={{ whiteSpace: "pre" }}
                     >
                         {totalText}

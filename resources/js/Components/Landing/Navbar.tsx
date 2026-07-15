@@ -17,11 +17,11 @@ import AuthModal from "@/Components/Landing/AuthModal";
 import ProfileModal from "@/Components/UserDashboard/ProfileModal";
 import PaymentHistoryModal from "@/Components/UserDashboard/PaymentHistoryModal";
 import GymMembershipModal from "@/Components/UserDashboard/GymMembershipModal";
+import { Guilloche, Microtext, FoilText } from "@/Components/UserDashboard/PassKit";
 import { usePage } from "@inertiajs/react";
 import { Link } from "@inertiajs/react";
 import type { PageProps } from "@/types";
 import { cn } from "@/lib/utils";
-import { motion, AnimatePresence } from "framer-motion";
 
 /* ====================================================================
    TYPES
@@ -43,7 +43,22 @@ interface RGB {
 interface NavbarProps {
     activeSection?: string;
     showInfoBanner?: boolean;
+    surface?: "media" | "light";
 }
+
+type MemberStatus = 'none' | 'gym_only' | 'booked_only' | 'gym_and_booked';
+
+const MEMBER_STATUS_CONFIG: Record<MemberStatus, { label: string; dotColor: string }> = {
+    none:           { label: 'Visitor',              dotColor: 'bg-slate-400' },
+    gym_only:       { label: 'Gym Member',           dotColor: 'bg-emerald-500' },
+    booked_only:    { label: 'Booked',               dotColor: 'bg-sky-500' },
+    gym_and_booked: { label: 'Gym Member · Booked',  dotColor: 'bg-amber-500' },
+};
+
+const getMemberStatusConfig = (user: { role?: string | null; member_status?: MemberStatus } | null) => {
+    if (user?.role) return { label: user.role, dotColor: 'bg-accent-red' };
+    return MEMBER_STATUS_CONFIG[user?.member_status ?? 'none'];
+};
 
 /* ====================================================================
    CONSTANTS
@@ -146,17 +161,19 @@ function sampleDominantColor(img: HTMLImageElement): RGB {
 interface KineticNavLinkProps {
     item: NavItem;
     isActive: boolean;
+    ink?: boolean;
 }
 
-function KineticNavLink({ item, isActive }: KineticNavLinkProps) {
-    const activeCol = "rgba(255,255,255,0.95)";
-    const idleCol = "rgba(255,255,255,0.65)";
-    const supCol = "rgba(255,255,255,0.35)";
+function KineticNavLink({ item, isActive, ink = false }: KineticNavLinkProps) {
+    const activeCol = ink ? "rgba(18,18,18,0.96)" : "rgba(255,255,255,0.95)";
+    const idleCol = ink ? "rgba(18,18,18,0.58)" : "rgba(255,255,255,0.65)";
+    const hoverCol = ink ? "rgba(18,18,18,0.9)" : "rgba(255,255,255,0.85)";
+    const supCol = ink ? "rgba(18,18,18,0.34)" : "rgba(255,255,255,0.35)";
 
     return (
         <a
             href={item.href}
-            className={`kinetic-nav-link ${isActive ? "kinetic-nav-active" : ""} font-clash text-[clamp(0.75rem,1vw,16px)] tracking-wide`}
+            className={`kinetic-nav-link ${ink ? "kinetic-nav-ink" : ""} ${isActive ? "kinetic-nav-active" : ""} font-clash text-[clamp(0.75rem,1vw,16px)] tracking-wide`}
             style={{
                 display: "inline-flex",
                 alignItems: "baseline",
@@ -192,7 +209,7 @@ function KineticNavLink({ item, isActive }: KineticNavLinkProps) {
                         inset: 0,
                         transform: "translateY(-110%)",
                         willChange: "transform",
-                        color: isActive ? activeCol : "rgba(255,255,255,0.85)",
+                        color: isActive ? activeCol : hoverCol,
                     }}
                 >
                     {item.label}
@@ -239,6 +256,7 @@ function KineticNavLink({ item, isActive }: KineticNavLinkProps) {
 export default function Navbar({
     activeSection = "Home",
     showInfoBanner = true,
+    surface = "media",
 }: NavbarProps) {
     /* ── Auth state ── */
     const { auth } = usePage<PageProps>().props;
@@ -247,6 +265,7 @@ export default function Navbar({
 
     /* ── UI state ── */
     const [mobileOpen, setMobileOpen] = useState(false);
+    const [mobileAcctOpen, setMobileAcctOpen] = useState(false);
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -281,6 +300,7 @@ export default function Navbar({
             const targetOpacity = y > 50 ? 1 : 0;
             if (targetOpacity !== bgOpacity.current) {
                 bgOpacity.current = targetOpacity;
+                setShowBg(targetOpacity === 1);
                 const overlay = document.getElementById("ubsc-nav-bg-overlay");
                 if (overlay) {
                     overlay.style.opacity = targetOpacity.toString();
@@ -306,6 +326,7 @@ export default function Navbar({
             }
         };
 
+        update();
         window.addEventListener("scroll", onScroll, { passive: true });
         return () => window.removeEventListener("scroll", onScroll);
     }, []);
@@ -313,6 +334,7 @@ export default function Navbar({
     /* ── Lock body scroll when mobile menu open ── */
     useEffect(() => {
         document.body.style.overflow = mobileOpen ? "hidden" : "";
+        if (!mobileOpen) setMobileAcctOpen(false);
         return () => {
             document.body.style.overflow = "";
         };
@@ -392,6 +414,12 @@ export default function Navbar({
             .kinetic-nav-link:hover {
                 color: rgba(255,255,255,0.95) !important;
             }
+            .kinetic-nav-ink.kinetic-nav-active {
+                animation: none;
+            }
+            .kinetic-nav-ink:hover {
+                color: rgba(18,18,18,0.96) !important;
+            }
 
             /* ════════════════════════════════════════════════════
                LOGO WRAP — premium glow with fixed blur
@@ -416,6 +444,13 @@ export default function Navbar({
                 filter: drop-shadow(0 0 14px rgba(255,255,255,0.60)) !important;
                 transform: scale(1.05);
                 transition: filter 0.3s ease, transform 0.3s ease;
+            }
+            .ubsc-logo-wrap-ink {
+                animation: none;
+                filter: none;
+            }
+            .ubsc-logo-wrap-ink:hover {
+                filter: drop-shadow(0 4px 10px rgba(0,0,0,0.14)) !important;
             }
             .ubsc-logo { display: block; image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; }
 
@@ -720,6 +755,8 @@ export default function Navbar({
         setAvatarFailed(false);
     }, [userAvatar]);
 
+    const useInkNavigation = surface === "light" && !showBg && !mobileOpen;
+
     /* ==============================================================
        RENDER
     ============================================================== */
@@ -775,7 +812,7 @@ export default function Navbar({
                     navHidden ? "-translate-y-full" : "translate-y-0",
                 )}
                 style={{
-                    top: showInfoBanner ? 27 : 14,
+                    top: 27,
                     height: "100px",
                     zIndex: 50,
                     transition:
@@ -804,12 +841,25 @@ export default function Navbar({
                 >
                     {/* ── Logo ── */}
                     <div className="flex items-center gap-2">
-                        <a href="/" className="ubsc-logo-wrap">
+                        <a
+                            href="/"
+                            className={cn(
+                                "ubsc-logo-wrap",
+                                useInkNavigation && "ubsc-logo-wrap-ink",
+                            )}
+                        >
                             <img
                                 src="/UBSC.svg"
                                 alt="UB Sport Center Logo"
                                 className="ubsc-logo h-8 w-auto md:h-12"
-                                style={{ position: "relative", zIndex: 2 }}
+                                style={{
+                                    position: "relative",
+                                    zIndex: 2,
+                                    filter: useInkNavigation
+                                        ? "brightness(0) saturate(100%)"
+                                        : "none",
+                                    transition: "filter 240ms ease",
+                                }}
                             />
                         </a>
                     </div>
@@ -824,6 +874,7 @@ export default function Navbar({
                                 <KineticNavLink
                                     item={item}
                                     isActive={item.label === activeSection}
+                                    ink={useInkNavigation}
                                 />
                             </li>
                         ))}
@@ -879,8 +930,9 @@ export default function Navbar({
                                             <p className="font-clash text-[10px] font-medium text-slate-500 truncate max-w-[96px] mt-0.5">
                                                 {user?.email}
                                             </p>
-                                            <p className="font-clash text-[10px] font-medium text-slate-400/70 truncate max-w-[80px] -mt-0.5">
-                                                {user?.role ?? "Member"}
+                                            <p className="font-clash text-[10px] font-medium text-slate-400/70 truncate max-w-[100px] -mt-0.5 flex items-center gap-1">
+                                                <span className={cn('inline-block h-1.5 w-1.5 rounded-full flex-shrink-0', getMemberStatusConfig(user).dotColor)} />
+                                                {getMemberStatusConfig(user).label}
                                             </p>
                                         </div>
 
@@ -898,281 +950,158 @@ export default function Navbar({
                                     </button>
                                 </div>
 
-                                {/* ── Premium Dropdown ── */}
-                                <AnimatePresence>
-                                    {dropdownOpen && (
-                                        <motion.div
-                                            initial={{
-                                                opacity: 0,
-                                                y: -6,
-                                                scale: 0.97,
-                                            }}
-                                            animate={{
-                                                opacity: 1,
-                                                y: 0,
-                                                scale: 1,
-                                            }}
-                                            exit={{
-                                                opacity: 0,
-                                                y: -6,
-                                                scale: 0.97,
-                                            }}
-                                            transition={{
-                                                duration: 0.22,
-                                                ease: [0.16, 1, 0.3, 1],
-                                            }}
-                                            className="absolute right-0 top-full mt-3 overflow-hidden"
-                                            style={{
-                                                width: "220px",
-                                                background:
-                                                    "linear-gradient(180deg, rgba(15, 17, 35, 0.98) 0%, rgba(10, 12, 25, 0.99) 100%)",
-                                                backdropFilter:
-                                                    "blur(32px) saturate(180%)",
-                                                WebkitBackdropFilter:
-                                                    "blur(32px) saturate(180%)",
-                                                borderRadius: "12px",
-                                                border: "1px solid rgba(255, 255, 255, 0.08)",
-                                                boxShadow: `
-                                                0 0 0 1px rgba(255, 255, 255, 0.04) inset,
-                                                0 8px 32px rgba(0, 0, 0, 0.6),
-                                                0 16px 64px rgba(0, 0, 0, 0.4)
-                                            `,
-                                            }}
-                                        >
-                                            {/* Top gradient accent */}
+                                {/* ── Premium Dropdown (Cinematic 3D Unfold) ── */}
+                                {dropdownOpen && (
+                                    <div
+                                        className="kl-dropdown kl-glass-border absolute right-0 top-full mt-3 w-[308px] overflow-hidden rounded-[22px]"
+                                        style={{
+                                            background: "rgba(250, 249, 247, 0.92)",
+                                            backdropFilter: "blur(24px) saturate(180%)",
+                                            WebkitBackdropFilter: "blur(24px) saturate(180%)",
+                                            boxShadow:
+                                                "0 32px 80px -20px rgba(7,21,48,0.5), 0 16px 32px -12px rgba(7,21,48,0.22), 0 0 0 1px rgba(255,255,255,0.08), inset 0 1px 0 rgba(255,255,255,0.5)",
+                                        }}
+                                    >
+                                        {/* ── Holographic User Header ── */}
+                                        <div className="pass-foil-host relative isolate overflow-hidden bg-gradient-to-br from-navy-800 via-navy-900 to-navy-950 px-5 pb-5 pt-4">
+                                            <Guilloche />
+                                            <div className="kl-dd-header-shimmer" aria-hidden="true" />
                                             <div
-                                                className="h-px w-full"
-                                                style={{
-                                                    background:
-                                                        "linear-gradient(90deg, transparent 0%, rgba(139, 92, 246, 0.5) 50%, transparent 100%)",
-                                                }}
+                                                className="kl-sheen-bar"
+                                                aria-hidden="true"
                                             />
+                                            {/* Top edge light */}
+                                            <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
 
-                                            {/* User Info Header */}
-                                            <div className="px-4 pt-4 pb-3">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="relative w-11 h-11 flex-shrink-0">
-                                                        <div
-                                                            className="absolute inset-0 rounded-lg"
-                                                            style={{
-                                                                background:
-                                                                    "linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)",
-                                                            }}
-                                                        />
-                                                        {userAvatar && !avatarFailed ? (
+                                            <Microtext
+                                                className="relative -mx-5 mb-3 text-white/30"
+                                                text="UB Sport Center · Member Pass"
+                                            />
+                                            <div className="relative flex items-center gap-3.5">
+                                                <div className="kl-ring-host relative h-14 w-14 flex-shrink-0">
+                                                    <span
+                                                        className="kl-ring"
+                                                        aria-hidden="true"
+                                                    />
+                                                    <div className="absolute inset-[3px] overflow-hidden rounded-full">
+                                                        {userAvatar &&
+                                                        !avatarFailed ? (
                                                             <img
                                                                 src={userAvatar}
                                                                 alt={firstName}
-                                                                className="relative z-10 w-full h-full rounded-lg object-cover"
+                                                                className="h-full w-full object-cover"
                                                                 referrerPolicy="no-referrer"
-                                                                onError={() => setAvatarFailed(true)}
+                                                                onError={() =>
+                                                                    setAvatarFailed(
+                                                                        true,
+                                                                    )
+                                                                }
                                                             />
                                                         ) : (
-                                                            <div className="relative z-10 w-full h-full rounded-lg flex items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600">
-                                                                <span className="font-clash text-base font-bold text-white">
+                                                            <div className="ubsc-avatar-bg flex h-full w-full items-center justify-center">
+                                                                <span className="font-clash text-lg font-bold text-white">
                                                                     {initials}
                                                                 </span>
                                                             </div>
                                                         )}
                                                     </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className="font-clash text-sm font-bold text-white truncate">
-                                                            {user?.name}
-                                                        </p>
-                                                        <p className="font-clash text-[11px] text-white/50 truncate mt-0.5">
-                                                            {user?.email}
-                                                        </p>
-                                                    </div>
                                                 </div>
-                                                {/* Role badge */}
-                                                <div className="mt-3">
-                                                    <span
-                                                        className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-clash font-semibold"
-                                                        style={{
-                                                            background:
-                                                                "linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(236, 72, 153, 0.15))",
-                                                            color: "#a78bfa",
-                                                            border: "1px solid rgba(139, 92, 246, 0.3)",
-                                                        }}
-                                                    >
-                                                        {user?.role ?? "Member"}
-                                                    </span>
+                                                <div className="min-w-0 flex-1">
+                                                    <FoilText className="block truncate font-clash text-[15px] font-bold">
+                                                        {user?.name}
+                                                    </FoilText>
+                                                    <p className="mt-0.5 truncate font-bdo text-[11px] text-white/50">
+                                                        {user?.email}
+                                                    </p>
                                                 </div>
                                             </div>
+                                            {/* Status badge with breathing glow */}
+                                            <div className="relative mt-3.5">
+                                                <span className="kl-status-badge inline-flex items-center gap-1.5 rounded-full bg-white/[0.12] px-3 py-1.5 font-bdo text-[10px] font-semibold text-white/90 backdrop-blur-sm">
+                                                    <span
+                                                        className={cn('h-2 w-2 rounded-full', getMemberStatusConfig(user).dotColor)}
+                                                        style={{
+                                                            animation:
+                                                                "kl-dot-pulse 3s ease-in-out infinite",
+                                                        }}
+                                                    />
+                                                    {getMemberStatusConfig(user).label}
+                                                </span>
+                                            </div>
+                                        </div>
 
-                                            {/* Divider */}
-                                            <div className="mx-4 h-px bg-white/5" />
-
-                                            {/* Action Menu */}
-                                            <div className="px-2 py-2 flex flex-col gap-0.5">
-                                                <motion.button
-                                                    type="button"
-                                                    whileHover={{
-                                                        x: 3,
-                                                        backgroundColor:
-                                                            "rgba(255, 255, 255, 0.05)",
-                                                    }}
-                                                    transition={{
-                                                        duration: 0.15,
-                                                    }}
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setDropdownOpen(false);
+                                        {/* ── Action Menu with Staggered Entrance ── */}
+                                        <div className="flex flex-col gap-0.5 px-2.5 py-2.5">
+                                            {[
+                                                {
+                                                    key: "profile" as const,
+                                                    label: "My Profile",
+                                                    hint: "Data diri & keamanan",
+                                                    icon: UserIcon,
+                                                    onClick: () =>
                                                         setActiveUserModal(
                                                             "profile",
-                                                        );
-                                                    }}
-                                                    className="group flex items-center gap-3 rounded-lg px-3 py-2.5 w-full text-left cursor-pointer transition-all duration-150"
-                                                >
-                                                    <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center flex-shrink-0 border border-indigo-500/20 group-hover:border-indigo-500/40 transition-all">
-                                                        <UserIcon
-                                                            size={15}
-                                                            className="text-indigo-400"
-                                                        />
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className="font-clash text-sm font-medium text-white/90">
-                                                            My Profile
-                                                        </p>
-                                                    </div>
-                                                    <svg
-                                                        className="w-4 h-4 text-white/30 group-hover:text-white/50 group-hover:translate-x-0.5 transition-all duration-150"
-                                                        fill="none"
-                                                        viewBox="0 0 24 24"
-                                                        stroke="currentColor"
-                                                    >
-                                                        <path
-                                                            strokeLinecap="round"
-                                                            strokeLinejoin="round"
-                                                            strokeWidth={2}
-                                                            d="M9 5l7 7-7 7"
-                                                        />
-                                                    </svg>
-                                                </motion.button>
-
-                                                <motion.button
-                                                    type="button"
-                                                    whileHover={{
-                                                        x: 3,
-                                                        backgroundColor:
-                                                            "rgba(255, 255, 255, 0.05)",
-                                                    }}
-                                                    transition={{
-                                                        duration: 0.15,
-                                                    }}
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setDropdownOpen(false);
+                                                        ),
+                                                },
+                                                {
+                                                    key: "history" as const,
+                                                    label: "Payment History",
+                                                    hint: "Riwayat transaksi",
+                                                    icon: CreditCard,
+                                                    onClick: () =>
                                                         setActiveUserModal(
                                                             "history",
-                                                        );
-                                                    }}
-                                                    className="group flex items-center gap-3 rounded-lg px-3 py-2.5 w-full text-left cursor-pointer transition-all duration-150"
-                                                >
-                                                    <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center flex-shrink-0 border border-emerald-500/20 group-hover:border-emerald-500/40 transition-all">
-                                                        <CreditCard
-                                                            size={15}
-                                                            className="text-emerald-400"
-                                                        />
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className="font-clash text-sm font-medium text-white/90">
-                                                            Payment History
-                                                        </p>
-                                                    </div>
-                                                    <svg
-                                                        className="w-4 h-4 text-white/30 group-hover:text-white/50 group-hover:translate-x-0.5 transition-all duration-150"
-                                                        fill="none"
-                                                        viewBox="0 0 24 24"
-                                                        stroke="currentColor"
-                                                    >
-                                                        <path
-                                                            strokeLinecap="round"
-                                                            strokeLinejoin="round"
-                                                            strokeWidth={2}
-                                                            d="M9 5l7 7-7 7"
-                                                        />
-                                                    </svg>
-                                                </motion.button>
-
-                                                <motion.button
-                                                    type="button"
-                                                    whileHover={{
-                                                        x: 3,
-                                                        backgroundColor:
-                                                            "rgba(255, 255, 255, 0.05)",
-                                                    }}
-                                                    transition={{
-                                                        duration: 0.15,
-                                                    }}
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setDropdownOpen(false);
+                                                        ),
+                                                },
+                                                {
+                                                    key: "membership" as const,
+                                                    label: "Gym Membership",
+                                                    hint: "Status keanggotaan",
+                                                    icon: Dumbbell,
+                                                    onClick: () =>
                                                         setActiveUserModal(
                                                             "membership",
-                                                        );
-                                                    }}
-                                                    className="group flex items-center gap-3 rounded-lg px-3 py-2.5 w-full text-left cursor-pointer transition-all duration-150"
-                                                >
-                                                    <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-amber-500/20 to-orange-500/20 flex items-center justify-center flex-shrink-0 border border-amber-500/20 group-hover:border-amber-500/40 transition-all">
-                                                        <Dumbbell
-                                                            size={15}
-                                                            className="text-amber-400"
-                                                        />
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className="font-clash text-sm font-medium text-white/90">
-                                                            Gym Membership
-                                                        </p>
-                                                    </div>
-                                                    <svg
-                                                        className="w-4 h-4 text-white/30 group-hover:text-white/50 group-hover:translate-x-0.5 transition-all duration-150"
-                                                        fill="none"
-                                                        viewBox="0 0 24 24"
-                                                        stroke="currentColor"
-                                                    >
-                                                        <path
-                                                            strokeLinecap="round"
-                                                            strokeLinejoin="round"
-                                                            strokeWidth={2}
-                                                            d="M9 5l7 7-7 7"
-                                                        />
-                                                    </svg>
-                                                </motion.button>
-
-                                                <motion.button
-                                                    type="button"
-                                                    whileHover={{
-                                                        x: 3,
-                                                        backgroundColor:
-                                                            "rgba(255, 255, 255, 0.05)",
-                                                    }}
-                                                    transition={{
-                                                        duration: 0.15,
-                                                    }}
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setDropdownOpen(false);
+                                                        ),
+                                                },
+                                                {
+                                                    key: "contact" as const,
+                                                    label: "Contact Us",
+                                                    hint: "Hubungi via WhatsApp",
+                                                    icon: MessageCircle,
+                                                    onClick: () =>
                                                         window.open(
                                                             "https://wa.me/6285280809080",
                                                             "_blank",
-                                                        );
+                                                        ),
+                                                },
+                                            ].map((row, i) => (
+                                                <button
+                                                    key={row.key}
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setDropdownOpen(false);
+                                                        row.onClick();
                                                     }}
-                                                    className="group flex items-center gap-3 rounded-lg px-3 py-2.5 w-full text-left cursor-pointer transition-all duration-150"
+                                                    className="kl-dd-row kl-dd-item relative flex w-full cursor-pointer items-center gap-3.5 rounded-xl px-3 py-3 text-left"
+                                                    style={{ ["--i" as string]: i }}
                                                 >
-                                                    <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-green-500/20 to-emerald-500/20 flex items-center justify-center flex-shrink-0 border border-green-500/20 group-hover:border-green-500/40 transition-all">
-                                                        <MessageCircle
-                                                            size={15}
-                                                            className="text-green-400"
+                                                    <div className="kl-dd-icon flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-navy-900/[0.05] ring-1 ring-navy-900/[0.06] transition-all duration-250">
+                                                        <row.icon
+                                                            size={17}
+                                                            className="text-navy-900/65"
                                                         />
                                                     </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className="font-clash text-sm font-medium text-white/90">
-                                                            Contact Us
-                                                        </p>
+                                                    <div className="min-w-0 flex-1">
+                                                        <span className="block font-clash text-[13.5px] font-semibold text-navy-900">
+                                                            {row.label}
+                                                        </span>
+                                                        <span className="block mt-0.5 font-bdo text-[10.5px] text-navy-900/40">
+                                                            {row.hint}
+                                                        </span>
                                                     </div>
                                                     <svg
-                                                        className="w-4 h-4 text-white/30 group-hover:text-white/50 group-hover:translate-x-0.5 transition-all duration-150"
+                                                        className="kl-dd-arrow h-4 w-4 text-navy-900/25"
                                                         fill="none"
                                                         viewBox="0 0 24 24"
                                                         stroke="currentColor"
@@ -1184,49 +1113,36 @@ export default function Navbar({
                                                             d="M9 5l7 7-7 7"
                                                         />
                                                     </svg>
-                                                </motion.button>
-                                            </div>
+                                                </button>
+                                            ))}
+                                        </div>
 
-                                            {/* Divider */}
-                                            <div className="mx-4 h-px bg-white/5" />
+                                        {/* Divider */}
+                                        <div className="mx-5 h-px bg-gradient-to-r from-navy-900/[0.08] via-navy-900/[0.04] to-transparent" />
 
-                                            {/* Logout Button */}
-                                            <div className="px-2 py-2 mb-1">
-                                                <Link
-                                                    href={route("logout")}
-                                                    method="post"
-                                                    as="button"
-                                                    onClick={() =>
-                                                        setDropdownOpen(false)
-                                                    }
-                                                    className="group flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 w-full cursor-pointer transition-all duration-150 hover:scale-[1.02]"
-                                                    style={{
-                                                        background:
-                                                            "rgba(239, 68, 68, 0.08)",
-                                                        border: "1px solid rgba(239, 68, 68, 0.2)",
-                                                    }}
-                                                >
-                                                    <LogOut
-                                                        size={14}
-                                                        className="text-red-400"
-                                                    />
-                                                    <span className="font-clash text-sm font-medium text-red-400">
-                                                        Sign Out
-                                                    </span>
-                                                </Link>
-                                            </div>
-
-                                            {/* Bottom gradient accent */}
-                                            <div
-                                                className="h-1 rounded-b-xl"
-                                                style={{
-                                                    background:
-                                                        "linear-gradient(90deg, #667eea 0%, #764ba2 50%, #f093fb 100%)",
-                                                }}
-                                            />
-                                        </motion.div>
-                                    )}
-                                </AnimatePresence>
+                                        {/* Logout Button */}
+                                        <div className="px-2.5 py-2.5">
+                                            <Link
+                                                href={route("logout")}
+                                                method="post"
+                                                as="button"
+                                                onClick={() =>
+                                                    setDropdownOpen(false)
+                                                }
+                                                className="kl-dd-logout kl-dd-item flex w-full cursor-pointer items-center justify-center gap-2.5 rounded-xl border border-accent-red/15 bg-accent-red/[0.04] px-3 py-3 transition-all active:scale-[0.99]"
+                                                style={{ ["--i" as string]: 5 }}
+                                            >
+                                                <LogOut
+                                                    size={15}
+                                                    className="text-accent-red"
+                                                />
+                                                <span className="font-clash text-[13px] font-semibold text-accent-red">
+                                                    Sign Out
+                                                </span>
+                                            </Link>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         ) : (
                             /*
@@ -1277,21 +1193,27 @@ export default function Navbar({
                     >
                         <span
                             className={cn(
-                                "block h-[2px] w-7 bg-white/90 rounded-sm transition-all duration-300",
+                                "block h-[2px] w-7 rounded-sm transition-all duration-300",
+                                useInkNavigation ? "bg-black/80" : "bg-white/90",
                                 mobileOpen && "w-6 translate-y-[4px] rotate-45",
                             )}
                             style={{
-                                boxShadow: "0 0 4px rgba(255,255,255,0.4)",
+                                boxShadow: useInkNavigation
+                                    ? "none"
+                                    : "0 0 4px rgba(255,255,255,0.4)",
                             }}
                         />
                         <span
                             className={cn(
-                                "block h-[2px] w-5 bg-white/90 rounded-sm transition-all duration-300",
+                                "block h-[2px] w-5 rounded-sm transition-all duration-300",
+                                useInkNavigation ? "bg-black/80" : "bg-white/90",
                                 mobileOpen &&
                                     "w-6 -translate-y-[4px] -rotate-45",
                             )}
                             style={{
-                                boxShadow: "0 0 4px rgba(255,255,255,0.4)",
+                                boxShadow: useInkNavigation
+                                    ? "none"
+                                    : "0 0 4px rgba(255,255,255,0.4)",
                             }}
                         />
                     </button>
@@ -1316,11 +1238,10 @@ export default function Navbar({
             {/* ── Mobile slide-down menu ── */}
             <div
                 className={cn(
-                    "fixed left-0 right-0 z-40 min-[1100px]:hidden transition-transform duration-500 ease-out",
+                    "account-modal-scroll fixed top-8 left-0 right-0 z-40 max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain min-[1100px]:hidden transition-transform duration-500 ease-out",
                     mobileOpen ? "translate-y-0" : "-translate-y-full",
                 )}
                 style={{
-                    top: showInfoBanner ? 32 : 14,
                     background: "rgba(8,9,20,0.97)",
                     backdropFilter: "blur(24px) saturate(130%)",
                     WebkitBackdropFilter: "blur(24px) saturate(130%)",
@@ -1367,16 +1288,13 @@ export default function Navbar({
                 <div className="px-[clamp(1.25rem,4vw,2rem)] py-[clamp(0.75rem,3vw,1.5rem)]">
                     {isLoggedIn ? (
                         <div className="flex flex-col gap-2">
-                            {/* Mobile: profile card */}
+                            {/* Mobile: profile trigger (tap to reveal) */}
                             <button
                                 type="button"
-                                onClick={() => {
-                                    setMobileOpen(false);
-                                    setActiveUserModal("profile");
-                                }}
-                                className="group flex items-stretch overflow-hidden rounded-xl bg-white w-full"
+                                onClick={() => setMobileAcctOpen((v) => !v)}
+                                className="flex items-center gap-3 rounded-2xl bg-white p-2.5 text-left transition-shadow active:shadow-inner"
                             >
-                                <div className="m-1.5 h-[clamp(3rem,10vw,5rem)] w-[clamp(3rem,10vw,5rem)] flex-shrink-0 overflow-hidden rounded-lg">
+                                <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-xl">
                                     {userAvatar && !avatarFailed ? (
                                         <img
                                             src={userAvatar}
@@ -1386,39 +1304,137 @@ export default function Navbar({
                                             onError={() => setAvatarFailed(true)}
                                         />
                                     ) : (
-                                        <div className="ubsc-avatar-bg h-full w-full flex items-center justify-center">
+                                        <div className="ubsc-avatar-bg flex h-full w-full items-center justify-center">
                                             <span className="font-clash text-2xl font-bold text-white/90 select-none">
                                                 {initials}
                                             </span>
                                         </div>
                                     )}
                                 </div>
-                                <div className="flex flex-col justify-center px-[clamp(0.5rem,2vw,0.875rem)] py-2 text-left flex-1 min-w-0">
-                                    <p className="font-clash text-[clamp(0.75rem,3.5vw,1rem)] font-semibold leading-tight text-navy-900">
-                                        {firstName}
+                                <div className="min-w-0 flex-1">
+                                    <p className="truncate font-clash text-[15px] font-semibold leading-tight text-navy-900">
+                                        {user?.name}
                                     </p>
-                                    <p className="font-clash text-[clamp(0.625rem,2.8vw,0.875rem)] font-medium mt-0.5 text-navy-900/80">
-                                        {user?.role ?? "Member"}
-                                    </p>
-                                    <p className="font-clash text-[clamp(0.55rem,2.4vw,0.75rem)] -mt-0.5 text-navy-900/40 truncate">
+                                    <p className="mt-0.5 truncate font-bdo text-[12px] text-navy-900/45">
                                         {user?.email}
                                     </p>
+                                    <span className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-navy-900/[0.06] px-2 py-0.5 font-bdo text-[10px] font-semibold text-navy-900/70">
+                                        <span className={cn('h-1.5 w-1.5 rounded-full', getMemberStatusConfig(user).dotColor)} />
+                                        {getMemberStatusConfig(user).label}
+                                    </span>
                                 </div>
-                                <div className="flex items-center pr-[clamp(0.5rem,2vw,0.875rem)]">
-                                    <ArrowRight className="h-[clamp(1rem,4vw,1.25rem)] w-[clamp(1rem,4vw,1.25rem)] text-navy-900 transition-transform group-hover:translate-x-0.5" />
+                                <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-navy-900/[0.06]">
+                                    <ChevronDown
+                                        size={18}
+                                        className={cn(
+                                            "text-navy-900/60 transition-transform duration-300",
+                                            mobileAcctOpen && "rotate-180",
+                                        )}
+                                    />
                                 </div>
                             </button>
-                            <Link
-                                href={route("logout")}
-                                method="post"
-                                as="button"
-                                onClick={() => setMobileOpen(false)}
-                                className="flex items-center gap-3 rounded-xl border border-red-500/20 bg-red-500/6 px-4 py-3 text-sm font-clash font-semibold text-red-400 transition-colors hover:bg-red-500/15"
+
+                            {/* Mobile: collapsible account menu (grid-rows CSS) */}
+                            <div
+                                className="kl-collapse"
+                                data-open={mobileAcctOpen}
                             >
-                                <LogOut size={15} />
-                                Logout
-                            </Link>
-                        </div>
+                                <div className="kl-collapse-inner">
+                                    <div className="flex flex-col gap-2 pt-1">
+                                            {/* Account actions */}
+                                            <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
+                                                {[
+                                                    {
+                                                        key: "profile" as const,
+                                                        label: "My Profile",
+                                                        hint: "Data diri & keamanan",
+                                                        icon: UserIcon,
+                                                        onClick: () =>
+                                                            setActiveUserModal(
+                                                                "profile",
+                                                            ),
+                                                    },
+                                                    {
+                                                        key: "history" as const,
+                                                        label: "Payment History",
+                                                        hint: "Riwayat transaksi",
+                                                        icon: CreditCard,
+                                                        onClick: () =>
+                                                            setActiveUserModal(
+                                                                "history",
+                                                            ),
+                                                    },
+                                                    {
+                                                        key: "membership" as const,
+                                                        label: "Gym Membership",
+                                                        hint: "Status keanggotaan",
+                                                        icon: Dumbbell,
+                                                        onClick: () =>
+                                                            setActiveUserModal(
+                                                                "membership",
+                                                            ),
+                                                    },
+                                                    {
+                                                        key: "contact" as const,
+                                                        label: "Contact Us",
+                                                        hint: "Hubungi via WhatsApp",
+                                                        icon: MessageCircle,
+                                                        onClick: () =>
+                                                            window.open(
+                                                                "https://wa.me/6285280809080",
+                                                                "_blank",
+                                                            ),
+                                                    },
+                                                ].map((row, i) => (
+                                                    <button
+                                                        key={row.key}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setMobileOpen(false);
+                                                            row.onClick();
+                                                        }}
+                                                        className={cn(
+                                                            "flex w-full items-center gap-3.5 px-3 py-3.5 text-left transition-colors active:bg-white/[0.07]",
+                                                            i > 0 &&
+                                                                "border-t border-white/[0.06]",
+                                                        )}
+                                                    >
+                                                        <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-white/[0.07]">
+                                                            <row.icon
+                                                                size={18}
+                                                                className="text-white/85"
+                                                            />
+                                                        </div>
+                                                        <div className="min-w-0 flex-1">
+                                                            <p className="font-clash text-[15px] font-semibold leading-tight text-white">
+                                                                {row.label}
+                                                            </p>
+                                                            <p className="mt-0.5 font-bdo text-[11px] text-white/40">
+                                                                {row.hint}
+                                                            </p>
+                                                        </div>
+                                                        <ArrowRight className="h-4 w-4 flex-shrink-0 text-white/25 transition-transform active:translate-x-0.5" />
+                                                    </button>
+                                                ))}
+                                            </div>
+
+                                            {/* Logout */}
+                                            <Link
+                                                href={route("logout")}
+                                                method="post"
+                                                as="button"
+                                                onClick={() =>
+                                                    setMobileOpen(false)
+                                                }
+                                                className="flex items-center justify-center gap-2 rounded-2xl border border-red-500/20 bg-red-500/[0.08] px-4 py-3.5 font-clash text-[14px] font-semibold text-red-400 transition-colors hover:bg-red-500/[0.12] active:bg-red-500/15"
+                                            >
+                                                <LogOut size={16} />
+                                                Logout
+                                            </Link>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                     ) : (
                         /* Mobile: guest card */
                         <button

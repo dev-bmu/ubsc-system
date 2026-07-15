@@ -1,0 +1,50 @@
+.facility-section-monument {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: end;
+    gap: clamp(2.5rem, 6vw, 7rem);
+    overflow: hidden;
+    border-top: 1px solid var(--facility-monument-line);
+    padding-top: clamp(1.1rem, 1.45vw, 1.55rem);
+    padding-bottom: clamp(1.1rem, 1.45vw, 1.55rem);
+    font-family: "Clash Display", sans-serif;
+    font-size: clamp(4.08rem, 7.48vw, 8.7125rem);
+    font-style: normal;
+    font-synthesis: none;
+    font-weight: 500;
+    line-height: 0.74;
+    letter-spacing: 0;
+    white-space: nowrap;
+}
+
+.facility-section-monument > span:last-child {
+    text-align: right;
+}
+
+.facility-section-monument > .facility-section-monument__reveal {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    line-height: inherit;
+}
+
+.facility-section-monument__reveal > .ubsc-text-reveal__block {
+    display: block;
+    line-height: inherit;
+}
+
+@media (max-width: 1023px) {
+    .facility-section-monument {
+        font-size: clamp(3.825rem, 8.5vw, 6.375rem);
+    }
+}
+
+@media (max-width: 639px) {
+    .facility-section-monument {
+        gap: clamp(0.75rem, 3vw, 1.15rem);
+        padding-top: 1rem;
+        padding-bottom: 1rem;
+        font-size: clamp(1.955rem, 9.69vw, 2.38rem);
+        line-height: 0.78;
+    }
+}

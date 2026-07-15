@@ -8,19 +8,26 @@ interface LoginProps {
 // ── Live Clock ────────────────────────────────────────────────────────────────
 
 function LiveClock() {
-    const [time, setTime] = useState(new Date());
+    const [time, setTime] = useState<Date | null>(null);
     useEffect(() => {
-        const t = setInterval(() => setTime(new Date()), 1000);
+        const tick = () => setTime(new Date());
+        tick();
+        const t = setInterval(tick, 1000);
         return () => clearInterval(t);
     }, []);
     const pad  = (n: number) => String(n).padStart(2, '0');
-    const h12  = time.getHours() % 12 || 12;
-    const ampm = time.getHours() >= 12 ? 'PM' : 'AM';
     const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
-    const dateStr = `${MONTHS[time.getMonth()]} ${pad(time.getDate())}, ${time.getFullYear()}`;
+    const h12  = time ? time.getHours() % 12 || 12 : null;
+    const ampm = time ? (time.getHours() >= 12 ? 'PM' : 'AM') : '';
+    const timeStr = time && h12 !== null
+        ? `${pad(h12)}:${pad(time.getMinutes())}:${pad(time.getSeconds())} ${ampm}`
+        : '--:--:--';
+    const dateStr = time
+        ? `${MONTHS[time.getMonth()]} ${pad(time.getDate())}, ${time.getFullYear()}`
+        : '--- --, ----';
     return (
         <div className="u-clock">
-            <div className="u-clock-time">{pad(h12)}:{pad(time.getMinutes())}:{pad(time.getSeconds())} {ampm}</div>
+            <div className="u-clock-time">{timeStr}</div>
             <div className="u-clock-date">{dateStr}</div>
         </div>
     );
@@ -66,7 +73,7 @@ export default function Login({ status }: LoginProps) {
         <>
             <Head title="Staff Portal — UBSC" />
 
-            <style>{`
+            <style dangerouslySetInnerHTML={{ __html: `
                 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
                 /* ── Page ── */
@@ -478,7 +485,7 @@ export default function Login({ status }: LoginProps) {
                     .u-heading { font-size: 22px; }
                     .u-brand-sep, .u-brand-name { display: none; }
                 }
-            `}</style>
+            ` }} />
 
             <div className="u-page">
                 <div className="u-grain"  aria-hidden="true" />

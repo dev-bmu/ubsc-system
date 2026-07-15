@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { useEffect, useRef } from "react";
+import { Link } from "@inertiajs/react";
 import FacilityBadge from "@/Components/Landing/FacilityBadge";
 
 const MARQUEE_ITEMS = Array(40).fill(null);
@@ -16,6 +17,7 @@ export interface ClassItem {
     badgeLocation: string;
     badgeCategory: string;
     comingSoon?: boolean;
+    slug?: string;
 }
 
 // ─────────────────────────────────────────────
@@ -25,6 +27,7 @@ export interface ClassItem {
 const DUMMY_CLASSES: ClassItem[] = [
     {
         id: "01",
+        slug: "yoga",
         name: "Yoga",
         code: "001",
         image: "/assets/images/fasilitas-yoga-ub-sport-center.avif",
@@ -33,6 +36,7 @@ const DUMMY_CLASSES: ClassItem[] = [
     },
     {
         id: "02",
+        slug: "zumba",
         name: "Zumba",
         code: "002",
         image: "/assets/images/fasilitas-zumba-ub-sport-center.avif",
@@ -41,6 +45,7 @@ const DUMMY_CLASSES: ClassItem[] = [
     },
     {
         id: "03",
+        slug: "aerobik",
         name: "Aerobik",
         code: "003",
         image: "/assets/images/fasilitas-aerobik-ub-sport-center.avif",
@@ -49,6 +54,7 @@ const DUMMY_CLASSES: ClassItem[] = [
     },
     {
         id: "04",
+        slug: "bmu-karate",
         name: "BMU Karate",
         code: "004",
         image: "/assets/images/fasilitas-beladiri-ub-sport-center.avif",
@@ -57,6 +63,7 @@ const DUMMY_CLASSES: ClassItem[] = [
     },
     {
         id: "05",
+        slug: "zona-akurasi",
         name: "Zona Akurasi",
         code: "005",
         image: "/assets/images/fasilitas-zona-akurasi-ub-sport-center.avif",
@@ -65,6 +72,7 @@ const DUMMY_CLASSES: ClassItem[] = [
     },
     {
         id: "06",
+        slug: "pilates",
         name: "Pilates",
         code: "006",
         image: "/assets/images/comingsoon.avif",
@@ -235,6 +243,9 @@ function ClassScrollSection({
         return () => window.removeEventListener("scroll", handleScroll);
     }, []);
 
+    const Wrapper = data.slug ? Link : "div";
+    const wrapperProps = data.slug ? { href: route("facilities.show", data.slug) } : {};
+
     return (
         <div
             ref={sectionRef}
@@ -287,7 +298,8 @@ function ClassScrollSection({
             />
 
             {/* ── White card (scroll-linked opacity + translateY) ─ */}
-            <div
+            <Wrapper
+                {...wrapperProps}
                 ref={cardRef}
                 className="absolute left-1/2 top-[34%] z-10 w-[min(232px,calc(100vw-64px))] opacity-100 will-change-transform md:top-[40%] md:w-[min(800px,calc(100vw-72px))] xl:top-[41%] xl:w-[min(760px,calc(100vw-48px))]"
                 style={{ opacity: 1, transform: "translate3d(-50%, 0, 0)" }}
@@ -337,7 +349,7 @@ function ClassScrollSection({
                         </span>
                     </div>
                 </div>
-            </div>
+            </Wrapper>
         </div>
     );
 }

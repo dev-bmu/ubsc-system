@@ -40,6 +40,10 @@ class ProfileController extends Controller
             $user->birth_date = $validated['birth_date'];
         }
 
+        if (array_key_exists('phone_number', $validated)) {
+            $user->phone_number = $validated['phone_number'];
+        }
+
         if ($user->isDirty('email')) {
             $user->email_verified_at = null;
         }

@@ -39,8 +39,7 @@ interface BackendFacility {
 
 const ArrowChevron = () => (
     <svg
-        width="10"
-        height="12"
+        className="h-2 w-2 xl:h-3 xl:w-2.5"
         viewBox="0 0 12 20"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
@@ -62,9 +61,9 @@ interface Props {
 const SECTION_CONTAINER_CLASS =
     "mx-auto max-w-8xl px-[clamp(1.5rem,4.5vw,5.5rem)]";
 const SECTION_HEADING_CLASS =
-    "font-bdo text-[clamp(2rem,2.72vw,3.25rem)] font-medium leading-[1.08] tracking-[-0.035em] indent-[2rem] sm:indent-[4rem] lg:indent-[6rem]";
+    "font-bdo text-[clamp(1.5rem,2.5vw,3rem)] lg:text-[clamp(2rem,2.72vw,3.25rem)] font-medium leading-[1.08] tracking-[-0.035em] indent-[2rem] sm:indent-[4rem] lg:indent-[6rem]";
 const SECTION_DIVIDER_WRAP_CLASS =
-    "mx-auto px-[clamp(1.5rem,2.7vw,5.5rem)]  pb-16 pt-12 sm:pb-20 md:pt-14 lg:pt-16 xl:pb-16 xl:pt-14";
+    "mx-auto px-[clamp(1.5rem,2.7vw,5.5rem)]  pb-10 pt-12 sm:pb-20 md:pt-14 lg:pt-16 xl:pb-16 xl:pt-14";
 
 const DEFAULT_PERIODS: PricingPeriod[] = [
     {
@@ -154,7 +153,7 @@ export default function PricingFacilityList({ facilities = [] }: Props) {
                 />
             </div>
 
-            <div className={`${SECTION_CONTAINER_CLASS} pb-20`}>
+            <div className={`${SECTION_CONTAINER_CLASS} pb-6`}>
                 {/* ── MOBILE LAYOUT (xl:hidden) ───────────────────────────────── */}
                 <div className="xl:hidden">
                     <div className="mb-10 flex flex-col gap-4">
@@ -176,89 +175,102 @@ export default function PricingFacilityList({ facilities = [] }: Props) {
                     </div>
 
                     {/* Facility list — single column, compact size-8 chevrons */}
-                    <div className="mb-8">
+                    <div className="mb-6">
                         {activeData.map((facility, idx) => (
                             <button
                                 key={facility.id}
                                 onClick={() => setActiveIndex(idx)}
-                                className={`w-full flex items-center justify-between border-b py-4 text-left transition-opacity duration-200 ${
+                                className={`flex w-full items-center justify-between border-b py-[0.88rem] text-left transition-opacity duration-200 ${
                                     activeIndex === idx
                                         ? "border-black/80 opacity-100"
-                                        : "border-black opacity-[0.36]"
+                                        : "border-black/25 opacity-[0.36]"
                                 }`}
                             >
-                                <div className="flex items-center gap-4">
-                                    <span className="font-bdo font-normal text-xl tracking-[-0.1rem] text-black">
+                                <div className="flex items-center gap-3">
+                                    <span className="font-bdo text-[0.86rem] font-normal leading-none tracking-[-0.055em] text-black">
                                         ({facility.id})
                                     </span>
-                                    <span className="font-bdo font-medium text-lg tracking-[-0.077rem] text-black">
+                                    <span className="font-bdo text-[0.82rem] font-medium leading-none tracking-[-0.055em] text-black">
                                         {facility.name}
                                     </span>
                                 </div>
-                                {activeIndex === idx && (
-                                    <span className="flex-shrink-0 flex size-8 items-center justify-center rounded-full backdrop-blur-sm bg-black/10">
-                                        <ArrowChevron />
-                                    </span>
-                                )}
+                                <span
+                                    className={`flex size-[1.35rem] flex-shrink-0 items-center justify-center rounded-full backdrop-blur-sm ${
+                                        activeIndex === idx
+                                            ? "bg-black/10 text-black"
+                                            : "bg-black/5 text-black/45"
+                                    }`}
+                                >
+                                    <ArrowChevron />
+                                </span>
                             </button>
                         ))}
                     </div>
 
                     {/* Black card — mobile structure */}
                     {activeFacility && (
-                        <div className="bg-[#212121] rounded-md overflow-hidden p-3 flex flex-col">
+                        <div className="relative left-1/2 flex w-screen -translate-x-1/2 flex-col overflow-hidden bg-black px-[0.95rem] pb-[1.65rem] pt-[1.1rem]">
                             <img
                                 src={activeFacility.image}
                                 alt={activeFacility.name}
-                                className="w-full h-[100px] object-cover rounded-sm mb-4"
+                                className="h-[92px] w-full rounded-none object-cover"
                             />
-                            <span className="font-bdo font-medium text-[1rem] text-white/80 mb-2">
-                                /{activeFacility.classCode}/
-                            </span>
-                            <div className="grid grid-cols-3 gap-2 mt-4">
+                            <img
+                                src={star}
+                                alt=""
+                                aria-hidden
+                                className="mt-6 h-6 w-6 object-contain"
+                            />
+                            <div className="mt-5 grid grid-cols-3 gap-x-3">
                                 {activeFacility.periods.map((period, i) => (
                                     <div
                                         key={i}
                                         className="flex flex-col gap-0.5"
                                     >
-                                        <p className="font-bdo font-medium text-[10px] text-white/80 leading-tight">
+                                        <p className="whitespace-pre-line font-bdo text-[0.56rem] font-medium leading-[1.13] tracking-[-0.015em] text-white/85">
                                             {period.label}
                                         </p>
-                                        <p className="font-bdo font-medium text-[10px] text-white/80 leading-tight">
+                                        <p className="font-bdo text-[0.56rem] font-medium leading-[1.13] tracking-[-0.015em] text-white/85">
                                             {period.wargaPrice}
                                         </p>
-                                        <p className="font-bdo font-medium text-[10px] text-white/80 leading-tight">
+                                        <p className="font-bdo text-[0.56rem] font-medium leading-[1.13] tracking-[-0.015em] text-white/85">
                                             {period.umumPrice}
                                         </p>
                                     </div>
                                 ))}
                             </div>
-                            <div className="flex flex-col gap-1 mt-6">
-                                {activeFacility.additionalDetails.map(
-                                    (detail, i) => (
+                            <div className="mt-7 flex flex-col gap-2.5">
+                                {[...activeFacility.additionalDetails]
+                                    .sort(
+                                        (a, b) =>
+                                            detailOrder(a) - detailOrder(b),
+                                    )
+                                    .map((detail, i) => (
                                         <div
                                             key={i}
-                                            className="flex items-center gap-2"
+                                            className="flex items-center gap-1.5"
                                         >
-                                            <div className="size-1 rounded-sm bg-white/80 flex-shrink-0" />
-                                            <span className="font-bdo font-medium text-[clamp(0.75rem,0.8vw,14px)] text-white/80">
+                                            <div className="size-[0.18rem] flex-shrink-0 rounded-full bg-white/85" />
+                                            <span className="font-bdo text-[0.56rem] font-medium leading-none tracking-[-0.015em] text-white/85">
                                                 {detail}
                                             </span>
                                         </div>
-                                    ),
-                                )}
+                                    ))}
                             </div>
-                            <div className="flex justify-between items-center mt-6 pt-4 border-t border-white/10">
-                                <FacilityBadge
-                                    location={activeFacility.badgeLocation}
-                                    category={activeFacility.badgeType}
-                                />
-                                <img
-                                    src={star}
-                                    alt=""
-                                    aria-hidden
-                                    className="w-8 h-8 object-contain"
-                                />
+                            <div className="mt-8 flex items-end justify-between">
+                                <div className="origin-bottom-left scale-[0.62]">
+                                    <FacilityBadge
+                                        location={activeFacility.badgeLocation}
+                                        category={activeFacility.badgeType}
+                                    />
+                                </div>
+                                <span className="font-bdo text-[0.58rem] font-semibold leading-none tracking-[-0.015em] text-white">
+                                    /
+                                    {displayClassCode(
+                                        activeFacility.classCode,
+                                    )}
+                                    /
+                                </span>
                             </div>
                         </div>
                     )}

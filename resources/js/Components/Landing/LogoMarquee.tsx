@@ -19,12 +19,14 @@ interface LogoMarqueeProps {
     sponsors?: SponsorItem[];
     density?: "default" | "compact";
     label?: string;
+    variant?: "default" | "facilityMembership";
 }
 
 export default function LogoMarquee({
     sponsors,
     density = "default",
     label,
+    variant = "default",
 }: LogoMarqueeProps) {
     const logos =
         sponsors && sponsors.filter((item) => item.img).length > 0
@@ -35,6 +37,7 @@ export default function LogoMarquee({
         () => logos,
     );
     const isCompact = density === "compact";
+    const isFacilityMembership = variant === "facilityMembership";
     const baseSpeed = isCompact ? 42 : 48;
     const hoverSpeed = isCompact ? 16 : 20;
     const railRef = useRef<HTMLDivElement>(null);
@@ -182,11 +185,15 @@ export default function LogoMarquee({
                 tabIndex={isInteractiveGroup ? undefined : -1}
                 aria-hidden={isInteractiveGroup ? undefined : true}
                 aria-label={isInteractiveGroup ? logo.name : undefined}
-                className={`flex h-[118px] w-[210px] shrink-0 items-center justify-center bg-[#F7F7F7] px-8 transition hover:bg-[#F1F1F1] sm:h-[150px] sm:w-[260px] ${
-                    isCompact
-                        ? "xl:h-[176px] xl:w-[232px] xl:px-6"
-                        : "xl:h-[220px] xl:w-[290px]"
-                }`}
+                className={
+                    isFacilityMembership
+                        ? "flex h-[94px] w-[168px] shrink-0 items-center justify-center rounded-[5px] bg-[#F7F7F7] px-6 transition hover:bg-[#F1F1F1] sm:h-[120px] sm:w-[208px] xl:h-[141px] xl:w-[186px] xl:px-5"
+                        : `flex h-[118px] w-[210px] shrink-0 items-center justify-center bg-[#F7F7F7] px-8 transition hover:bg-[#F1F1F1] sm:h-[150px] sm:w-[260px] ${
+                              isCompact
+                                  ? "xl:h-[176px] xl:w-[232px] xl:px-6"
+                                  : "xl:h-[220px] xl:w-[290px]"
+                          }`
+                }
                 onClick={(event) => {
                     if (!didDragRef.current) return;
 
@@ -198,7 +205,11 @@ export default function LogoMarquee({
                     src={logo.img}
                     alt={isInteractiveGroup ? logo.name : ""}
                     className={`h-auto w-auto max-w-[60%] object-contain grayscale ${
-                        isCompact ? "max-h-[42px]" : "max-h-[52px]"
+                        isFacilityMembership
+                            ? "max-h-[34px]"
+                            : isCompact
+                              ? "max-h-[42px]"
+                              : "max-h-[52px]"
                     }`}
                     draggable={false}
                     loading="lazy"
@@ -239,7 +250,11 @@ export default function LogoMarquee({
     );
 
     return (
-        <section className={`w-full overflow-hidden bg-white ${isCompact ? "pb-5" : "pb-6"}`}>
+        <section
+            className={`w-full overflow-hidden bg-white ${
+                isFacilityMembership ? "pb-3" : isCompact ? "pb-5" : "pb-6"
+            }`}
+        >
             <style>{`
                 .sponsor-logo-rail {
                     cursor: grab;
@@ -256,7 +271,13 @@ export default function LogoMarquee({
                 }
             `}</style>
             {label ? (
-                <div className="grid items-center gap-8 lg:grid-cols-[minmax(10rem,13.5rem)_minmax(0,1fr)]">
+                <div
+                    className={
+                        isFacilityMembership
+                            ? "grid items-center gap-5 lg:grid-cols-[minmax(7.5rem,10.125rem)_minmax(0,1fr)]"
+                            : "grid items-center gap-8 lg:grid-cols-[minmax(10rem,13.5rem)_minmax(0,1fr)]"
+                    }
+                >
                     <p className="font-bdo text-[clamp(0.88rem,0.95vw,1rem)] font-semibold uppercase leading-none tracking-[-0.04em] text-[#242424]">
                         {label}
                     </p>

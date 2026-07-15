@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\MorphOne;
 class Booking extends Model
 {
     protected $fillable = [
+        'booking_order_id',
         'user_id',
         'customer_name',
         'facility_id',
@@ -33,6 +34,11 @@ class Booking extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function bookingOrder(): BelongsTo
+    {
+        return $this->belongsTo(BookingOrder::class);
     }
 
     public function facility(): BelongsTo

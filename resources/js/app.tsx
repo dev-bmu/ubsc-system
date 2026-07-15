@@ -3,7 +3,7 @@ import './bootstrap';
 
 import { createInertiaApp } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
-import { createRoot } from 'react-dom/client';
+import { createRoot, hydrateRoot } from 'react-dom/client';
 
 import { useEffect } from "react";
 import Lenis from "@studio-freight/lenis";
@@ -20,15 +20,20 @@ function LenisProvider({ children }: { children: React.ReactNode }) {
             smoothWheel: true,
             syncTouch: false,
         });
+        let rafId = 0;
+        let active = true;
 
         function raf(time: number) {
+            if (!active) return;
             lenis.raf(time);
-            requestAnimationFrame(raf);
+            rafId = requestAnimationFrame(raf);
         }
 
-        requestAnimationFrame(raf);
+        rafId = requestAnimationFrame(raf);
 
         return () => {
+            active = false;
+            cancelAnimationFrame(rafId);
             lenis.destroy();
         };
     }, []);
@@ -37,7 +42,7 @@ function LenisProvider({ children }: { children: React.ReactNode }) {
 }
 
 createInertiaApp({
-    title: (title) => `${title} - ${appName}`,
+    title: (title) => title.includes(appName) ? title : `${title} - ${appName}`,
 
     resolve: (name) =>
         resolvePageComponent(
@@ -46,15 +51,19 @@ createInertiaApp({
         ),
 
     setup({ el, App, props }) {
-        const root = createRoot(el);
-
-        root.render(
+        const tree = (
             <React.StrictMode>
                 <LenisProvider>
                     <App {...props} />
                 </LenisProvider>
             </React.StrictMode>
         );
+
+        if (el.hasChildNodes()) {
+            hydrateRoot(el, tree);
+        } else {
+            createRoot(el).render(tree);
+        }
     },
 
     progress: {

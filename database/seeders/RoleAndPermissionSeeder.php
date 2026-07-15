@@ -23,6 +23,10 @@ class RoleAndPermissionSeeder extends Seeder
         // Do not rename here without updating controllers and Roles.tsx simultaneously.
         //
         $allPermissions = [
+            'view-facility-gallery',
+            'manage-facility-gallery',
+            'publish-facility-gallery',
+            'delete-facility-gallery',
             // Beranda & Dasbor
             'view-stats',           // dashboard stat visibility (no controller gate yet)
             'view-reports',         // FinanceReportController — was: view-finance-reports
@@ -73,6 +77,8 @@ class RoleAndPermissionSeeder extends Seeder
             ],
 
             'Staff Central'      => [
+                'view-facility-gallery',
+                'manage-facility-gallery',
                 'view-bookings',
                 'manage-bookings',
                 'view-facilities',

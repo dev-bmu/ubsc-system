@@ -1,10 +1,11 @@
-import useEmblaCarousel from "embla-carousel-react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import useEmblaCarousel from "embla-carousel-react";
 import { useEmblaNav } from "@/hooks/useEmblaNav";
 import SectionDivider from "@/Components/Landing/SectionDivider";
 import ReservasiButton from "@/Components/Landing/ReservasiButton";
 import NewsCard from "@/Components/Landing/NewsCard";
 import type { NewsItem } from "@/Components/Landing/NewsCard";
+import { useEffect, useRef } from "react";
 
 const DUMMY_NEWS: NewsItem[] = [
     {
@@ -62,36 +63,8 @@ interface NewsSectionProps {
     news?: NewsItem[];
 }
 
-function NewsNavButtons({
-    onPrevious,
-    onNext,
-}: {
-    onPrevious: () => void;
-    onNext: () => void;
-}) {
-    return (
-        <div className="flex items-center gap-3">
-            <button
-                type="button"
-                onClick={onPrevious}
-                aria-label="Previous articles"
-                className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full border border-black text-black transition-colors duration-200 hover:bg-gray-100"
-            >
-                <ChevronLeft size={20} />
-            </button>
-            <button
-                type="button"
-                onClick={onNext}
-                aria-label="Next articles"
-                className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-black text-white transition-colors duration-200 hover:bg-gray-800"
-            >
-                <ChevronRight size={20} />
-            </button>
-        </div>
-    );
-}
-
 export default function NewsSection({ news = DUMMY_NEWS }: NewsSectionProps) {
+    const sectionRef = useRef<HTMLElement>(null);
     const [emblaRef, emblaApi] = useEmblaCarousel({
         align: "start",
         dragFree: true,
@@ -99,70 +72,137 @@ export default function NewsSection({ news = DUMMY_NEWS }: NewsSectionProps) {
 
     const { scrollPrev, scrollNext } = useEmblaNav(emblaApi);
 
+    useEffect(() => {
+        const sources = Array.from(
+            new Set(news.slice(0, 2).map((item) => item.image).filter(Boolean)),
+        );
+        const images: HTMLImageElement[] = [];
+        const timer = window.setTimeout(() => {
+            sources.forEach((source) => {
+                const image = new Image();
+                image.decoding = "async";
+                image.src = source;
+                images.push(image);
+                void image.decode?.().catch(() => {});
+            });
+        }, 180);
+
+        return () => {
+            window.clearTimeout(timer);
+            images.length = 0;
+        };
+    }, [news]);
+
+    useEffect(() => {
+        const section = sectionRef.current;
+        if (!section) return;
+
+        let completeTimer = 0;
+        const reveal = () => {
+            section.classList.add("is-visible");
+            completeTimer = window.setTimeout(
+                () => section.classList.add("is-complete"),
+                2200,
+            );
+        };
+
+        if (!("IntersectionObserver" in window)) {
+            reveal();
+            return () => window.clearTimeout(completeTimer);
+        }
+
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (!entry?.isIntersecting) return;
+                reveal();
+                observer.disconnect();
+            },
+            {
+                threshold: 0.035,
+                rootMargin: "0px 0px -5% 0px",
+            },
+        );
+
+        observer.observe(section);
+        return () => {
+            observer.disconnect();
+            window.clearTimeout(completeTimer);
+        };
+    }, []);
+
     return (
-        <section className="w-full bg-[#F5F7F9] pb-16 pt-10 text-black sm:pb-20 sm:pt-14 xl:pb-[72px] xl:pt-[58px]">
-            <div className="px-[clamp(1.5rem,4.5vw,5.5rem)]">
-                <SectionDivider
-                    number="04"
-                    title="Berita"
-                    subtitle="01 homepage"
-                    theme="light"
-                />
-            </div>
-
-            <h2 className="mt-12 px-[clamp(1.5rem,4.5vw,5.5rem)] font-bdo text-[clamp(2rem,2.75vw,52px)] font-semibold leading-[1.05] tracking-[-0.035em] text-black sm:mt-16 xl:mt-[76px]">
-                Berita & Artikel
-            </h2>
-
-            <div className="mx-auto mb-12 mt-12 hidden grid-cols-[minmax(250px,1fr)_minmax(430px,1.35fr)_minmax(150px,.72fr)] items-end gap-8 px-[clamp(1.5rem,4.5vw,5.5rem)] xl:grid xl:mb-[96px] xl:mt-[112px]">
-                <div className="max-w-[520px]">
-                    <ReservasiButton
-                        href="/coming-soon"
-                        label="Lihat Berita Lainnya"
+        <section
+            ref={sectionRef}
+            className="news-entrance-stage w-full bg-[#F3F6F8] pb-20 pt-14 text-black md:pb-24 md:pt-16 xl:pb-[6.4rem] xl:pt-[3.55rem]"
+        >
+            <div className="mx-auto flex w-full max-w-[1920px] flex-col px-[clamp(1.5rem,4.5vw,5.5rem)]">
+                <div>
+                    <SectionDivider
+                        number="04"
+                        title="Berita"
+                        subtitle="01 homepage"
+                        theme="light"
+                        outerClassName="-mx-[clamp(0rem,1.65vw,2rem)]"
+                        contentClassName="px-3"
                     />
                 </div>
-                <p className="max-w-[640px] justify-self-center font-bdo text-[clamp(1.25rem,1.55vw,1.875rem)] font-light leading-[1.28] tracking-[-0.025em] text-black">
-                    Komitmen kami adalah menghadirkan{" "}
-                    <strong className="font-medium">
-                        ekosistem
-                        <br />
-                        olahraga yang inklusif.
-                    </strong>
-                </p>
-                <div className="justify-self-end">
-                    <NewsNavButtons onPrevious={scrollPrev} onNext={scrollNext} />
-                </div>
-            </div>
 
-            <div className="mb-10 mt-10 flex flex-col gap-8 px-[clamp(1.5rem,4.5vw,5.5rem)] xl:hidden">
-                <p className="font-bdo text-base font-light leading-[1.35] tracking-[-0.02em] text-black sm:text-lg">
-                        Komitmen kami adalah menghadirkan
-                        <br />
-                        <strong className="font-medium">
-                            ekosistem olahraga yang inklusif.
-                        </strong>
-                </p>
-                <div className="flex items-center justify-between gap-4">
-                    <div className="min-w-0 flex-1">
+                <h2 className="news-entrance-reveal news-entrance-reveal--title mt-12 font-bdo text-[clamp(2.35rem,4.15vw,5rem)] font-semibold leading-[1.02] tracking-[-0.055em] text-black md:mt-14 xl:mt-[4.35rem] xl:text-[clamp(3.25rem,3.1vw,3.75rem)]">
+                    Berita &amp; Artikel
+                </h2>
+
+                <div className="news-entrance-reveal news-entrance-reveal--actions mb-12 mt-12 grid grid-cols-1 items-center gap-8 md:mt-16 md:grid-cols-12 xl:mb-[4.5rem] xl:mt-[7.05rem]">
+                    <div className="md:col-span-4">
                         <ReservasiButton
-                            href="/coming-soon"
                             label="Lihat Berita Lainnya"
+                            href="/coming-soon"
+                            size="compact"
                         />
                     </div>
-                    <NewsNavButtons onPrevious={scrollPrev} onNext={scrollNext} />
-                </div>
-            </div>
 
-            <div className="overflow-hidden px-[clamp(1.5rem,4.5vw,5.5rem)]" ref={emblaRef}>
-                <div className="flex gap-[30px]">
-                    {news.map((item, i) => (
-                        <NewsCard
-                            key={item.id}
-                            {...item}
-                            index={i}
-                            className="h-[430px] w-[300px] flex-shrink-0 sm:h-[500px] sm:w-[360px] xl:h-[530px] xl:w-[414px]"
-                        />
-                    ))}
+                    <div className="md:col-span-5 md:justify-self-center">
+                        <p className="max-w-[540px] font-bdo text-[clamp(1.2rem,1.45vw,1.875rem)] font-light leading-[1.24] tracking-[-0.035em] text-black">
+                            Komitmen kami adalah menghadirkan{" "}
+                            <strong className="font-medium">
+                                ekosistem
+                                <br className="hidden md:block" />
+                                olahraga yang inklusif.
+                            </strong>
+                        </p>
+                    </div>
+
+                    <div className="flex items-center gap-4 md:col-span-3 md:justify-self-end">
+                        <button
+                            type="button"
+                            onClick={scrollPrev}
+                            aria-label="Previous articles"
+                            className="flex h-12 w-12 flex-shrink-0 items-center justify-center border border-black text-black transition-colors duration-200 hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:border-gray-300 disabled:text-gray-300 xl:h-[60px] xl:w-[60px]"
+                        >
+                            <ChevronLeft className="h-5 w-5 xl:h-7 xl:w-7" />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={scrollNext}
+                            aria-label="Next articles"
+                            className="flex h-12 w-12 flex-shrink-0 items-center justify-center bg-black text-white transition-colors duration-200 hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-300 xl:h-[60px] xl:w-[60px]"
+                        >
+                            <ChevronRight className="h-5 w-5 xl:h-7 xl:w-7" />
+                        </button>
+                    </div>
+                </div>
+
+                <div className="overflow-hidden" ref={emblaRef}>
+                    <div className="flex gap-6">
+                        {news.map((item, i) => (
+                            <NewsCard
+                                key={item.id}
+                                {...item}
+                                index={i}
+                                priority={i < 2}
+                                entranceIndex={i < 4 ? i : undefined}
+                            />
+                        ))}
+                    </div>
                 </div>
             </div>
         </section>

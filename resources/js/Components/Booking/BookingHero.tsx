@@ -70,9 +70,13 @@ export default function BookingHero() {
                 variant="transparent"
                 sectionNumber="06/"
                 sectionLabel="bookingpage"
-                description="Temukan fasilitas terbaik dan booking sesi latihan Anda dengan mudah."
+                description="UB Sport Center – Temukan fasilitas olahraga modern untuk berlatih, berprestasi, dan berkembang bersama."
                 targetId="booking-content"
                 showVideo={false}
+                lineInset
+                sectionInset
+                mobileCopySmaller
+                mobileCopyLockRight
             />
         </div>
     );

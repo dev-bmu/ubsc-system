@@ -13,8 +13,8 @@ class ProfileUpdateRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name'   => ['required', 'string', 'max:255'],
-            'email'  => [
+            'name' => ['required', 'string', 'max:255'],
+            'email' => [
                 'sometimes',
                 'required',
                 'string',
@@ -25,6 +25,7 @@ class ProfileUpdateRequest extends FormRequest
             ],
             'birth_place' => ['nullable', 'string', 'max:100'],
             'birth_date' => ['nullable', 'date', 'before_or_equal:today'],
+            'phone_number' => ['nullable', 'string', 'max:30'],
             'avatar' => ['nullable', 'image', 'mimes:jpeg,png,jpg', 'max:2048'],
         ];
     }

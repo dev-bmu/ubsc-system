@@ -6,6 +6,7 @@ import PricingClassSection from "@/Components/Pricing/PricingClassSection";
 import PricingAccordionSection from "@/Components/Pricing/PricingAccordionSection";
 import AboutSectionContact from "@/Components/About/AboutSectionContact";
 import Footer from "@/Components/Landing/Footer";
+import HeroCurtainEdge from "@/Components/Landing/HeroCurtainEdge";
 import { Head, usePage } from "@inertiajs/react";
 import type { MembershipPlanItem, PageProps } from "@/types";
 
@@ -29,7 +30,7 @@ export default function PricingPage() {
     const { facilities = [], membershipPlans = [] } =
         usePage<PricingPageProps>().props;
     return (
-        <>
+        <div className="min-h-screen bg-white">
             <Head>
                 <title>Jadwal &amp; Paket Harga | UB Sport Center</title>
                 <meta
@@ -54,17 +55,33 @@ export default function PricingPage() {
             <main className="relative">
                 <Navbar activeSection="Pricing" />
                 <PricingHero />
-                <PricingInfo membershipPlans={membershipPlans} />
-                <PricingFacilityList facilities={facilities} />
-                <PricingClassSection facilities={facilities} />
-                <PricingAccordionSection facilities={facilities} />
-                <AboutSectionContact
-                    sectionNumber="05"
-                    sectionTitle="Informasi"
-                    sectionSubtitle="05 pricing page"
-                />
+
+                <section className="section-two-curtain relative z-[18] w-full overflow-x-clip bg-transparent">
+                    <HeroCurtainEdge postFlowSelector=".pricing-post-info-flow" />
+                    <div className="section-two-curtain-content relative z-10 bg-white">
+                        <PricingInfo membershipPlans={membershipPlans} />
+                    </div>
+                </section>
+
+                <div className="pricing-post-info-flow bg-white">
+                    <PricingFacilityList facilities={facilities} />
+                    <PricingClassSection facilities={facilities} />
+                    <PricingAccordionSection facilities={facilities} />
+                </div>
             </main>
-            <Footer />
-        </>
+
+            <div className="home-footer-reveal-root">
+                <div className="home-footer-reveal-stage">
+                    <AboutSectionContact
+                        sectionNumber="05"
+                        sectionTitle="Informasi"
+                        sectionSubtitle="05 pricing page"
+                    />
+                </div>
+                <div className="home-footer-reveal-footer">
+                    <Footer />
+                </div>
+            </div>
+        </div>
     );
 }

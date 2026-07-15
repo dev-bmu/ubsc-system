@@ -6,11 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Models\InfoBanner;
 use App\Models\News;
 use App\Models\NewsCategory;
+use App\Support\NewsContentSanitizer;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -66,8 +68,10 @@ class NewsController extends Controller
             'title'            => $data['title'],
             'slug'             => $data['slug'],
             'excerpt'          => $data['excerpt'] ?? null,
-            'content'          => $data['content'],
+            'content'          => NewsContentSanitizer::clean($data['content']),
             'status'           => $data['status'],
+            'is_hero_featured' => $data['is_hero_featured'],
+            'hero_sort_order'  => $data['is_hero_featured'] ? $data['hero_sort_order'] : null,
             'published_at'     => $this->resolvePublishedAt($data),
         ]);
 
@@ -105,8 +109,10 @@ class NewsController extends Controller
             'title'            => $data['title'],
             'slug'             => $data['slug'],
             'excerpt'          => $data['excerpt'] ?? null,
-            'content'          => $data['content'],
+            'content'          => NewsContentSanitizer::clean($data['content']),
             'status'           => $data['status'],
+            'is_hero_featured' => $data['is_hero_featured'],
+            'hero_sort_order'  => $data['is_hero_featured'] ? $data['hero_sort_order'] : null,
             'published_at'     => $this->resolvePublishedAt($data, $news->published_at),
         ]);
 
@@ -130,7 +136,7 @@ class NewsController extends Controller
 
     private function validateArticle(Request $request, ?int $excludeId = null): array
     {
-        return $request->validate([
+        $validator = validator($request->all(), [
             'news_category_id' => ['nullable', 'exists:news_categories,id'],
             'title'            => ['required', 'string', 'max:255'],
             'slug'             => [
@@ -140,9 +146,46 @@ class NewsController extends Controller
             'excerpt'          => ['nullable', 'string', 'max:500'],
             'content'          => ['required', 'string'],
             'status'           => ['required', Rule::in(['draft', 'published', 'archived'])],
+            'is_hero_featured' => ['sometimes', 'boolean'],
+            'hero_sort_order'  => [
+                Rule::requiredIf($request->boolean('is_hero_featured')),
+                'nullable',
+                'integer',
+                'min:1',
+                'max:6',
+                Rule::unique('news', 'hero_sort_order')
+                    ->where(fn ($query) => $query->where('is_hero_featured', true))
+                    ->ignore($excludeId),
+            ],
             'published_at'     => ['nullable', 'date'],
             'thumbnail'        => ['nullable', 'image', 'max:5120'],
         ]);
+
+        $validator->after(function (Validator $validator) use ($request, $excludeId): void {
+            if (! $request->boolean('is_hero_featured')) {
+                return;
+            }
+
+            $selectedCount = News::query()
+                ->where('is_hero_featured', true)
+                ->when($excludeId, fn ($query) => $query->whereKeyNot($excludeId))
+                ->count();
+
+            if ($selectedCount >= 6) {
+                $validator->errors()->add(
+                    'is_hero_featured',
+                    'Hero newspage maksimal berisi 6 berita atau artikel pilihan.',
+                );
+            }
+        });
+
+        $data = $validator->validate();
+        $data['is_hero_featured'] = $request->boolean('is_hero_featured');
+        $data['hero_sort_order'] = $data['is_hero_featured']
+            ? (int) $data['hero_sort_order']
+            : null;
+
+        return $data;
     }
 
     private function resolvePublishedAt(array $data, mixed $existing = null): ?string
@@ -164,6 +207,8 @@ class NewsController extends Controller
             'excerpt'      => $n->excerpt,
             'content'      => $n->content,
             'status'       => $n->status,
+            'is_hero_featured' => $n->is_hero_featured,
+            'hero_sort_order' => $n->hero_sort_order,
             'published_at' => $n->published_at?->toDateTimeString(),
             'updated_at'   => $n->updated_at->diffForHumans(),
             'category'     => $n->category

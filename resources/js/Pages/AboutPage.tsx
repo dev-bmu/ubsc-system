@@ -9,12 +9,34 @@ import AboutVisionMission from "@/Components/About/AboutVisionMission";
 import AboutSectionFaq from "@/Components/About/AboutSectionFaq";
 import AboutSectionContact from "@/Components/About/AboutSectionContact";
 import AboutSectionMap from "@/Components/About/AboutSectionMap";
-import { Head } from "@inertiajs/react";
+import { Head, usePage } from "@inertiajs/react";
 import Footer from "@/Components/Landing/Footer";
+import { useEffect } from "react";
+import type { PageProps } from "@/types";
+import type { PublicTestimonial } from "@/Components/Landing/SectionSeven";
 
 export default function AboutPage() {
+    const { testimonials } = usePage<
+        PageProps<{ testimonials?: PublicTestimonial[] }>
+    >().props;
+
+    useEffect(() => {
+        const previousBodyBackground = document.body.style.backgroundColor;
+        const previousHtmlBackground =
+            document.documentElement.style.backgroundColor;
+
+        document.body.style.backgroundColor = "#ffffff";
+        document.documentElement.style.backgroundColor = "#ffffff";
+
+        return () => {
+            document.body.style.backgroundColor = previousBodyBackground;
+            document.documentElement.style.backgroundColor =
+                previousHtmlBackground;
+        };
+    }, []);
+
     return (
-        <>
+        <div className="min-h-screen bg-white">
             <Head>
                 <title>Tentang Kami | UB Sport Center</title>
                 <meta
@@ -33,31 +55,40 @@ export default function AboutPage() {
                 <meta property="og:type" content="website" />
                 <meta name="twitter:card" content="summary_large_image" />
             </Head>
-            <main className="relative">
+            <main className="about-page-canvas relative bg-white">
                 <Navbar activeSection="About" />
                 <AboutHero />
-                <FadeIn>
-                    <AboutHistory />
-                </FadeIn>
-                <AboutBranches />
-                <FadeIn>
+                <AboutHistory />
+                <div className="about-post-history-flow bg-white">
+                    <AboutBranches />
                     <AboutServices />
-                </FadeIn>
-                <FadeIn>
-                    <AboutVisionMission />
-                </FadeIn>
-                <FadeIn>
-                    <AboutSectionFaq />
-                </FadeIn>
-                <FadeIn>
-                    <SectionSeven />
-                </FadeIn>
-                <FadeIn>
-                    <AboutSectionContact />
-                </FadeIn>
-                <AboutSectionMap />
+                    <FadeIn>
+                        <AboutVisionMission />
+                    </FadeIn>
+                    <FadeIn>
+                        <AboutSectionFaq />
+                    </FadeIn>
+                    <FadeIn>
+                        <SectionSeven
+                            testimonials={testimonials}
+                            sectionNumber="06"
+                            sectionTitle="Testimoni"
+                            sectionSubtitle="02 aboutpage"
+                        />
+                    </FadeIn>
+                    <FadeIn>
+                        <AboutSectionContact />
+                    </FadeIn>
+                </div>
             </main>
-            <Footer />
-        </>
+            <div className="home-footer-reveal-root">
+                <div className="home-footer-reveal-stage">
+                    <AboutSectionMap />
+                </div>
+                <div className="home-footer-reveal-footer">
+                    <Footer />
+                </div>
+            </div>
+        </div>
     );
 }

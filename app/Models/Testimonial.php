@@ -38,15 +38,30 @@ class Testimonial extends Model implements HasMedia
 
     public function logoUrl(): ?string
     {
-        return $this->getFirstMediaUrl('logo') ?: null;
+        return $this->getFirstMediaUrl('logo') ?: $this->fallbackLogoUrl();
     }
 
     private function fallbackImageUrl(): ?string
     {
         $fallbacks = [
             'ub football club' => 'assets/icons/testimonial-ub-sport-center.avif',
-            'malang tennis academy' => 'assets/icons/ulasan-malang-tennis-academy-ubsc.avif',
+            'malang tennis academy' => 'assets/icons/testimonial-ub-sport-center.avif',
             'brawijaya badminton club' => 'assets/icons/testimonial-ub-sport-center.avif',
+        ];
+
+        $path = $fallbacks[strtolower($this->author_name)] ?? null;
+
+        if (! $path || ! file_exists(public_path($path))) {
+            return null;
+        }
+
+        return asset($path);
+    }
+
+    private function fallbackLogoUrl(): ?string
+    {
+        $fallbacks = [
+            'malang tennis academy' => 'assets/icons/ulasan-malang-tennis-academy-ubsc.avif',
         ];
 
         $path = $fallbacks[strtolower($this->author_name)] ?? null;

@@ -189,7 +189,7 @@ function LoginForm() {
                     </span>
                 </label>
                 <a
-                    href={route("password.request")}
+                    href="/forgot-password"
                     className="font-bdo text-[12px] font-medium leading-none text-[#244669] transition-colors hover:text-red-600"
                 >
                     Forgot Password ?

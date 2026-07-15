@@ -1,0 +1,104 @@
+.pricing-membership__heading {
+    position: relative;
+    z-index: 1;
+    display: block;
+}
+
+.pricing-membership__heading-reveal {
+    --pricing-membership-heading-indent: clamp(3rem, 13vw, 4.85rem);
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    margin-bottom: -0.14em;
+    padding-right: 0.08em;
+    padding-bottom: 0.14em;
+    white-space: normal;
+}
+
+.pricing-membership__heading-reveal > .ubsc-text-reveal__line-ghost,
+.pricing-membership__heading-reveal > .ubsc-text-reveal__line-measure {
+    width: 100%;
+    max-width: 100%;
+    white-space: normal;
+    text-indent: var(--pricing-membership-heading-indent);
+}
+
+.pricing-membership__heading-reveal > .ubsc-text-reveal__line-ghost {
+    display: block;
+}
+
+.pricing-membership__results {
+    max-width: 70rem;
+}
+
+.pricing-membership__results-table {
+    border-top: 1px solid #181818;
+}
+
+.pricing-membership__result-row {
+    border-bottom-color: #dde0e4;
+}
+
+.pricing-membership__result-label,
+.pricing-membership__result-value {
+    line-height: 1.15;
+    transition:
+        color 280ms cubic-bezier(0.16, 1, 0.3, 1),
+        transform 280ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pricing-membership__result-value {
+    color: #646b76;
+}
+
+.pricing-membership__summary {
+    line-height: 1.52;
+    color: #666d77;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .pricing-membership__result-row:hover .pricing-membership__result-label {
+        transform: translateX(0.2rem);
+    }
+
+    .pricing-membership__result-row:hover .pricing-membership__result-value {
+        color: #181818;
+    }
+}
+
+@media (min-width: 640px) {
+    .pricing-membership__heading-reveal {
+        --pricing-membership-heading-indent: clamp(4.25rem, 13vw, 7rem);
+    }
+}
+
+@media (min-width: 768px) {
+    .pricing-membership__heading-reveal {
+        --pricing-membership-heading-indent: clamp(5.25rem, 13vw, 8.75rem);
+    }
+}
+
+@media (min-width: 1024px) {
+    .pricing-membership__heading-reveal {
+        --pricing-membership-heading-indent: clamp(6rem, 13vw, 8.75rem);
+    }
+}
+
+@media (min-width: 1280px) {
+    .pricing-membership__heading-reveal {
+        --pricing-membership-heading-indent: clamp(4.5rem, 7vw, 6.25rem);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pricing-membership__result-label,
+    .pricing-membership__result-value {
+        transition: none;
+    }
+}
+
+@media (min-width: 1440px) {
+    .pricing-membership__heading-reveal {
+        --pricing-membership-heading-indent: 8.75rem;
+    }
+}

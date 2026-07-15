@@ -1,6 +1,6 @@
-import { motion } from "framer-motion";
 import { useEffect, useRef } from "react";
 import FacilityBadge from "@/Components/Landing/FacilityBadge";
+import FacilityTextMarquee from "./FacilityTextMarquee";
 
 export interface OutdoorFacility {
     id: string | number;
@@ -11,8 +11,6 @@ export interface OutdoorFacility {
     venueType?: string | null;
     mapLink?: string | null;
 }
-
-const MARQUEE_ITEMS = Array(40).fill(null);
 
 const DUMMY_OUTDOOR_FACILITIES: OutdoorFacility[] = [
     {
@@ -103,11 +101,7 @@ function OutdoorFacilityCard({
                 <div className="absolute right-[13px] top-[17px] [&>div]:rounded-[4px] [&>div]:border-2 [&_span]:text-[10px] md:right-[3%] md:top-[6.6%] md:[&>div]:rounded-[7px] md:[&>div]:border-[3px] md:[&_span]:text-[16px]">
                     <FacilityBadge
                         location={facility.location ?? "Dieng"}
-                        category={
-                            facility.venueType ??
-                            facility.category ??
-                            "Outdoor Facility"
-                        }
+                        category={facility.venueType ?? facility.category ?? "Outdoor Facility"}
                         variant="blue-red"
                     />
                 </div>
@@ -130,8 +124,7 @@ export default function FacilityOutdoorSection({
         : activeFacilities;
     const remainingOutdoorCount = Math.max(
         0,
-        (totalFacilitiesCount ?? activeFacilities.length) -
-            renderedItems.length,
+        (totalFacilitiesCount ?? activeFacilities.length) - renderedItems.length,
     );
 
     const sectionRef = useRef<HTMLElement>(null);
@@ -164,8 +157,7 @@ export default function FacilityOutdoorSection({
 
         const requestApplyScrollProgress = () => {
             if (frameRef.current) return;
-            frameRef.current =
-                window.requestAnimationFrame(applyScrollProgress);
+            frameRef.current = window.requestAnimationFrame(applyScrollProgress);
         };
 
         const measure = () => {
@@ -177,10 +169,7 @@ export default function FacilityOutdoorSection({
 
             scrollDistanceRef.current = distance;
             section.style.height = `${stickyH + distance}px`;
-            section.style.setProperty(
-                "--outdoor-scroll-distance",
-                `${distance}px`,
-            );
+            section.style.setProperty("--outdoor-scroll-distance", `${distance}px`);
             applyScrollProgress();
         };
 
@@ -192,15 +181,10 @@ export default function FacilityOutdoorSection({
 
         return () => {
             window.removeEventListener("resize", measure);
-            window.removeEventListener(
-                "scroll",
-                requestApplyScrollProgress,
-            );
+            window.removeEventListener("scroll", requestApplyScrollProgress);
             section.style.removeProperty("height");
             track.style.removeProperty("transform");
-            if (frameRef.current) {
-                window.cancelAnimationFrame(frameRef.current);
-            }
+            if (frameRef.current) window.cancelAnimationFrame(frameRef.current);
         };
     }, [renderedItems.length]);
 
@@ -208,34 +192,15 @@ export default function FacilityOutdoorSection({
         <section
             ref={sectionRef}
             id="facility-outdoor"
-            className="relative bg-[#242424]"
+            className="relative bg-[#252525]"
         >
             <div
                 ref={stickyRef}
-                className="sticky top-0 flex h-[100svh] flex-col overflow-hidden bg-[#242424]"
+                className="sticky top-0 flex h-[100svh] flex-col overflow-hidden bg-[#252525]"
             >
-                <div className="relative overflow-hidden border-b border-white/10 bg-black py-[14px] md:py-[18px]">
-                    <motion.div
-                        className="flex items-center"
-                        animate={{ x: ["0%", "-50%"] }}
-                        transition={{
-                            repeat: Infinity,
-                            ease: "linear",
-                            duration: 30,
-                        }}
-                    >
-                        {[...MARQUEE_ITEMS, ...MARQUEE_ITEMS].map((_, i) => (
-                            <span
-                                key={i}
-                                className="shrink-0 pr-9 font-clash text-[10px] font-semibold uppercase tracking-widest text-white sm:text-[12px] md:pr-12 lg:text-[16px]"
-                            >
-                                UBSC
-                            </span>
-                        ))}
-                    </motion.div>
-                </div>
+                <FacilityTextMarquee text="OUTDOOR" />
 
-                <div className="mx-auto grid w-full max-w-[1920px] grid-cols-[1fr_auto] items-center gap-x-6 px-[18px] pb-[clamp(2.2rem,4.5vh,3.2rem)] pt-[clamp(1.8rem,3.8vh,2.6rem)] text-white md:grid-cols-3 md:px-[clamp(1.75rem,4.65vw,5.55rem)] md:pb-[clamp(3rem,5.5vh,4rem)] md:pt-[clamp(2.6rem,4.8vh,3.5rem)]">
+                <div className="mx-auto grid w-full max-w-[1920px] grid-cols-[1fr_auto] items-center gap-x-6 px-[18px] pb-[clamp(3.5rem,6vh,5rem)] pt-[clamp(1.8rem,3.8vh,2.6rem)] text-white md:grid-cols-3 md:px-[clamp(1.75rem,4.65vw,5.55rem)] md:pb-[clamp(3rem,5.5vh,4rem)] md:pt-[clamp(2.6rem,4.8vh,3.5rem)]">
                     <div className="flex items-center gap-3 md:gap-5">
                         <span className="section-label-diamond" />
                         <span className="font-bdo text-[14px] font-medium tracking-[-0.035em] md:text-[clamp(1.35rem,1.35vw,1.75rem)]">
@@ -252,9 +217,7 @@ export default function FacilityOutdoorSection({
                         className="group flex items-center justify-self-end font-bdo text-[11px] tracking-[-0.025em] text-white/86 md:text-[clamp(1.05rem,1vw,1.35rem)]"
                     >
                         <span className="underline decoration-white/70 underline-offset-4">
-                            <span className="font-light">
-                                {remainingOutdoorCount}
-                            </span>{" "}
+                            <span className="font-light">{remainingOutdoorCount}</span>{" "}
                             <span className="font-normal">Lainnya</span>
                         </span>
                         <span className="ml-2 text-[1.2em] leading-none transition-transform duration-300 group-hover:translate-x-1">
@@ -265,7 +228,7 @@ export default function FacilityOutdoorSection({
 
                 <div
                     ref={scrollerRef}
-                    className="facility-outdoor-scroller min-h-0 flex-1 overflow-hidden pb-[clamp(1.8rem,3.8vh,2.5rem)] pt-[clamp(0.8rem,1.8vh,1.3rem)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                    className="facility-outdoor-scroller min-h-0 flex-1 overflow-hidden pb-[clamp(0.8rem,1.8vh,1.3rem)] pt-[clamp(0.8rem,1.8vh,1.3rem)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                 >
                     <div
                         ref={trackRef}

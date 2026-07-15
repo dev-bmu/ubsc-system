@@ -4,6 +4,7 @@ import SectionDivider from "@/Components/Landing/SectionDivider";
 import ReservasiButton from "@/Components/Landing/ReservasiButton";
 import PriceCard from "@/Components/Landing/PriceCard";
 import type { PriceItem } from "@/Components/Landing/PriceCard";
+import ScrollTextReveal from "@/Components/Landing/ScrollTextReveal";
 
 const PAGE_SIZE = 4;
 
@@ -78,6 +79,8 @@ export default function SectionSix({ facilities = [] }: SectionSixProps) {
                     title="Daftar harga"
                     subtitle="01 homepage"
                     theme="light"
+                    outerClassName="-mx-[clamp(0rem,1.65vw,2rem)]"
+                    contentClassName="px-3"
                 />
 
                 <div className="mt-10 grid grid-cols-1 gap-12 md:mt-16 xl:grid-cols-[minmax(0,555px)_minmax(0,1fr)] xl:gap-[80px] xl:px-8">
@@ -89,10 +92,28 @@ export default function SectionSix({ facilities = [] }: SectionSixProps) {
                             </span>
                         </div>
 
-                        <h2 className="mt-7 max-w-[555px] font-bdo text-[clamp(2rem,4.7vw,3.5rem)] font-semibold leading-[1.12] tracking-[-0.021em] text-gray-950 xl:text-[clamp(2.65rem,2.92vw,3.5rem)]">
-                            Raih Performa
-                            <br className="hidden xl:block" /> Terbaik Dengan Paket
-                            <br className="hidden xl:block" /> Fasilitas Unggulan
+                        <h2
+                            aria-label="Raih Performa Terbaik Dengan Paket Fasilitas Unggulan"
+                            className="mt-7 max-w-[555px] font-bdo text-[clamp(2.05rem,8.15vw,2.82rem)] font-medium leading-[1.01] tracking-[-0.058em] text-gray-950 md:text-[clamp(2.08rem,4.5vw,2.6rem)] lg:text-[clamp(2.2rem,3.8vw,2.7rem)] xl:text-[clamp(2.65rem,2.92vw,3.5rem)]"
+                        >
+                            {[
+                                "Raih Performa",
+                                "Terbaik Dengan Paket",
+                                "Fasilitas Unggulan",
+                            ].map((line, index) => (
+                                <span
+                                    key={line}
+                                    aria-hidden
+                                    className="block overflow-visible"
+                                >
+                                    <ScrollTextReveal
+                                        delay={110 + index * 95}
+                                        className="-mb-[0.14em] pb-[0.14em] pr-[0.08em]"
+                                    >
+                                        {line}
+                                    </ScrollTextReveal>
+                                </span>
+                            ))}
                         </h2>
 
                         <p className="mt-7 max-w-[550px] font-bdo text-base font-regular leading-[1.3] text-black/65 xl:text-[clamp(1rem,1.15vw,1.38rem)]">
