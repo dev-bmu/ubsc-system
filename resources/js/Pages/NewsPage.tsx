@@ -9,7 +9,8 @@ import NewsModeSwitch from "@/Components/News/NewsModeSwitch";
 import type { NewsContentMode } from "@/Components/News/NewsModeSwitch";
 import NewsShowcaseBridge from "@/Components/News/NewsShowcaseBridge";
 import Footer from "@/Components/Landing/Footer";
-import { Head, usePage } from "@inertiajs/react";
+import SeoHead from "@/Components/SeoHead";
+import { usePage } from "@inertiajs/react";
 import AboutSectionContact from "@/Components/About/AboutSectionContact";
 import type { PageProps } from "@/types";
 import {
@@ -194,25 +195,8 @@ export default function NewsPage() {
 
     return (
         <>
-            <Head>
-                <title>Berita | UB Sport Center</title>
-                <meta
-                    name="description"
-                    content="Berita dan artikel terbaru dari UB Sport Center — pusat olahraga terkemuka di Malang."
-                />
-                <meta property="og:title" content="Berita | UB Sport Center" />
-                <meta
-                    property="og:description"
-                    content="Berita dan artikel terbaru dari UB Sport Center."
-                />
-                <meta
-                    property="og:image"
-                    content="/assets/images/gym-konten-1-olahraga-ub-sport-center.avif"
-                />
-                <meta property="og:type" content="website" />
-                <meta name="twitter:card" content="summary_large_image" />
-            </Head>
-            <main className="relative bg-white text-black">
+            <SeoHead />
+            <main className="news-page-canvas relative bg-white text-black">
                 <Navbar activeSection="News" />
                 {heroSlides.length > 0 && (
                     <div className="news-hero-section-reveal">

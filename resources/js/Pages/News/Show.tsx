@@ -1,11 +1,28 @@
-import Navbar from "@/Components/Landing/Navbar";
 import Footer from "@/Components/Landing/Footer";
-import { Head, Link, usePage } from "@inertiajs/react";
+import Navbar from "@/Components/Landing/Navbar";
+import SeoHead from "@/Components/SeoHead";
 import type { PageProps } from "@/types";
-import useEmblaCarousel from "embla-carousel-react";
-import { ArrowUpRight, ChevronLeft, ChevronRight } from "lucide-react";
-import { useCallback } from "react";
 import newsHeroBg from "@/../assets/images/news-hero.avif";
+import { Link, usePage } from "@inertiajs/react";
+import {
+    ArrowLeft,
+    ArrowUpRight,
+    Check,
+    ChevronLeft,
+    ChevronRight,
+    Copy,
+} from "lucide-react";
+import useEmblaCarousel from "embla-carousel-react";
+import {
+    type ReactNode,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react";
+
+import "./Show.css";
 
 interface NewsDetailItem {
     id: number;
@@ -15,7 +32,10 @@ interface NewsDetailItem {
     description: string;
     content: string;
     date: string;
+    published_at_iso?: string | null;
     category: string;
+    author?: string;
+    reading_minutes?: number;
     facility: string;
     images_array: string[];
     cover_image?: string | null;
@@ -36,14 +56,29 @@ type NewsShowPageProps = PageProps<{
     similarNews: SimilarNewsItem[];
 }>;
 
+type StoryTone = "berita" | "artikel";
+
 const FALLBACK_IMAGE = newsHeroBg;
+
+function getStoryTone(category: string): StoryTone {
+    return category.trim().toLowerCase() === "artikel" ? "artikel" : "berita";
+}
+
+function escapeHtml(value: string): string {
+    return value
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
 
 function isHtml(value: string): boolean {
     return /<\/?[a-z][\s\S]*>/i.test(value);
 }
 
 function textToHtml(value: string): string {
-    return value
+    return escapeHtml(value)
         .split(/\n{2,}/)
         .map((paragraph) => paragraph.trim())
         .filter(Boolean)
@@ -51,81 +86,314 @@ function textToHtml(value: string): string {
         .join("");
 }
 
-function CategoryBadge({ children }: { children: string }) {
+function htmlToText(value: string): string {
+    return value
+        .replace(/<[^>]*>/g, " ")
+        .replace(/&nbsp;/gi, " ")
+        .replace(/&amp;/gi, "&")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function normalizeText(value: string): string {
+    return value.replace(/\s+/g, " ").trim().toLocaleLowerCase("id-ID");
+}
+
+function removeRepeatedOpeningParagraph(
+    html: string,
+    candidates: string[],
+): string {
+    const openingMatch = html.match(/^\s*<p\b[^>]*>[\s\S]*?<\/p>/i);
+
+    if (!openingMatch) return html;
+
+    const openingText = normalizeText(htmlToText(openingMatch[0]));
+    const repeatsEditorialCopy = candidates
+        .filter(Boolean)
+        .map(normalizeText)
+        .some((candidate) => candidate === openingText);
+
+    if (!repeatsEditorialCopy) return html;
+
+    const remainder = html.slice(openingMatch[0].length).trimStart();
+
+    return normalizeText(htmlToText(remainder)).length > 0 ? remainder : html;
+}
+
+function estimateReadingMinutes(content: string): number {
+    const words = htmlToText(content).split(/\s+/).filter(Boolean).length;
+    return Math.max(1, Math.ceil(words / 220));
+}
+
+function StoryBadge({ children, tone }: { children: string; tone: StoryTone }) {
     return (
-        <span className="inline-flex h-7 w-fit items-center rounded-[4px] bg-[linear-gradient(90deg,#ff0000,#9b0000)] px-5 font-clash text-[0.68rem] font-bold text-white shadow-[0_8px_20px_rgba(255,0,0,0.18)]">
-            {children}
+        <span
+            className="news-story-badge news-gradient-badge news-gradient-badge--story"
+            data-tone={tone}
+        >
+            <span>{children || "News"}</span>
         </span>
     );
 }
 
-function DetailHero({ newsItem }: { newsItem: NewsDetailItem }) {
-    const images =
-        newsItem.images_array && newsItem.images_array.length > 0
-            ? newsItem.images_array
-            : [newsItem.cover_image || FALLBACK_IMAGE];
-    const [emblaRef, emblaApi] = useEmblaCarousel({ loop: images.length > 1 });
+function DetailHero({
+    newsItem,
+    readingMinutes,
+    tone,
+}: {
+    newsItem: NewsDetailItem;
+    readingMinutes: number;
+    tone: StoryTone;
+}) {
+    const images = useMemo(() => {
+        const candidates = [
+            ...(newsItem.images_array ?? []),
+            newsItem.cover_image ?? "",
+        ].filter(Boolean);
+
+        return Array.from(new Set(candidates)).length > 0
+            ? Array.from(new Set(candidates))
+            : [FALLBACK_IMAGE];
+    }, [newsItem.cover_image, newsItem.images_array]);
+    const [emblaRef, emblaApi] = useEmblaCarousel({
+        loop: images.length > 1,
+        duration: 34,
+        dragThreshold: 3,
+        skipSnaps: false,
+        watchDrag: images.length > 1,
+    });
+    const [selectedIndex, setSelectedIndex] = useState(0);
+    const [visibleBackdropIndex, setVisibleBackdropIndex] = useState(0);
+    const loadedBackdropIndexesRef = useRef<Set<number>>(new Set());
+    const pendingBackdropIndexRef = useRef(0);
+    const prefetchedImagesRef = useRef<Set<string>>(new Set());
+    const safeSelectedIndex = Math.min(
+        Math.max(0, selectedIndex),
+        Math.max(0, images.length - 1),
+    );
+
     const scrollPrev = useCallback(() => emblaApi?.scrollPrev(), [emblaApi]);
     const scrollNext = useCallback(() => emblaApi?.scrollNext(), [emblaApi]);
-    const showControls = images.length > 1;
+
+    useEffect(() => {
+        if (!emblaApi) return;
+
+        const handleSelect = () => {
+            const nextIndex = Math.min(
+                emblaApi.selectedScrollSnap(),
+                Math.max(0, images.length - 1),
+            );
+
+            pendingBackdropIndexRef.current = nextIndex;
+            setSelectedIndex(nextIndex);
+
+            if (loadedBackdropIndexesRef.current.has(nextIndex)) {
+                setVisibleBackdropIndex(nextIndex);
+            }
+        };
+
+        handleSelect();
+        emblaApi.on("select", handleSelect).on("reInit", handleSelect);
+
+        return () => {
+            emblaApi.off("select", handleSelect).off("reInit", handleSelect);
+        };
+    }, [emblaApi, images.length]);
+
+    useEffect(() => {
+        setSelectedIndex(0);
+        setVisibleBackdropIndex(0);
+        pendingBackdropIndexRef.current = 0;
+        loadedBackdropIndexesRef.current = new Set();
+        prefetchedImagesRef.current = new Set();
+    }, [images]);
+
+    useEffect(() => {
+        if (images.length < 2) return;
+
+        const adjacentIndexes = [
+            safeSelectedIndex,
+            (safeSelectedIndex + 1) % images.length,
+            (safeSelectedIndex - 1 + images.length) % images.length,
+        ];
+
+        adjacentIndexes.forEach((index) => {
+            const source = images[index];
+
+            if (!source || prefetchedImagesRef.current.has(source)) return;
+
+            prefetchedImagesRef.current.add(source);
+            const preloader = new Image();
+            preloader.decoding = "async";
+            preloader.src = source;
+        });
+    }, [images, safeSelectedIndex]);
 
     return (
-        <section className="relative h-[clamp(560px,45.45vw,698px)] min-h-[560px] overflow-hidden bg-black text-white">
-            <div className="absolute inset-0 overflow-hidden" ref={emblaRef}>
-                <div className="flex h-full">
+        <section className="news-story-hero" data-tone={tone}>
+            <div className="news-story-hero__backdrops" aria-hidden="true">
+                {images.map((image, index) => (
+                    <img
+                        key={`backdrop-${image}-${index}`}
+                        src={image}
+                        alt=""
+                        className="news-story-hero__backdrop"
+                        data-active={
+                            index === visibleBackdropIndex ? "true" : "false"
+                        }
+                        width={1920}
+                        height={1080}
+                        sizes="100vw"
+                        loading={index < 2 ? "eager" : "lazy"}
+                        decoding="async"
+                        fetchPriority={index === 0 ? "high" : "auto"}
+                        onLoad={(event) => {
+                            event.currentTarget.dataset.loaded = "true";
+                            loadedBackdropIndexesRef.current.add(index);
+
+                            if (pendingBackdropIndexRef.current === index) {
+                                setVisibleBackdropIndex(index);
+                            }
+                        }}
+                        onError={(event) => {
+                            if (!event.currentTarget.dataset.fallback) {
+                                event.currentTarget.dataset.fallback = "true";
+                                event.currentTarget.src = FALLBACK_IMAGE;
+                            }
+                        }}
+                        draggable={false}
+                    />
+                ))}
+            </div>
+
+            <div
+                className="news-story-hero__viewport"
+                ref={emblaRef}
+                role="region"
+                aria-roledescription="carousel"
+                aria-label={`Galeri utama berita, ${images.length} gambar`}
+                tabIndex={images.length > 1 ? 0 : -1}
+                onKeyDown={(event) => {
+                    if (images.length < 2) return;
+
+                    if (event.key === "ArrowLeft") {
+                        event.preventDefault();
+                        scrollPrev();
+                    }
+
+                    if (event.key === "ArrowRight") {
+                        event.preventDefault();
+                        scrollNext();
+                    }
+                }}
+            >
+                <div className="news-story-hero__track">
                     {images.map((image, index) => (
                         <div
                             key={`${image}-${index}`}
-                            className="relative h-full min-w-0 flex-[0_0_100%]"
+                            className="news-story-hero__slide"
+                            role="group"
+                            aria-label={`${index + 1} dari ${images.length}`}
+                            aria-hidden={index !== safeSelectedIndex}
                         >
                             <img
                                 src={image}
-                                alt={newsItem.title}
-                                className="absolute inset-0 h-full w-full object-cover"
-                                loading={index === 0 ? "eager" : "lazy"}
+                                alt={
+                                    index === 0
+                                        ? newsItem.title
+                                        : `${newsItem.title}, gambar ${index + 1}`
+                                }
+                                className="news-story-hero__image"
+                                width={1920}
+                                height={1080}
+                                sizes="100vw"
+                                loading={index < 2 ? "eager" : "lazy"}
+                                decoding="async"
+                                fetchPriority={index === 0 ? "high" : "auto"}
+                                onLoad={(event) => {
+                                    event.currentTarget.dataset.loaded = "true";
+                                }}
+                                onError={(event) => {
+                                    if (!event.currentTarget.dataset.fallback) {
+                                        event.currentTarget.dataset.fallback =
+                                            "true";
+                                        event.currentTarget.src =
+                                            FALLBACK_IMAGE;
+                                    }
+                                }}
                                 draggable={false}
                             />
-                            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.28)_0%,rgba(0,0,0,0.08)_40%,rgba(0,0,0,0.72)_100%)]" />
                         </div>
                     ))}
                 </div>
             </div>
 
-            <Navbar activeSection="News" />
+            <div className="news-story-hero__veil" aria-hidden="true" />
+            <div className="news-story-hero__grain" aria-hidden="true" />
 
-            <div className="relative z-10 flex h-full items-end">
-                <div className="w-full px-[clamp(1.5rem,4.5vw,5.5rem)] pb-[clamp(2.2rem,4.2vw,4.8rem)]">
-                    <div className="max-w-[980px]">
-                        <CategoryBadge>{newsItem.category}</CategoryBadge>
-                        <h1 className="mt-7 max-w-[1060px] font-bdo text-[clamp(2.2rem,3.3vw,4rem)] font-semibold leading-[1.08] tracking-[-0.045em] text-white">
-                            {newsItem.title}
-                        </h1>
-                        {newsItem.description && (
-                            <p className="mt-6 max-w-[760px] font-bdo text-[clamp(0.95rem,1.04vw,1.22rem)] font-normal leading-[1.45] text-white/70">
-                                {newsItem.description}
-                            </p>
-                        )}
-                    </div>
+            <div className="news-story-hero__content">
+                <StoryBadge tone={tone}>{newsItem.category}</StoryBadge>
+                <p className="news-story-hero__title" aria-hidden="true">
+                    {newsItem.title}
+                </p>
+                {newsItem.description &&
+                    normalizeText(newsItem.description) !==
+                        normalizeText(newsItem.title) && (
+                        <p className="news-story-hero__summary">
+                            {newsItem.description}
+                        </p>
+                    )}
+                <div
+                    className="news-story-hero__meta"
+                    aria-label="Informasi artikel"
+                >
+                    <time
+                        className="news-story-hero__meta-date"
+                        dateTime={newsItem.published_at_iso ?? undefined}
+                    >
+                        {newsItem.date}
+                    </time>
+                    <span
+                        className="news-story-hero__meta-separator"
+                        aria-hidden="true"
+                    />
+                    <span className="news-story-hero__meta-reading">
+                        {readingMinutes} menit baca
+                    </span>
+                    <span
+                        className="news-story-hero__meta-separator"
+                        aria-hidden="true"
+                    />
+                    <span className="news-story-hero__meta-author">
+                        Oleh{" "}
+                        {newsItem.author || "Tim Editorial UB Sport Center"}
+                    </span>
                 </div>
             </div>
 
-            {showControls && (
-                <div className="absolute bottom-10 right-[clamp(1.5rem,4.5vw,5.5rem)] z-20 flex gap-3">
+            {images.length > 1 && (
+                <div className="news-story-hero__gallery-controls">
+                    <span
+                        className="news-story-hero__gallery-index"
+                        aria-live="polite"
+                    >
+                        {String(safeSelectedIndex + 1).padStart(2, "0")}
+                        <i>/</i>
+                        {String(images.length).padStart(2, "0")}
+                    </span>
                     <button
                         type="button"
                         onClick={scrollPrev}
-                        aria-label="Previous image"
-                        className="flex size-11 items-center justify-center rounded-full border border-white/45 bg-black/25 text-white backdrop-blur transition hover:bg-white hover:text-black"
+                        aria-label="Gambar sebelumnya"
                     >
-                        <ChevronLeft className="size-5" />
+                        <ChevronLeft aria-hidden="true" />
                     </button>
                     <button
                         type="button"
                         onClick={scrollNext}
-                        aria-label="Next image"
-                        className="flex size-11 items-center justify-center rounded-full border border-white/45 bg-black/25 text-white backdrop-blur transition hover:bg-white hover:text-black"
+                        aria-label="Gambar berikutnya"
                     >
-                        <ChevronRight className="size-5" />
+                        <ChevronRight aria-hidden="true" />
                     </button>
                 </div>
             )}
@@ -133,58 +401,73 @@ function DetailHero({ newsItem }: { newsItem: NewsDetailItem }) {
     );
 }
 
-function MetaCard({
+function ArticleMetaCard({
     label,
-    value,
-    badge,
+    children,
 }: {
     label: string;
-    value: string;
-    badge?: boolean;
+    children: ReactNode;
 }) {
     return (
-        <article className="min-h-[88px] rounded-xl border border-black/5 bg-[#F7F7F7] p-5">
-            <div className="mb-3 flex items-center justify-between gap-3">
-                <span className="font-bdo text-[0.78rem] font-medium text-black/45">
-                    {label}
-                </span>
-                <span className="font-bdo text-sm leading-none text-black/20">..</span>
-            </div>
-            {badge ? (
-                <CategoryBadge>{value}</CategoryBadge>
-            ) : (
-                <p className="font-bdo text-[0.9rem] font-medium leading-tight text-black">
-                    {value}
-                </p>
-            )}
-        </article>
+        <div className="news-story-masthead__meta-card">
+            <span>{label}</span>
+            <div>{children}</div>
+        </div>
     );
 }
 
-function SimilarCard({ item }: { item: SimilarNewsItem }) {
+function SimilarCard({
+    item,
+    index,
+}: {
+    item: SimilarNewsItem;
+    index: number;
+}) {
+    const tone = getStoryTone(item.category);
+
     return (
-        <Link href={route("news.show", item.slug)} className="group block">
-            <div className="relative mb-4 aspect-[16/11] w-full overflow-hidden rounded-2xl bg-[#F7F7F7]">
+        <Link
+            href={route("news.show", item.slug)}
+            className="news-story-related-card"
+            data-tone={tone}
+        >
+            <div className="news-story-related-card__media">
                 <img
                     src={item.cover_image || FALLBACK_IMAGE}
                     alt={item.title}
-                    className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+                    width={900}
+                    height={640}
+                    sizes="(min-width: 900px) 30vw, 100vw"
                     loading="lazy"
+                    decoding="async"
+                    onLoad={(event) => {
+                        event.currentTarget.dataset.loaded = "true";
+                    }}
+                    onError={(event) => {
+                        if (!event.currentTarget.dataset.fallback) {
+                            event.currentTarget.dataset.fallback = "true";
+                            event.currentTarget.src = FALLBACK_IMAGE;
+                        }
+                    }}
                     draggable={false}
                 />
-            </div>
-            <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                    <h3 className="line-clamp-2 font-bdo text-lg font-semibold leading-tight tracking-[-0.025em] text-black">
-                        {item.title}
-                    </h3>
-                    <p className="mt-1 line-clamp-3 font-bdo text-sm font-normal leading-relaxed text-gray-500">
-                        {item.description}
-                    </p>
-                </div>
-                <span className="mt-1 shrink-0 font-bdo text-xs font-medium text-black/40">
-                    {item.date}
+                <span className="news-story-related-card__index">
+                    {String(index + 1).padStart(2, "0")}
                 </span>
+                <span
+                    className="news-story-related-card__arrow"
+                    aria-hidden="true"
+                >
+                    <ArrowUpRight />
+                </span>
+            </div>
+            <div className="news-story-related-card__content">
+                <div className="news-story-related-card__meta">
+                    <StoryBadge tone={tone}>{item.category}</StoryBadge>
+                    <span>{item.date}</span>
+                </div>
+                <h3>{item.title}</h3>
+                {item.description && <p>{item.description}</p>}
             </div>
         </Link>
     );
@@ -192,68 +475,276 @@ function SimilarCard({ item }: { item: SimilarNewsItem }) {
 
 export default function NewsShow() {
     const { newsItem, similarNews } = usePage<NewsShowPageProps>().props;
-    const contentHtml = isHtml(newsItem.content)
-        ? newsItem.content
-        : textToHtml(newsItem.content);
+    const tone = getStoryTone(newsItem.category);
+    const sanitizedContent = newsItem.content.trim();
+    const rawContentHtml = sanitizedContent
+        ? isHtml(sanitizedContent)
+            ? sanitizedContent
+            : textToHtml(sanitizedContent)
+        : textToHtml(newsItem.description);
+    const contentHtml = removeRepeatedOpeningParagraph(rawContentHtml, [
+        newsItem.title,
+        newsItem.sub_title,
+        newsItem.description,
+    ]);
+    const readingMinutes =
+        newsItem.reading_minutes ?? estimateReadingMinutes(contentHtml);
+    const normalizedLead = normalizeText(newsItem.sub_title || "");
+    const normalizedContent = normalizeText(htmlToText(contentHtml));
+    const shouldShowLead =
+        normalizedLead.length > 0 &&
+        !normalizedContent.startsWith(normalizedLead);
     const recommendations = similarNews.slice(0, 6);
+    const articleRef = useRef<HTMLElement>(null);
+    const progressRef = useRef<HTMLSpanElement>(null);
+    const copyTimerRef = useRef<number | null>(null);
+    const [copied, setCopied] = useState(false);
+
+    useEffect(() => {
+        let frame = 0;
+
+        const updateProgress = () => {
+            frame = 0;
+            const article = articleRef.current;
+            const progress = progressRef.current;
+
+            if (!article || !progress) return;
+
+            const viewportHeight =
+                window.visualViewport?.height ?? window.innerHeight;
+            const rect = article.getBoundingClientRect();
+            const distance = Math.max(1, rect.height + viewportHeight * 0.25);
+            const traveled = viewportHeight * 0.42 - rect.top;
+            const ratio = Math.min(1, Math.max(0, traveled / distance));
+
+            progress.style.transform = `scaleX(${ratio})`;
+        };
+
+        const scheduleProgress = () => {
+            if (frame) return;
+            frame = window.requestAnimationFrame(updateProgress);
+        };
+
+        scheduleProgress();
+        window.addEventListener("scroll", scheduleProgress, { passive: true });
+        window.addEventListener("resize", scheduleProgress, { passive: true });
+        window.visualViewport?.addEventListener("resize", scheduleProgress, {
+            passive: true,
+        });
+
+        return () => {
+            window.cancelAnimationFrame(frame);
+            window.removeEventListener("scroll", scheduleProgress);
+            window.removeEventListener("resize", scheduleProgress);
+            window.visualViewport?.removeEventListener(
+                "resize",
+                scheduleProgress,
+            );
+        };
+    }, []);
+
+    useEffect(
+        () => () => {
+            if (copyTimerRef.current !== null) {
+                window.clearTimeout(copyTimerRef.current);
+            }
+        },
+        [],
+    );
+
+    const markCopied = useCallback(() => {
+        setCopied(true);
+
+        if (copyTimerRef.current !== null) {
+            window.clearTimeout(copyTimerRef.current);
+        }
+
+        copyTimerRef.current = window.setTimeout(() => {
+            setCopied(false);
+            copyTimerRef.current = null;
+        }, 2200);
+    }, []);
+
+    const copyCurrentUrl = useCallback(async () => {
+        const url = window.location.href;
+
+        try {
+            await navigator.clipboard.writeText(url);
+            markCopied();
+            return;
+        } catch {
+            const field = document.createElement("textarea");
+            field.value = url;
+            field.setAttribute("readonly", "");
+            field.style.position = "fixed";
+            field.style.opacity = "0";
+            document.body.appendChild(field);
+            field.select();
+            document.execCommand("copy");
+            field.remove();
+            markCopied();
+        }
+    }, [markCopied]);
+
+    const shareArticle = useCallback(async () => {
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: newsItem.title,
+                    text: newsItem.description || newsItem.title,
+                    url: window.location.href,
+                });
+                return;
+            } catch (error) {
+                if (
+                    error instanceof DOMException &&
+                    error.name === "AbortError"
+                ) {
+                    return;
+                }
+            }
+        }
+
+        await copyCurrentUrl();
+    }, [copyCurrentUrl, newsItem.description, newsItem.title]);
 
     return (
         <>
-            <Head title={newsItem.title}>
-                <meta name="description" content={newsItem.description} />
-                <meta property="og:title" content={newsItem.title} />
-                <meta property="og:description" content={newsItem.description} />
-                <meta
-                    property="og:image"
-                    content={newsItem.images_array?.[0] ?? newsItem.cover_image ?? FALLBACK_IMAGE}
+            <SeoHead />
+            <Navbar activeSection="News" />
+
+            <main className="news-story-page" data-tone={tone}>
+                <div className="news-story-reading-progress" aria-hidden="true">
+                    <span ref={progressRef} />
+                </div>
+
+                <DetailHero
+                    newsItem={newsItem}
+                    readingMinutes={readingMinutes}
+                    tone={tone}
                 />
-            </Head>
 
-            <main className="bg-white text-black">
-                <DetailHero newsItem={newsItem} />
+                <section className="news-story-masthead">
+                    <div className="news-story-masthead__inner">
+                        <div className="news-story-masthead__copy">
+                            <h1>{newsItem.title}</h1>
+                        </div>
 
-                <section className="mx-auto max-w-[1200px] px-6 pt-12 xl:px-0">
-                    <h2 className="max-w-[760px] font-bdo text-[clamp(2rem,2.35vw,3rem)] font-semibold leading-[1.08] tracking-[-0.045em] text-black">
-                        {newsItem.title}
-                    </h2>
+                        <div
+                            className="news-story-masthead__meta"
+                            aria-label="Ringkasan publikasi"
+                        >
+                            <ArticleMetaCard label="Kategori">
+                                <StoryBadge tone={tone}>
+                                    {newsItem.category}
+                                </StoryBadge>
+                            </ArticleMetaCard>
+                            <ArticleMetaCard label="Tanggal">
+                                <time
+                                    dateTime={
+                                        newsItem.published_at_iso ?? undefined
+                                    }
+                                >
+                                    {newsItem.date}
+                                </time>
+                            </ArticleMetaCard>
+                            <ArticleMetaCard label="Lokasi">
+                                <span>
+                                    {newsItem.facility || "UB Sport Center"}
+                                </span>
+                            </ArticleMetaCard>
+                        </div>
+                    </div>
                 </section>
 
-                <section className="mx-auto mt-10 grid max-w-[720px] grid-cols-1 gap-4 px-6 md:grid-cols-3 xl:gap-6 xl:px-0">
-                    <MetaCard label="Category" value={newsItem.category} badge />
-                    <MetaCard label="Date" value={newsItem.date} />
-                    <MetaCard label="Facility" value={newsItem.facility} />
-                </section>
+                <section className="news-story-reading">
+                    <article ref={articleRef} className="news-story-article">
+                        <header className="news-story-article__toolbar">
+                            <span className="news-story-article__context">
+                                <i aria-hidden="true" />
+                                <span>Ruang baca</span>
+                                <small>{readingMinutes} menit baca</small>
+                            </span>
+                            <div className="news-story-article__actions">
+                                <button type="button" onClick={shareArticle}>
+                                    <span>Bagikan</span>
+                                    <ArrowUpRight aria-hidden="true" />
+                                </button>
+                                <button type="button" onClick={copyCurrentUrl}>
+                                    <span role="status" aria-live="polite">
+                                        {copied
+                                            ? "Tautan tersalin"
+                                            : "Salin tautan"}
+                                    </span>
+                                    {copied ? (
+                                        <Check aria-hidden="true" />
+                                    ) : (
+                                        <Copy aria-hidden="true" />
+                                    )}
+                                </button>
+                            </div>
+                        </header>
 
-                <article className="mx-auto mt-16 w-full max-w-[1200px] rounded-[24px] bg-[#F7F7F7] p-6 sm:p-12 xl:p-16">
-                    {newsItem.sub_title && (
-                        <p className="mb-10 max-w-[920px] font-bdo text-xl font-medium leading-snug text-black/90 sm:text-2xl xl:text-3xl">
-                            {newsItem.sub_title}
-                        </p>
-                    )}
-                    <div
-                        className="news-detail-prose max-w-none font-bdo text-sm font-normal leading-relaxed text-gray-600 sm:text-base"
-                        dangerouslySetInnerHTML={{ __html: contentHtml }}
-                    />
-                </article>
+                        <div className="news-story-article__body">
+                            {shouldShowLead && (
+                                <p className="news-story-article__lead">
+                                    {newsItem.sub_title}
+                                </p>
+                            )}
+
+                            <div
+                                className={`news-story-prose${
+                                    shouldShowLead
+                                        ? " news-story-prose--after-lead"
+                                        : ""
+                                }`}
+                                dangerouslySetInnerHTML={{
+                                    __html: contentHtml,
+                                }}
+                            />
+                        </div>
+
+                        <footer className="news-story-article__footer">
+                            <span className="news-story-article__byline">
+                                <small>Ditulis oleh</small>
+                                <strong>
+                                    {newsItem.author ||
+                                        "Tim Editorial UB Sport Center"}
+                                </strong>
+                                <i aria-hidden="true">·</i>
+                                <span>{readingMinutes} menit baca</span>
+                            </span>
+                            <Link href={route("news")}>
+                                <ArrowLeft aria-hidden="true" />
+                                <span>Kembali ke semua berita</span>
+                            </Link>
+                        </footer>
+                    </article>
+                </section>
 
                 {recommendations.length > 0 && (
-                    <section className="mx-auto mt-10 max-w-[1200px] px-6 pb-24 xl:px-0">
-                        <div className="flex items-center justify-between gap-6">
-                            <h2 className="font-bdo text-[clamp(1.65rem,1.95vw,2.4rem)] font-medium leading-none tracking-[-0.045em] text-black">
-                                Similar templates
-                            </h2>
+                    <section className="news-story-related">
+                        <div className="news-story-related__header">
+                            <div>
+                                <span>Bacaan berikutnya</span>
+                                <h2>Berita lainnya.</h2>
+                            </div>
                             <Link
                                 href={route("news")}
-                                className="inline-flex h-9 items-center gap-2 rounded-full bg-[#EFEFEF] px-5 font-bdo text-[0.62rem] font-semibold uppercase tracking-[0.32em] text-black transition hover:bg-black hover:text-white"
+                                className="news-story-all-link"
                             >
-                                All templates
-                                <ArrowUpRight className="size-3.5" />
+                                <span>Lihat semua berita</span>
+                                <ArrowUpRight aria-hidden="true" />
                             </Link>
                         </div>
 
-                        <div className="mt-12 grid grid-cols-1 gap-x-8 gap-y-12 md:grid-cols-2">
-                            {recommendations.map((item) => (
-                                <SimilarCard key={item.id} item={item} />
+                        <div className="news-story-related__grid">
+                            {recommendations.map((item, index) => (
+                                <SimilarCard
+                                    key={item.id}
+                                    item={item}
+                                    index={index}
+                                />
                             ))}
                         </div>
                     </section>

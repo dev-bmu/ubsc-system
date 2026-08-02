@@ -12,6 +12,8 @@ class News extends Model implements HasMedia
 {
     use InteractsWithMedia;
 
+    public const MAX_IMAGES = 12;
+
     protected $fillable = [
         'news_category_id',
         'author_id',
@@ -36,7 +38,7 @@ class News extends Model implements HasMedia
 
     public function registerMediaCollections(): void
     {
-        $this->addMediaCollection('thumbnail')->singleFile();
+        $this->addMediaCollection('thumbnail');
     }
 
     public function category(): BelongsTo

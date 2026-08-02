@@ -1,5 +1,14 @@
 User-agent: *
-Disallow:
 Disallow: /ubsc-staff/
+Disallow: /checkout/
+Disallow: /invoice/
+Disallow: /profile
+Disallow: /user/
+Disallow: /news-feed
+Disallow: /booking/availability
+Disallow: /booking/slots
+Disallow: /booking/reviews/feed
+Disallow: /facilities/gallery/events
+Disallow: /galeri-fasilitas/events
 
 Sitemap: https://ubsportcenter.co.id/sitemap.xml

@@ -1,15 +1,8 @@
 import { Link } from "@inertiajs/react";
 import type { CSSProperties } from "react";
 
-const ARTICLE_BADGE_GRADIENT =
-    "linear-gradient(110deg, #0d3558 0%, #15678d 28%, #1a9fc0 48%, #124d7a 68%, #153359 100%)";
-const NEWS_BADGE_GRADIENT =
-    "linear-gradient(110deg, #790a0a 0%, #c80012 30%, #ff3b35 50%, #a0060a 70%, #790a0a 100%)";
-
 function getBadgeTone(category: NewsItem["category"]) {
-    return category === "Artikel"
-        ? ARTICLE_BADGE_GRADIENT
-        : NEWS_BADGE_GRADIENT;
+    return category === "Artikel" ? "artikel" : "berita";
 }
 
 export interface NewsItem {
@@ -141,8 +134,8 @@ export default function NewsCard({
                     draggable={false}
                 />
                 <span
-                    className={`news-gradient-badge absolute inline-flex items-center justify-center rounded-[5px] text-center font-bdo font-medium text-white ${badgeClass} ${badgePositionClass}`}
-                    style={{ background: badgeTone }}
+                    className={`news-gradient-badge news-gradient-badge--story absolute inline-flex items-center justify-center rounded-[5px] text-center font-bdo font-medium text-white ${badgeClass} ${badgePositionClass}`}
+                    data-tone={badgeTone}
                 >
                     <span>{category}</span>
                 </span>
@@ -247,64 +240,68 @@ export default function NewsCard({
                             draggable={false}
                         />
                         <span
-                            className="news-gradient-badge absolute left-3 top-3 inline-flex min-w-[4rem] items-center justify-center rounded-[5px] px-3 py-0.5 text-center text-[10px] font-medium text-white xl:left-4 xl:top-4 xl:min-w-[4.75rem] xl:px-4 xl:py-1 xl:text-xs"
-                            style={{ background: getBadgeTone(category) }}
+                            className="news-gradient-badge news-gradient-badge--story absolute left-3 top-3 inline-flex min-w-[4rem] items-center justify-center rounded-[5px] px-3 py-0.5 text-center text-[10px] font-medium text-white xl:left-4 xl:top-4 xl:min-w-[4.75rem] xl:px-4 xl:py-1 xl:text-xs"
+                            data-tone={getBadgeTone(category)}
                         >
                             <span>{category}</span>
                         </span>
                     </div>
 
                     <div
-                        className={`flex min-h-0 flex-1 flex-col justify-between overflow-hidden bg-white ${padClass}`}
+                        className={`flex min-h-0 flex-1 flex-col overflow-hidden bg-white ${padClass}`}
                     >
-                        <div className="flex min-h-0 flex-col gap-1 overflow-hidden">
+                        <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-hidden">
                             <p
-                                className={`line-clamp-3 font-bdo font-medium leading-snug text-black ${titleClass}`}
+                                className={`line-clamp-3 font-bdo font-medium leading-snug text-black md:line-clamp-2 ${titleClass}`}
                             >
                                 {title}
                             </p>
                             {description && (
                                 <p
-                                    className={`font-bdo font-normal text-black/70 line-clamp-3 mt-1 ${descClass}`}
+                                    className={`mt-1 line-clamp-2 font-bdo font-normal text-black/70 md:line-clamp-3 ${descClass}`}
                                 >
                                     {description}
                                 </p>
                             )}
                         </div>
-                        <span
-                            className={`line-clamp-1 font-bdo font-normal text-black/70 ${dateClass}`}
-                        >
-                            {date}
-                        </span>
+                        <div className="mt-auto flex h-8 flex-shrink-0 items-end xl:h-10">
+                            <span
+                                className={`line-clamp-1 font-bdo font-normal text-black/70 ${dateClass}`}
+                            >
+                                {date}
+                            </span>
+                        </div>
                     </div>
                 </>
             ) : (
                 <>
                     <div
-                        className={`flex min-h-0 flex-[0_0_44%] flex-col justify-between overflow-hidden bg-black ${padClass}`}
+                        className={`flex min-h-0 flex-1 flex-col overflow-hidden bg-black ${padClass}`}
                     >
-                        <span
-                            className={`line-clamp-1 font-bdo font-normal text-white/70 ${dateClass}`}
-                        >
-                            {date}
-                        </span>
-                        <div className="flex min-h-0 flex-col gap-1 overflow-hidden">
+                        <div className="flex h-7 flex-shrink-0 items-start xl:h-10">
+                            <span
+                                className={`line-clamp-1 font-bdo font-normal text-white/70 ${dateClass}`}
+                            >
+                                {date}
+                            </span>
+                        </div>
+                        <div className="mt-auto flex min-h-0 flex-1 flex-col justify-end gap-1 overflow-hidden">
                             {description && (
                                 <p
-                                    className={`font-bdo font-normal text-white/70 line-clamp-3 mt-1 ${descClass}`}
+                                    className={`mt-1 line-clamp-2 font-bdo font-normal text-white/70 md:line-clamp-3 ${descClass}`}
                                 >
                                     {description}
                                 </p>
                             )}
                             <p
-                                className={`line-clamp-3 font-bdo font-medium leading-snug text-white mt-2 ${titleClass}`}
+                                className={`mt-2 line-clamp-3 font-bdo font-medium leading-snug text-white md:line-clamp-2 ${titleClass}`}
                             >
                                 {title}
                             </p>
                         </div>
                     </div>
 
-                    <div className="relative flex-1 overflow-hidden">
+                    <div className="relative flex-[0_0_44%] overflow-hidden">
                         <img
                             src={image}
                             alt={title}
@@ -317,8 +314,8 @@ export default function NewsCard({
                             draggable={false}
                         />
                         <span
-                            className="news-gradient-badge absolute bottom-3 left-3 inline-flex min-w-[4rem] items-center justify-center rounded-[5px] px-3 py-0.5 text-center text-[10px] font-medium text-white xl:bottom-4 xl:left-4 xl:min-w-[4.75rem] xl:px-4 xl:py-1 xl:text-xs"
-                            style={{ background: getBadgeTone(category) }}
+                            className="news-gradient-badge news-gradient-badge--story absolute bottom-3 left-3 inline-flex min-w-[4rem] items-center justify-center rounded-[5px] px-3 py-0.5 text-center text-[10px] font-medium text-white xl:bottom-4 xl:left-4 xl:min-w-[4.75rem] xl:px-4 xl:py-1 xl:text-xs"
+                            data-tone={getBadgeTone(category)}
                         >
                             <span>{category}</span>
                         </span>

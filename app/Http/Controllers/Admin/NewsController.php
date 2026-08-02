@@ -49,6 +49,7 @@ class NewsController extends Controller
         return Inertia::render('Admin/News/Form', [
             'article'    => null,
             'categories' => NewsCategory::orderBy('name')->get(['id', 'name']),
+            'max_images' => News::MAX_IMAGES,
         ]);
     }
 
@@ -75,9 +76,7 @@ class NewsController extends Controller
             'published_at'     => $this->resolvePublishedAt($data),
         ]);
 
-        if ($request->hasFile('thumbnail')) {
-            $article->addMediaFromRequest('thumbnail')->toMediaCollection('thumbnail');
-        }
+        $this->syncArticleImages($request, $article);
 
         return redirect()->route('admin.news.index')->with('success', 'Article saved.');
     }
@@ -91,6 +90,7 @@ class NewsController extends Controller
         return Inertia::render('Admin/News/Form', [
             'article'    => $this->transform($news),
             'categories' => NewsCategory::orderBy('name')->get(['id', 'name']),
+            'max_images' => News::MAX_IMAGES,
         ]);
     }
 
@@ -116,9 +116,7 @@ class NewsController extends Controller
             'published_at'     => $this->resolvePublishedAt($data, $news->published_at),
         ]);
 
-        if ($request->hasFile('thumbnail')) {
-            $news->addMediaFromRequest('thumbnail')->toMediaCollection('thumbnail');
-        }
+        $this->syncArticleImages($request, $news);
 
         return redirect()->route('admin.news.index')->with('success', 'Article updated.');
     }
@@ -159,9 +157,43 @@ class NewsController extends Controller
             ],
             'published_at'     => ['nullable', 'date'],
             'thumbnail'        => ['nullable', 'image', 'max:5120'],
+            'images'           => ['nullable', 'array', 'max:'.News::MAX_IMAGES],
+            'images.*'         => ['image', 'max:5120'],
+            'remove_media_ids' => ['nullable', 'array', 'max:'.News::MAX_IMAGES],
+            'remove_media_ids.*' => ['integer', 'distinct'],
         ]);
 
         $validator->after(function (Validator $validator) use ($request, $excludeId): void {
+            $existingArticle = $excludeId
+                ? News::query()->with('media')->find($excludeId)
+                : null;
+            $existingIds = $existingArticle
+                ? $existingArticle->getMedia('thumbnail')->pluck('id')
+                : collect();
+            $removeIds = collect($request->input('remove_media_ids', []))
+                ->map(fn ($id): int => (int) $id)
+                ->unique()
+                ->values();
+            $invalidRemoveIds = $removeIds->diff($existingIds);
+
+            if ($invalidRemoveIds->isNotEmpty()) {
+                $validator->errors()->add(
+                    'remove_media_ids',
+                    'Sebagian gambar yang akan dihapus tidak termasuk dalam artikel ini.',
+                );
+            }
+
+            $newImageCount = count($request->file('images', []))
+                + ($request->hasFile('thumbnail') ? 1 : 0);
+            $remainingImageCount = max(0, $existingIds->count() - $removeIds->intersect($existingIds)->count());
+
+            if (($remainingImageCount + $newImageCount) > News::MAX_IMAGES) {
+                $validator->errors()->add(
+                    'images',
+                    'Maksimal '.News::MAX_IMAGES.' gambar untuk satu berita atau artikel.',
+                );
+            }
+
             if (! $request->boolean('is_hero_featured')) {
                 return;
             }
@@ -221,6 +253,40 @@ class NewsController extends Controller
                 'avatar_url' => $author?->avatar ? '/storage/' . $author->avatar : null,
             ],
             'thumbnail'    => $n->getFirstMediaUrl('thumbnail') ?: null,
+            'gallery_images' => $n->getMedia('thumbnail')
+                ->map(fn ($media): array => [
+                    'id' => $media->id,
+                    'url' => $media->getUrl(),
+                    'name' => $media->name,
+                ])
+                ->values()
+                ->all(),
         ];
+    }
+
+    private function syncArticleImages(Request $request, News $article): void
+    {
+        $removeIds = collect($request->input('remove_media_ids', []))
+            ->map(fn ($id): int => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($removeIds->isNotEmpty()) {
+            $article->getMedia('thumbnail')
+                ->whereIn('id', $removeIds)
+                ->each(fn ($media) => $media->delete());
+        }
+
+        $uploads = collect($request->file('images', []));
+
+        if ($request->hasFile('thumbnail')) {
+            $uploads->prepend($request->file('thumbnail'));
+        }
+
+        $uploads->each(
+            fn ($file) => $article
+                ->addMedia($file)
+                ->toMediaCollection('thumbnail')
+        );
     }
 }

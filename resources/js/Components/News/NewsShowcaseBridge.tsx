@@ -3,6 +3,8 @@ import CurvedLoop from "@/Components/Landing/CurvedLoop";
 import person from "@/../assets/images/person.avif";
 import bg from "@/../assets/images/bg-about.avif";
 
+type LoopActivityMode = "paused" | "settling" | "running";
+
 function useResponsiveCurve(mobile: number, desktop: number): number {
     const [curve, setCurve] = useState<number>(() =>
         typeof window !== "undefined" && window.innerWidth < 1280
@@ -20,9 +22,16 @@ function useResponsiveCurve(mobile: number, desktop: number): number {
     return curve;
 }
 
-export default function NewsShowcaseBridge() {
+export default function NewsShowcaseBridge({
+    deferLoopAnimations = false,
+}: {
+    deferLoopAnimations?: boolean;
+}) {
     const rootRef = useRef<HTMLDivElement | null>(null);
     const [isVisible, setIsVisible] = useState(false);
+    const [loopActivityMode, setLoopActivityMode] = useState<LoopActivityMode>(
+        deferLoopAnimations ? "paused" : "running",
+    );
     const curveAmount = useResponsiveCurve(128, 124);
     const loopFontSize = useResponsiveCurve(112, 58);
     const loopSpeed = useResponsiveCurve(2.65, 1.5);
@@ -54,9 +63,44 @@ export default function NewsShowcaseBridge() {
         return () => observer.disconnect();
     }, [isVisible]);
 
+    useEffect(() => {
+        if (!deferLoopAnimations) {
+            setLoopActivityMode("running");
+            return;
+        }
+
+        const node = rootRef.current;
+        if (!node) return;
+
+        setLoopActivityMode("paused");
+
+        const handleLoopActivity = (event: Event) => {
+            const detail = (
+                event as CustomEvent<{
+                    active?: boolean;
+                    mode?: LoopActivityMode;
+                }>
+            ).detail;
+            setLoopActivityMode(
+                detail?.mode ??
+                    (detail?.active === true ? "running" : "paused"),
+            );
+        };
+
+        node.addEventListener("pricing-loop-activity", handleLoopActivity);
+        return () =>
+            node.removeEventListener(
+                "pricing-loop-activity",
+                handleLoopActivity,
+            );
+    }, [deferLoopAnimations]);
+
     return (
         <div
             ref={rootRef}
+            data-pricing-loop-region={
+                deferLoopAnimations ? "true" : undefined
+            }
             className={`news-showcase-bridge news-about-media about-history-stage relative isolate ${
                 isVisible ? "is-media-visible" : ""
             }`}
@@ -84,6 +128,8 @@ export default function NewsShowcaseBridge() {
                     fontSize={loopFontSize}
                     direction="left"
                     interactive
+                    paused={loopActivityMode === "paused"}
+                    settleAtCycleEnd={loopActivityMode === "settling"}
                     className="about-history-loop absolute top-1/2 z-10"
                 />
 

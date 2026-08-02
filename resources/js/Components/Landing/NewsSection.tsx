@@ -5,6 +5,7 @@ import SectionDivider from "@/Components/Landing/SectionDivider";
 import ReservasiButton from "@/Components/Landing/ReservasiButton";
 import NewsCard from "@/Components/Landing/NewsCard";
 import type { NewsItem } from "@/Components/Landing/NewsCard";
+import { useHomepageEntranceReady } from "@/Components/Landing/HomepageEntranceContext";
 import { useEffect, useRef } from "react";
 
 const DUMMY_NEWS: NewsItem[] = [
@@ -65,6 +66,7 @@ interface NewsSectionProps {
 
 export default function NewsSection({ news = DUMMY_NEWS }: NewsSectionProps) {
     const sectionRef = useRef<HTMLElement>(null);
+    const entranceReady = useHomepageEntranceReady();
     const [emblaRef, emblaApi] = useEmblaCarousel({
         align: "start",
         dragFree: true,
@@ -73,27 +75,8 @@ export default function NewsSection({ news = DUMMY_NEWS }: NewsSectionProps) {
     const { scrollPrev, scrollNext } = useEmblaNav(emblaApi);
 
     useEffect(() => {
-        const sources = Array.from(
-            new Set(news.slice(0, 2).map((item) => item.image).filter(Boolean)),
-        );
-        const images: HTMLImageElement[] = [];
-        const timer = window.setTimeout(() => {
-            sources.forEach((source) => {
-                const image = new Image();
-                image.decoding = "async";
-                image.src = source;
-                images.push(image);
-                void image.decode?.().catch(() => {});
-            });
-        }, 180);
+        if (!entranceReady) return;
 
-        return () => {
-            window.clearTimeout(timer);
-            images.length = 0;
-        };
-    }, [news]);
-
-    useEffect(() => {
         const section = sectionRef.current;
         if (!section) return;
 
@@ -128,7 +111,7 @@ export default function NewsSection({ news = DUMMY_NEWS }: NewsSectionProps) {
             observer.disconnect();
             window.clearTimeout(completeTimer);
         };
-    }, []);
+    }, [entranceReady]);
 
     return (
         <section
@@ -147,7 +130,7 @@ export default function NewsSection({ news = DUMMY_NEWS }: NewsSectionProps) {
                     />
                 </div>
 
-                <h2 className="news-entrance-reveal news-entrance-reveal--title mt-12 font-bdo text-[clamp(2.35rem,4.15vw,5rem)] font-semibold leading-[1.02] tracking-[-0.055em] text-black md:mt-14 xl:mt-[4.35rem] xl:text-[clamp(3.25rem,3.1vw,3.75rem)]">
+                <h2 className="home-section-heading news-entrance-reveal news-entrance-reveal--title mt-12 font-bdo text-[clamp(2.35rem,4.15vw,5rem)] font-semibold leading-[1.02] tracking-[-0.055em] text-black md:mt-14 xl:mt-[4.35rem] xl:text-[clamp(3.25rem,3.1vw,3.75rem)]">
                     Berita &amp; Artikel
                 </h2>
 
@@ -171,7 +154,7 @@ export default function NewsSection({ news = DUMMY_NEWS }: NewsSectionProps) {
                         </p>
                     </div>
 
-                    <div className="flex items-center gap-4 md:col-span-3 md:justify-self-end">
+                    <div className="flex items-center gap-[0.65rem] md:col-span-3 md:justify-self-end lg:gap-3">
                         <button
                             type="button"
                             onClick={scrollPrev}
@@ -198,7 +181,7 @@ export default function NewsSection({ news = DUMMY_NEWS }: NewsSectionProps) {
                                 key={item.id}
                                 {...item}
                                 index={i}
-                                priority={i < 2}
+                                priority={false}
                                 entranceIndex={i < 4 ? i : undefined}
                             />
                         ))}

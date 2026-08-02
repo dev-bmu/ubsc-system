@@ -219,7 +219,7 @@ export default function ServicesSectionArtikel({
                                 delay={70}
                                 stagger={18}
                                 amount={0.15}
-                                className="font-bdo text-[clamp(1.16rem,1.32vw,1.45rem)] font-medium tracking-[-0.025em] text-black xl:text-[1.25rem]"
+                                className="home-section-anchor font-bdo text-[clamp(1.16rem,1.32vw,1.45rem)] font-medium tracking-[-0.025em] text-black xl:text-[1.25rem]"
                             >
                                 Artikel Terbaru Kami
                             </ScrollTextReveal>
@@ -242,7 +242,7 @@ export default function ServicesSectionArtikel({
                             data-news-reveal="headline"
                             data-news-reveal-order="2"
                             aria-label="Artikel Terkini Kami"
-                            className="section-two-headline-weight mt-5 max-w-[1100px] text-left font-bdo text-[clamp(1.74rem,6.93vw,2.4rem)] font-medium leading-[1.01] tracking-[-0.058em] text-black md:text-[clamp(2.08rem,4.5vw,2.6rem)] lg:text-[clamp(2.2rem,3.8vw,2.7rem)] xl:mt-10 xl:max-w-[980px] xl:text-[clamp(2.05rem,2.38vw,2.36rem)] min-[1440px]:text-[clamp(2.45rem,2.82vw,2.7rem)] 2xl:max-w-[1120px] 2xl:text-[clamp(2.7rem,2.55vw,3.15rem)]"
+                            className="home-section-heading section-two-headline-weight mt-5 max-w-[1100px] text-left font-bdo text-[clamp(1.74rem,6.93vw,2.4rem)] font-medium leading-[1.01] tracking-[-0.058em] text-black md:text-[clamp(2.08rem,4.5vw,2.6rem)] lg:text-[clamp(2.2rem,3.8vw,2.7rem)] xl:mt-10 xl:max-w-[980px] xl:text-[clamp(2.05rem,2.38vw,2.36rem)] min-[1440px]:text-[clamp(2.45rem,2.82vw,2.7rem)] 2xl:max-w-[1120px] 2xl:text-[clamp(2.7rem,2.55vw,3.15rem)]"
                         >
                             <span aria-hidden className="block">
                                 <span className="block overflow-visible">

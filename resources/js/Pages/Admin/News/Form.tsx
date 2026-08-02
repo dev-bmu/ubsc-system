@@ -18,7 +18,10 @@ import {
 } from "lucide-react";
 import { useEffect } from "react";
 import RichEditor from "@/Components/Admin/RichEditor";
-import { SingleDropzone } from "@/Components/Admin/ImageDropzone";
+import {
+    MultiDropzone,
+    type ExistingMedia,
+} from "@/Components/Admin/ImageDropzone";
 import AdminLayout from "@/Layouts/AdminLayout";
 import { cn } from "@/lib/utils";
 import type { NewsCategory, NewsItem, NewsStatus, PageProps } from "@/types";
@@ -174,8 +177,14 @@ const NEWS_FORM_STYLES = `
 `;
 
 type Props = PageProps<{
-    article: (NewsItem & { content: string }) | null;
+    article:
+        | (NewsItem & {
+              content: string;
+              gallery_images?: ExistingMedia[];
+          })
+        | null;
     categories: Pick<NewsCategory, "id" | "name">[];
+    max_images: number;
 }>;
 
 type FormData = {
@@ -188,7 +197,8 @@ type FormData = {
     is_hero_featured: boolean;
     hero_sort_order: number | "";
     published_at: string;
-    thumbnail: File | null;
+    images: File[];
+    remove_media_ids: number[];
     _method?: string;
 };
 
@@ -345,7 +355,8 @@ function StatusOption({
 }
 
 export default function NewsForm() {
-    const { article, categories, auth } = usePage<Props>().props;
+    const { article, categories, max_images: maxImages, auth } =
+        usePage<Props>().props;
     const isEdit = article !== null;
     const canPublish =
         auth.user?.role === "Administrator" ||
@@ -361,7 +372,8 @@ export default function NewsForm() {
         is_hero_featured: article?.is_hero_featured ?? false,
         hero_sort_order: article?.hero_sort_order ?? "",
         published_at: toDatetimeLocal(article?.published_at),
-        thumbnail: null,
+        images: [],
+        remove_media_ids: [],
         ...(isEdit ? { _method: "PUT" } : {}),
     });
 
@@ -387,6 +399,12 @@ export default function NewsForm() {
     const readingMinutes = getReadingMinutes(data.content);
     const headline = data.title.trim() || "Judul artikel belum diisi";
     const slugPreview = data.slug.trim() || "tautan-artikel";
+    const visibleExistingImages = (article?.gallery_images ?? []).filter(
+        (image) => !data.remove_media_ids.includes(image.id),
+    );
+    const galleryError =
+        errors.images ??
+        Object.entries(errors).find(([key]) => key.startsWith("images."))?.[1];
 
     return (
         <AdminLayout
@@ -770,18 +788,32 @@ export default function NewsForm() {
 
                         <SectionCard
                             icon={<Image size={15} />}
-                            title="Thumbnail"
-                            subtitle="Gambar utama kartu artikel"
+                            title="Galeri Artikel"
+                            subtitle="Satu cover dan beberapa gambar untuk halaman detail"
                             animDelay="delay-250"
                         >
                             <div className="rounded-2xl border border-slate-200 bg-white p-3">
-                                <SingleDropzone
-                                    label="Gambar Artikel"
-                                    currentUrl={article?.thumbnail ?? null}
-                                    onFileSelect={(file) => setData("thumbnail", file)}
+                                <MultiDropzone
+                                    label="Gambar Berita atau Artikel"
+                                    existing={visibleExistingImages}
+                                    maxFiles={maxImages}
+                                    onFilesChange={(files) =>
+                                        setData("images", files)
+                                    }
+                                    onRemoveExisting={(id) =>
+                                        setData("remove_media_ids", [
+                                            ...data.remove_media_ids,
+                                            id,
+                                        ])
+                                    }
                                 />
                             </div>
-                            <FieldError message={errors.thumbnail} />
+                            <p className="mt-2 font-bdo text-[10px] font-medium leading-relaxed text-slate-400">
+                                Gambar pertama menjadi cover. Gambar berikutnya otomatis
+                                tampil sebagai slide dan background blur yang sinkron.
+                            </p>
+                            <FieldError message={galleryError} />
+                            <FieldError message={errors.remove_media_ids} />
                         </SectionCard>
 
                         <SectionCard

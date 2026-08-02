@@ -1,0 +1,19 @@
+{
+    "name": "UB Sport Center",
+    "short_name": "UBSC",
+    "description": "Pusat olahraga, gym, dan reservasi fasilitas UB Sport Center di Kota Malang.",
+    "lang": "id-ID",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "background_color": "#071522",
+    "theme_color": "#071522",
+    "icons": [
+        {
+            "src": "/ubsc-tab.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        }
+    ]
+}

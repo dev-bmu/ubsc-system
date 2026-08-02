@@ -8,6 +8,7 @@ use App\Http\Resources\Public\NewsResource;
 use App\Models\News;
 use App\Models\NewsCategory;
 use App\Support\NewsContentSanitizer;
+use App\Support\PublicSeo;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,7 +18,9 @@ use Inertia\Response;
 class PublicNewsController extends Controller
 {
     private const BERITA_PER_PAGE = 6;
+
     private const ARTIKEL_PER_PAGE = 7;
+
     private const PUBLIC_CATEGORIES = ['Berita', 'Artikel'];
 
     public function index(): Response
@@ -52,10 +55,10 @@ class PublicNewsController extends Controller
         );
     }
 
-    public function show(string $slug): Response
+    public function show(Request $request, string $slug): Response
     {
         $news = News::published()
-            ->with(['category', 'media'])
+            ->with(['author:id,name', 'category', 'media'])
             ->where('slug', $slug)
             ->whereHas('category', fn ($query) => $query->whereIn('name', self::PUBLIC_CATEGORIES))
             ->firstOrFail();
@@ -67,12 +70,17 @@ class PublicNewsController extends Controller
             ->limit(6)
             ->get();
 
+        $newsItem = $this->detailPayload($news);
+
         return Inertia::render('News/Show', [
-            'newsItem' => $this->detailPayload($news),
+            'newsItem' => $newsItem,
             'similarNews' => $similarNews
                 ->map(fn (News $item): array => $this->cardPayload($item))
                 ->values()
                 ->all(),
+            'seo' => PublicSeo::article($request, $news, [
+                'image' => $newsItem['cover_image'] ?: null,
+            ]),
         ]);
     }
 
@@ -87,6 +95,14 @@ class PublicNewsController extends Controller
             ->values();
 
         $coverImage = $news->getFirstMediaUrl('thumbnail');
+        $plainContent = trim((string) preg_replace(
+            '/\s+/u',
+            ' ',
+            html_entity_decode(strip_tags((string) $news->content), ENT_QUOTES | ENT_HTML5, 'UTF-8')
+        ));
+        $wordCount = $plainContent === ''
+            ? 0
+            : count(preg_split('/\s+/u', $plainContent, -1, PREG_SPLIT_NO_EMPTY) ?: []);
 
         if ($images->isEmpty() && $coverImage !== '') {
             $images = collect([$coverImage]);
@@ -100,7 +116,10 @@ class PublicNewsController extends Controller
             'description' => $news->excerpt ?? '',
             'content' => NewsContentSanitizer::clean($news->content),
             'date' => $news->published_at?->format('d.m.Y') ?? '',
+            'published_at_iso' => $news->published_at?->toIso8601String(),
             'category' => $news->category?->name ?? '',
+            'author' => $news->author?->name ?? 'Tim Editorial UB Sport Center',
+            'reading_minutes' => max(1, (int) ceil($wordCount / 220)),
             'facility' => config('app.name', 'UB Sport Center'),
             'images_array' => $images->all(),
             'cover_image' => $coverImage,
@@ -135,7 +154,7 @@ class PublicNewsController extends Controller
             ->paginate(
                 perPage: $perPage,
                 columns: ['*'],
-                pageName: strtolower($categoryName) . '_page',
+                pageName: strtolower($categoryName).'_page',
                 page: $page
             );
 

@@ -12,23 +12,19 @@ import { cn } from "@/lib/utils";
 /** Auto-advance interval. The visible progress bar IS this clock —
  *  see the single-clock note in the component below. */
 const SLIDE_MS = 6500;
-const ARTICLE_BADGE_GRADIENT =
-    "linear-gradient(110deg, #0d3558 0%, #15678d 28%, #1a9fc0 48%, #124d7a 68%, #153359 100%)";
 const ARTICLE_LINE_GRADIENT =
     "linear-gradient(90deg, #15678d 0%, #1a9fc0 45%, transparent 100%)";
-const NEWS_BADGE_GRADIENT =
-    "linear-gradient(110deg, #790a0a 0%, #c80012 30%, #ff3b35 50%, #a0060a 70%, #790a0a 100%)";
 const NEWS_LINE_GRADIENT =
     "linear-gradient(90deg, #ff2d2d 0%, #d50000 45%, transparent 100%)";
 
 function getHeroBadgeTone(badge: string) {
     return badge.trim().toLowerCase() === "artikel"
         ? {
-              badge: ARTICLE_BADGE_GRADIENT,
+              tone: "artikel" as const,
               line: ARTICLE_LINE_GRADIENT,
           }
         : {
-              badge: NEWS_BADGE_GRADIENT,
+              tone: "berita" as const,
               line: NEWS_LINE_GRADIENT,
           };
 }
@@ -178,11 +174,11 @@ export default function NewsHero({ slides }: { slides: NewsSlide[] }) {
                                     <div className="xl:col-span-8 flex flex-col gap-4">
                                         <div className="flex items-center gap-3">
                                             <div
-                                                className="news-gradient-badge nh-reveal relative flex h-[27px] min-w-[5.704rem] items-center justify-center rounded-[5px] px-[0.9375rem] text-center md:h-9 md:min-w-[7.604rem] md:px-5"
-                                                style={{
-                                                    background: badgeTone.badge,
-                                                    ["--i" as string]: 0,
-                                                }}
+                                                 className="news-gradient-badge news-gradient-badge--story nh-reveal relative flex h-[27px] min-w-[5.704rem] items-center justify-center rounded-[5px] px-[0.9375rem] text-center md:h-9 md:min-w-[7.604rem] md:px-5"
+                                                 data-tone={badgeTone.tone}
+                                                 style={{
+                                                     ["--i" as string]: 0,
+                                                 }}
                                             >
                                                 <span className="font-clash text-[0.65625rem] font-bold text-white md:text-[clamp(0.875rem,0.83vw,16px)]">
                                                     {slide.badge}
