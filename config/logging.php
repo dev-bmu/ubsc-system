@@ -1,5 +1,6 @@
 <?php
 
+use Monolog\Formatter\JsonFormatter;
 use Monolog\Handler\NullHandler;
 use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SyslogUdpHandler;
@@ -73,6 +74,36 @@ return [
             'replace_placeholders' => true,
         ],
 
+        /*
+        | Payment operations are intentionally isolated from the general
+        | application log. Context written to this stack must contain opaque
+        | record identifiers and aggregate counters only; credentials,
+        | payment instruments, request payloads, and personal data are never
+        | valid payment-log context.
+        */
+        'payments' => [
+            'driver' => 'stack',
+            'channels' => array_values(array_filter(array_map(
+                'trim',
+                explode(',', (string) env('PAYMENT_LOG_STACK', 'payment_daily')),
+            ))),
+            // The relational audit trail remains authoritative. A temporary
+            // logging sink outage must never fail or duplicate a payment.
+            'ignore_exceptions' => true,
+        ],
+
+        'payment_daily' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/payments/payment.log'),
+            'level' => env('PAYMENT_LOG_LEVEL', 'info'),
+            // This local window is deliberately longer than the default
+            // archive threshold so a temporarily failed archive job cannot
+            // cause RotatingFileHandler to remove the only copy.
+            'days' => (int) env('PAYMENT_LOG_DAILY_DAYS', 45),
+            'replace_placeholders' => true,
+            'formatter' => JsonFormatter::class,
+        ],
+
         'slack' => [
             'driver' => 'slack',
             'url' => env('LOG_SLACK_WEBHOOK_URL'),
@@ -127,6 +158,25 @@ return [
             'path' => storage_path('logs/laravel.log'),
         ],
 
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Payment Log Archive
+    |--------------------------------------------------------------------------
+    |
+    | Old payment operation logs are compressed into private storage and
+    | accompanied by a SHA-256 checksum of their original contents. The
+    | archive command rejects unsafe retention relationships rather than
+    | silently deleting the only recoverable copy.
+    |
+    */
+    'payment_archive' => [
+        'source_path' => storage_path('logs/payments'),
+        'archive_path' => env('PAYMENT_LOG_ARCHIVE_PATH')
+            ?: storage_path('app/private/payment-log-archive'),
+        'archive_after_days' => (int) env('PAYMENT_LOG_ARCHIVE_AFTER_DAYS', 30),
+        'retention_days' => (int) env('PAYMENT_LOG_RETENTION_DAYS', 365),
     ],
 
 ];

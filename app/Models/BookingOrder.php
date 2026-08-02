@@ -11,6 +11,10 @@ class BookingOrder extends Model
 {
     protected $fillable = [
         'user_id',
+        'idempotency_key',
+        'request_fingerprint',
+        'currency',
+        'terms_version',
         'customer_name',
         'whatsapp_number',
         'identity_category',

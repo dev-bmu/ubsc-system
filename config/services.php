@@ -36,15 +36,25 @@ return [
     ],
 
     'google' => [
-        'client_id'     => env('GOOGLE_CLIENT_ID'),
+        'client_id' => env('GOOGLE_CLIENT_ID'),
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
-        'redirect'      => env('GOOGLE_REDIRECT_URI', '/auth/google/callback'),
-        'http_verify'   => env('GOOGLE_HTTP_VERIFY', true),
+        'redirect' => env('GOOGLE_REDIRECT_URI', '/auth/google/callback'),
+        'http_verify' => env('GOOGLE_HTTP_VERIFY', true),
     ],
 
     'payment' => [
-        'mock' => env('PAYMENT_GATEWAY_MOCK', true),
+        // Fail closed outside explicitly configured local/test environments.
+        'mock' => env('PAYMENT_GATEWAY_MOCK', false),
         'transaction_fee' => (int) env('BOOKING_TRANSACTION_FEE', 6000),
+        'hold_minutes' => (int) env('BOOKING_PAYMENT_WINDOW_MINUTES', 30),
+        'booking_max_items' => (int) env('BOOKING_CHECKOUT_MAX_ITEMS', 8),
+        'booking_max_open_holds' => (int) env('BOOKING_MAX_OPEN_HOLDS', 2),
+        'currency' => env('PAYMENT_CURRENCY', 'IDR'),
+        'terms_version' => env('PAYMENT_TERMS_VERSION', 'booking-terms-2026-08'),
+        'membership_window_hours' => (int) env('MEMBERSHIP_PAYMENT_WINDOW_HOURS', 24),
+        // Creating attempts older than this are treated as interrupted work
+        // and moved to provider reconciliation; no new charge is created.
+        'recovery_stale_seconds' => (int) env('PAYMENT_RECOVERY_STALE_SECONDS', 120),
     ],
 
 ];

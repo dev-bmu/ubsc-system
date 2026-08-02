@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class Transaction extends Model
@@ -14,8 +15,10 @@ class Transaction extends Model
         'transactionable_type',
         'amount',
         'payment_status',
+        'payment_method',
         'xendit_invoice_id',
         'checkout_url',
+        'service_snapshot',
         'paid_at',
     ];
 
@@ -25,6 +28,7 @@ class Transaction extends Model
     {
         return [
             'paid_at' => 'datetime',
+            'service_snapshot' => 'array',
         ];
     }
 
@@ -38,8 +42,13 @@ class Transaction extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function paymentAttempts(): HasMany
+    {
+        return $this->hasMany(PaymentAttempt::class);
+    }
+
     public function getReceiptNumberAttribute(): string
     {
-        return 'UBSC-' . str_pad((string) $this->id, 6, '0', STR_PAD_LEFT);
+        return 'UBSC-'.str_pad((string) $this->id, 6, '0', STR_PAD_LEFT);
     }
 }
