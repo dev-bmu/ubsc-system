@@ -26,7 +26,16 @@ Homestead.yaml
 Thumbs.db
 *.md
 !docs/PRD_FACILITY_GALLERY.md
+!docs/PAYMENT_RECOVERY_OPERATIONS.md
+!.github/CONCURRENCY_CI.md
 *.html
 *.json
 *.ffpreset
 *.exe
+
+# Local review, preview, and stress-test artifacts
+/.tmp-*
+/artifacts/
+/output/
+/ubsc_race_*
+*.bak
