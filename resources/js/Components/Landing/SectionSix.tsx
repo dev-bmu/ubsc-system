@@ -175,7 +175,10 @@ export default function SectionSix({ facilities = [] }: SectionSixProps) {
                         </div>
 
                         <div className="section-six-reveal section-six-reveal--actions mt-12 flex items-center justify-between gap-6 xl:mt-auto">
-                            <ReservasiButton label="Mulai Reservasi" />
+                            <ReservasiButton
+                                label="Mulai Reservasi"
+                                href="/booking"
+                            />
 
                             <div className="flex flex-shrink-0 items-center gap-[0.65rem] lg:gap-3">
                                 <button

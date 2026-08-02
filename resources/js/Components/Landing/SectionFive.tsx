@@ -162,7 +162,7 @@ function ImpactLink() {
 
     return (
         <a
-            href="/coming-soon"
+            href="/booking"
             className="group relative block min-w-0 overflow-hidden border-b border-white/75 pb-[7px] pt-1 text-white"
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}

@@ -138,7 +138,7 @@ export default function NewsSection({ news = DUMMY_NEWS }: NewsSectionProps) {
                     <div className="md:col-span-4">
                         <ReservasiButton
                             label="Lihat Berita Lainnya"
-                            href="/coming-soon"
+                            href="/news"
                             size="compact"
                         />
                     </div>
