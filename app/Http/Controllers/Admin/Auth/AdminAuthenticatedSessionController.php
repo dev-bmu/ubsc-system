@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Services\AuthSessionCoordinator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -28,7 +29,10 @@ class AdminAuthenticatedSessionController extends Controller
         ]);
     }
 
-    public function store(LoginRequest $request): RedirectResponse
+    public function store(
+        LoginRequest $request,
+        AuthSessionCoordinator $sessions,
+    ): RedirectResponse
     {
         $request->authenticate();
 
@@ -36,24 +40,28 @@ class AdminAuthenticatedSessionController extends Controller
 
         if (! $user->hasAnyRole(self::STAFF_ROLES)) {
             Auth::logout();
-            $request->session()->invalidate();
-            $request->session()->regenerateToken();
+            $sessions->invalidate($request);
+            Inertia::clearHistory();
 
             throw ValidationException::withMessages([
                 'email' => 'Access Denied. You do not have staff privileges.',
             ]);
         }
 
-        $request->session()->regenerate();
+        $sessions->regenerate($request);
+        Inertia::clearHistory();
 
         return redirect()->intended(route('admin.dashboard'));
     }
 
-    public function destroy(Request $request): RedirectResponse
+    public function destroy(
+        Request $request,
+        AuthSessionCoordinator $sessions,
+    ): RedirectResponse
     {
         Auth::guard('web')->logout();
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
+        $sessions->invalidate($request);
+        Inertia::clearHistory();
 
         return redirect()->route('ubsc-staff.login');
     }

@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\AuthSessionCoordinator;
+use App\Support\PublicReturnPath;
 use GuzzleHttp\Client;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -12,6 +14,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Inertia\Inertia;
 use Laravel\Socialite\Facades\Socialite;
 use Throwable;
 
@@ -27,15 +30,26 @@ class GoogleAuthController extends Controller
 
     public function redirectToGoogle(Request $request): RedirectResponse
     {
+        $returnTo = PublicReturnPath::resolveForRequest(
+            $request,
+            $request->query('return_to'),
+        );
+
         if ($this->shouldUseCanonicalGoogleHost($request)) {
-            return redirect()->away($this->canonicalGoogleLoginUrl());
+            return redirect()->away($this->canonicalGoogleLoginUrl($returnTo));
+        }
+
+        if ($returnTo) {
+            $request->session()->put('url.intended', $returnTo);
         }
 
         return $this->googleProvider()->redirect();
     }
 
-    public function handleGoogleCallback(): RedirectResponse
-    {
+    public function handleGoogleCallback(
+        Request $request,
+        AuthSessionCoordinator $sessions,
+    ): RedirectResponse {
         try {
             $googleUser = $this->googleProvider()->user();
             $googleId = $googleUser->getId();
@@ -43,8 +57,8 @@ class GoogleAuthController extends Controller
             $isVerifiedEmail = $googleUser->user['email_verified'] ?? null;
             $avatarUrl = $this->googleAvatarUrl($googleUser);
 
-            if ($email === '' || $isVerifiedEmail === false) {
-                return $this->failedRedirect();
+            if ($email === '' || $isVerifiedEmail !== true) {
+                return $this->failedRedirect($request);
             }
 
             $user = User::where('google_id', $googleId)->first();
@@ -54,7 +68,7 @@ class GoogleAuthController extends Controller
             }
 
             if ($user && $user->hasAnyRole(self::STAFF_ROLES)) {
-                return $this->failedRedirect();
+                return $this->failedRedirect($request);
             }
 
             if ($user) {
@@ -78,26 +92,32 @@ class GoogleAuthController extends Controller
             }
 
             Auth::login($user, true);
-            request()->session()->regenerate();
+            $sessions->regenerate($request);
 
-            request()->session()->forget('url.intended');
+            Inertia::clearHistory();
 
-            return redirect()->to(config('app.url', '/'));
+            $returnTo = PublicReturnPath::resolveForRequest($request);
+            $request->session()->forget('url.intended');
+
+            return redirect()->to($returnTo ?? '/');
         } catch (Throwable $exception) {
             Log::error('Google login failed.', [
                 'message' => $exception->getMessage(),
                 'code' => $exception->getCode(),
             ]);
 
-            return $this->failedRedirect();
+            return $this->failedRedirect($request);
         }
     }
 
-    private function failedRedirect(): RedirectResponse
+    private function failedRedirect(Request $request): RedirectResponse
     {
-        return redirect('/?auth=login')->withErrors([
-            'email' => 'Login Google gagal. Silakan coba lagi atau gunakan email dan password.',
-        ]);
+        $returnTo = PublicReturnPath::resolveForRequest($request);
+
+        return redirect(PublicReturnPath::modalEntry('login', $returnTo))
+            ->withErrors([
+                'email' => 'Login Google gagal. Silakan coba lagi atau gunakan email dan password.',
+            ]);
     }
 
     private function googleProvider()
@@ -163,8 +183,12 @@ class GoogleAuthController extends Controller
             && $request->getHost() !== $canonicalHost;
     }
 
-    private function canonicalGoogleLoginUrl(): string
+    private function canonicalGoogleLoginUrl(?string $returnTo = null): string
     {
-        return rtrim((string) config('app.url'), '/') . '/auth/google';
+        $url = rtrim((string) config('app.url'), '/').'/auth/google';
+
+        return $returnTo
+            ? $url.'?'.http_build_query(['return_to' => $returnTo])
+            : $url;
     }
 }

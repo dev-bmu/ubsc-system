@@ -16,6 +16,6 @@ return [
         'page_extensions' => ['js', 'jsx', 'svelte', 'ts', 'tsx', 'vue'],
     ],
     'history' => [
-        'encrypt' => (bool) env('INERTIA_ENCRYPT_HISTORY', false),
+        'encrypt' => (bool) env('INERTIA_ENCRYPT_HISTORY', true),
     ],
 ];

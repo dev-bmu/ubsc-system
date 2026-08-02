@@ -41,6 +41,23 @@ class EmailVerificationTest extends TestCase
         $response->assertRedirect('/?verified=1');
     }
 
+    public function test_email_verification_returns_membership_registration_to_its_safe_page(): void
+    {
+        $user = User::factory()->unverified()->create();
+        $verificationUrl = URL::temporarySignedRoute(
+            'verification.verify',
+            now()->addMinutes(60),
+            ['id' => $user->id, 'hash' => sha1($user->email)],
+        );
+
+        $this->actingAs($user)
+            ->withSession(['url.intended' => '/pricing?plan=4#membership'])
+            ->get($verificationUrl)
+            ->assertRedirect('/pricing?plan=4#membership');
+
+        $this->assertTrue($user->fresh()->hasVerifiedEmail());
+    }
+
     public function test_email_is_not_verified_with_invalid_hash(): void
     {
         $user = User::factory()->unverified()->create();

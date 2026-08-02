@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Services\AuthSessionCoordinator;
+use App\Support\PublicReturnPath;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -45,8 +47,10 @@ class AuthenticatedSessionController extends Controller
         ]);
     }
 
-    public function store(LoginRequest $request): RedirectResponse
-    {
+    public function store(
+        LoginRequest $request,
+        AuthSessionCoordinator $sessions,
+    ): RedirectResponse {
         $request->authenticate();
 
         $user = Auth::user();
@@ -54,15 +58,21 @@ class AuthenticatedSessionController extends Controller
         // GATE 2: Staff accounts must use the staff portal
         if ($user->hasAnyRole(['Administrator', 'Manager', 'Finance', 'Staff Central', 'Staff Front Office'])) {
             Auth::logout();
-            $request->session()->invalidate();
-            $request->session()->regenerateToken();
+            $sessions->invalidate($request);
+            Inertia::clearHistory();
 
             throw ValidationException::withMessages([
                 'email' => trans('auth.failed'),
             ]);
         }
 
-        $request->session()->regenerate();
+        $sessions->regenerate($request);
+
+        if ($returnTo = PublicReturnPath::normalize($request->input('return_to'))) {
+            $request->session()->put('url.intended', $returnTo);
+        }
+
+        Inertia::clearHistory();
 
         return redirect()->intended('/');
     }
@@ -70,14 +80,42 @@ class AuthenticatedSessionController extends Controller
     /**
      * Destroy an authenticated session.
      */
-    public function destroy(Request $request): RedirectResponse
-    {
+    public function destroy(
+        Request $request,
+        AuthSessionCoordinator $sessions,
+    ): RedirectResponse {
+        $returnTo = PublicReturnPath::normalize(
+            $request->input('return_to'),
+        ) ?? '/';
+
         Auth::guard('web')->logout();
 
-        $request->session()->invalidate();
+        $sessions->invalidate($request);
+        Inertia::clearHistory();
 
-        $request->session()->regenerateToken();
+        return redirect()->to($returnTo);
+    }
 
-        return redirect('/');
+    /**
+     * Return the server-authoritative authentication state.
+     *
+     * The frontend uses this deliberately small, non-cacheable response to
+     * reconcile pages restored by browser history or the back-forward cache.
+     */
+    public function state(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $user = $request->user();
+
+        return response()
+            ->json([
+                'authenticated' => $user !== null,
+                'user_id' => $user?->getAuthIdentifier(),
+            ])
+            ->withHeaders([
+                'Cache-Control' => 'private, no-store, max-age=0, must-revalidate',
+                'Pragma' => 'no-cache',
+                'Expires' => '0',
+                'Vary' => 'Cookie',
+            ]);
     }
 }

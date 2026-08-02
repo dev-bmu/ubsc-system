@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Support\PublicReturnPath;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -11,20 +12,25 @@ use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules;
 use Illuminate\Validation\ValidationException;
-use Inertia\Inertia;
-use Inertia\Response;
 
 class NewPasswordController extends Controller
 {
     /**
      * Display the password reset view.
      */
-    public function create(Request $request): Response
+    public function create(Request $request): RedirectResponse
     {
-        return Inertia::render('Auth/ResetPassword', [
-            'email' => $request->email,
-            'token' => $request->route('token'),
-        ]);
+        $returnTo = PublicReturnPath::resolveForRequest(
+            $request,
+            $request->query('return_to'),
+        );
+        $entry = PublicReturnPath::modalEntry('reset', $returnTo);
+        $fragment = http_build_query([
+            'token' => (string) $request->route('token'),
+            'email' => (string) $request->query('email', ''),
+        ], '', '&', PHP_QUERY_RFC3986);
+
+        return redirect()->to($entry.'#'.$fragment);
     }
 
     /**
@@ -38,7 +44,13 @@ class NewPasswordController extends Controller
             'token' => 'required',
             'email' => 'required|email',
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
+            'return_to' => ['nullable', 'string', 'max:2048'],
         ]);
+
+        $returnTo = PublicReturnPath::resolveForRequest(
+            $request,
+            $request->input('return_to'),
+        );
 
         // Here we will attempt to reset the user's password. If it is successful we
         // will update the password on an actual user model and persist it to the
@@ -59,7 +71,14 @@ class NewPasswordController extends Controller
         // the application's home authenticated view. If there is an error we can
         // redirect them back to where they came from with their error message.
         if ($status == Password::PASSWORD_RESET) {
-            return redirect()->route('login')->with('status', __($status));
+            $request->session()->forget('url.intended');
+
+            return redirect()
+                ->to(PublicReturnPath::withQuery($returnTo, [
+                    'auth' => 'login',
+                    'password_reset' => '1',
+                ]))
+                ->with('status', __($status));
         }
 
         throw ValidationException::withMessages([

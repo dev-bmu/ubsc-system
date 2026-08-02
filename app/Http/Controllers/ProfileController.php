@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Services\AuthSessionCoordinator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -60,7 +61,10 @@ class ProfileController extends Controller
         return back();
     }
 
-    public function destroy(Request $request): RedirectResponse
+    public function destroy(
+        Request $request,
+        AuthSessionCoordinator $sessions,
+    ): RedirectResponse
     {
         $request->validate([
             'password' => ['required', 'current_password'],
@@ -72,8 +76,8 @@ class ProfileController extends Controller
 
         $user->delete();
 
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
+        $sessions->invalidate($request);
+        Inertia::clearHistory();
 
         return Redirect::to('/');
     }

@@ -116,7 +116,8 @@ class ProfileTest extends TestCase
 
         $response
             ->assertSessionHasNoErrors()
-            ->assertRedirect('/');
+            ->assertRedirect('/')
+            ->assertSessionHas('inertia.clear_history', true);
 
         $this->assertGuest();
         $this->assertNull($user->fresh());
