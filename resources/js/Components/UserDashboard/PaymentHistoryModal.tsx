@@ -1,312 +1,853 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-    AlertCircle,
-    ArrowUpRight,
-    CalendarDays,
-    Dumbbell,
-    MapPin,
-    Receipt,
+    ChevronDown,
+    CircleAlert,
+    FileDown,
+    ReceiptText,
     RefreshCw,
 } from "lucide-react";
 import axios from "axios";
 import { cn } from "@/lib/utils";
-import AccountModalShell from "./AccountModalShell";
-import { Barcode, NumberReel } from "./PassKit";
+import AccountModalShell, { AccountCtaArrow } from "./AccountModalShell";
+import "./PaymentHistoryModal.css";
 
 interface Props {
     onClose: () => void;
 }
 
+type PaymentStatus = "UNPAID" | "PAID" | "EXPIRED" | "FAILED";
+
+interface BookingItem {
+    id: number | null;
+    kind: "facility" | "class";
+    facility_name: string;
+    image_url?: string | null;
+    facility_unit_name: string | null;
+    location: string | null;
+    booking_date: string | null;
+    start_time: string | null;
+    end_time: string | null;
+    subtotal: number;
+    status: string;
+    next_transition_at: string | null;
+}
+
+interface MembershipItem {
+    id: number | null;
+    plan_name: string;
+    image_url?: string | null;
+    status: string;
+    start_date: string | null;
+    end_date: string | null;
+    days_remaining: number;
+    next_transition_at: string | null;
+}
+
 interface TransactionItem {
     id: number;
+    receipt_number: string;
     amount: number;
-    payment_status: "UNPAID" | "PAID" | "EXPIRED" | "FAILED";
+    payment_status: PaymentStatus;
+    payment_method: string | null;
     checkout_url: string | null;
+    invoice_url: string | null;
     paid_at: string | null;
     created_at: string;
     type: "booking" | "membership";
-    facility_name: string;
-    booking_date: string | null;
-    membership_plan: string | null;
+    service_kind: "facility" | "class" | "mixed" | "membership";
+    service_status: string;
+    title: string;
+    items_count: number;
+    items: BookingItem[];
+    membership: MembershipItem | null;
+    next_transition_at: string | null;
 }
 
-const STATUS_CONFIG: Record<
-    string,
-    { label: string; dot: string; pill: string }
+interface HistoryMeta {
+    total: number;
+    paid_count: number;
+    paid_total: number;
+    awaiting_payment: number;
+    has_more: boolean;
+    next_cursor: string | null;
+    server_now: string;
+}
+
+const PAYMENT_STATUS: Record<
+    PaymentStatus,
+    { label: string; state: string }
 > = {
-    PAID: {
-        label: "Lunas",
-        dot: "bg-emerald-500",
-        pill: "bg-emerald-500/12 text-emerald-700",
-    },
-    UNPAID: {
-        label: "Belum Bayar",
-        dot: "bg-amber-500",
-        pill: "bg-amber-500/14 text-amber-700",
-    },
-    EXPIRED: {
-        label: "Kedaluwarsa",
-        dot: "bg-navy-900/40",
-        pill: "bg-navy-900/[0.06] text-navy-900/50",
-    },
-    FAILED: {
-        label: "Gagal",
-        dot: "bg-rose-500",
-        pill: "bg-rose-500/12 text-rose-600",
-    },
+    PAID: { label: "Lunas", state: "is-paid" },
+    UNPAID: { label: "Menunggu", state: "is-waiting" },
+    EXPIRED: { label: "Berakhir", state: "is-expired" },
+    FAILED: { label: "Gagal", state: "is-failed" },
 };
 
+const SERVICE_STATUS: Record<string, { label: string; tone: string }> = {
+    awaiting_payment: {
+        label: "Menunggu pembayaran",
+        tone: "is-waiting",
+    },
+    payment_expired: { label: "Tidak dibayar", tone: "is-expired" },
+    payment_failed: { label: "Pembayaran gagal", tone: "is-failed" },
+    scheduled: { label: "Terjadwal", tone: "is-blue" },
+    ongoing: { label: "Sedang berlangsung", tone: "is-live" },
+    active: { label: "Aktif", tone: "is-live" },
+    completed: { label: "Selesai", tone: "is-muted" },
+    expired: { label: "Masa aktif selesai", tone: "is-expired" },
+    cancelled: { label: "Dibatalkan", tone: "is-failed" },
+    archived: { label: "Selesai dicatat", tone: "is-muted" },
+};
+
+const MEMBERSHIP_FALLBACK =
+    "/assets/images/poster-gym-konten-program-ub-sport-center.avif";
+const FACILITY_FALLBACK =
+    "/assets/images/ub-sport-center-kantor-pusat-malang.avif";
+
 function formatRupiah(amount: number) {
-    return "Rp " + new Intl.NumberFormat("id-ID").format(amount);
+    return `Rp ${new Intl.NumberFormat("id-ID").format(amount)}`;
 }
 
-function formatDate(dateStr: string | null) {
-    if (!dateStr) return "-";
-    return new Date(dateStr).toLocaleDateString("id-ID", {
+function formatDate(value: string | null) {
+    if (!value) return "-";
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(value)
+        ? new Date(`${value}T12:00:00`)
+        : new Date(value);
+
+    if (Number.isNaN(date.getTime())) return "-";
+
+    return date.toLocaleDateString("id-ID", {
         day: "2-digit",
         month: "short",
         year: "numeric",
     });
 }
 
-function SkeletonRow() {
+function kindLabel(kind: TransactionItem["service_kind"]) {
+    if (kind === "class") return "Kelas";
+    if (kind === "mixed") return "Reservasi gabungan";
+    if (kind === "membership") return "Membership gym";
+    return "Reservasi fasilitas";
+}
+
+function membershipPeriodCopy(transaction: TransactionItem) {
+    if (!transaction.membership) return "Dokumen tersimpan";
+    if (transaction.payment_status === "UNPAID")
+        return "Aktif setelah pembayaran";
+    if (transaction.payment_status === "FAILED")
+        return "Pembayaran perlu diperiksa";
+    if (transaction.payment_status === "EXPIRED")
+        return "Masa pembayaran selesai";
+    if (["expired", "cancelled"].includes(transaction.service_status))
+        return "Masa aktif selesai";
+    if (transaction.service_status === "archived") return "Dokumen tersimpan";
+
+    return transaction.membership.days_remaining > 0
+        ? `${transaction.membership.days_remaining} hari tersisa`
+        : transaction.service_status === "active"
+          ? "Berakhir hari ini"
+          : "Periode terverifikasi";
+}
+
+function invoiceDownload(url: string) {
+    return `${url}${url.includes("?") ? "&" : "?"}download=1`;
+}
+
+function fallbackImage(name: string, isMembership = false) {
+    if (isMembership) return MEMBERSHIP_FALLBACK;
+
+    const normalized = name.toLocaleLowerCase("id-ID");
+    const matches: Array<[string[], string]> = [
+        [
+            ["tenis meja", "tennis meja"],
+            "/assets/images/fasilitas-tennis-meja-ub-sport-center.avif",
+        ],
+        [
+            ["bulu tangkis", "bulutangkis", "badminton"],
+            "/assets/images/fasilitas-bulutangkis-ub-sport-center.avif",
+        ],
+        [
+            ["sepak bola", "sepakbola"],
+            "/assets/images/fasilitas-sepak-bola-ub-sport-center.avif",
+        ],
+        [
+            ["futsal dieng"],
+            "/assets/images/fasilitas-futsal-dieng-ub-sport-center.avif",
+        ],
+        [["futsal"], "/assets/images/fasilitas-futsal-ub-sport-center.avif"],
+        [
+            ["tenis", "tennis"],
+            "/assets/images/fasilitas-tenis-ub-sport-center.avif",
+        ],
+        [["basket"], "/assets/images/fasilitas-basket-akurasi-ub-sport-center.avif"],
+        [["voli", "volley"], "/assets/images/fasilitas-voli-ub-sport-center.avif"],
+        [["yoga"], "/assets/images/fasilitas-yoga-ub-sport-center.avif"],
+        [["zumba"], "/assets/images/fasilitas-zumba-ub-sport-center.avif"],
+        [["aerobik", "aerobic"], "/assets/images/fasilitas-aerobik-ub-sport-center.avif"],
+        [["beladiri", "bela diri"], "/assets/images/fasilitas-beladiri-ub-sport-center.avif"],
+        [["gym", "fitness"], MEMBERSHIP_FALLBACK],
+    ];
+
     return (
-        <div className="flex items-center justify-between gap-3 rounded-2xl border border-navy-900/[0.06] bg-white p-4 transition-all duration-300 hover:shadow-[0_4px_16px_-6px_rgba(7,21,48,0.12)]">
-            <div className="flex min-w-0 flex-1 items-center gap-3">
-                <div className="account-skeleton h-11 w-11 flex-shrink-0 rounded-xl" />
-                <div className="min-w-0 flex-1 space-y-2">
-                    <div className="account-skeleton h-3 w-3/4 rounded" />
-                    <div className="account-skeleton h-3 w-1/3 rounded" />
-                </div>
+        matches.find(([keywords]) =>
+            keywords.some((keyword) => normalized.includes(keyword)),
+        )?.[1] ?? FACILITY_FALLBACK
+    );
+}
+
+function ServiceImage({
+    src,
+    fallback,
+    alt,
+    eager = false,
+}: {
+    src?: string | null;
+    fallback: string;
+    alt: string;
+    eager?: boolean;
+}) {
+    const [imageSrc, setImageSrc] = useState(src || fallback);
+
+    useEffect(() => {
+        setImageSrc(src || fallback);
+    }, [fallback, src]);
+
+    return (
+        <img
+            src={imageSrc}
+            alt={alt}
+            loading={eager ? "eager" : "lazy"}
+            decoding="async"
+            referrerPolicy="no-referrer"
+            onError={(event) => {
+                if (imageSrc !== fallback) {
+                    setImageSrc(fallback);
+                    return;
+                }
+                event.currentTarget.hidden = true;
+            }}
+        />
+    );
+}
+
+function SkeletonTransaction() {
+    return (
+        <div className="acc-ledger-skeleton" aria-hidden="true">
+            <span className="account-skeleton" />
+            <div>
+                <i className="account-skeleton" />
+                <i className="account-skeleton" />
+                <i className="account-skeleton" />
             </div>
-            <div className="account-skeleton h-6 w-16 rounded-full" />
+            <i className="account-skeleton" />
         </div>
     );
 }
 
 export default function PaymentHistoryModal({ onClose }: Props) {
     const [transactions, setTransactions] = useState<TransactionItem[]>([]);
+    const [meta, setMeta] = useState<HistoryMeta | null>(null);
     const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [reloadKey, setReloadKey] = useState(0);
+    const [expanded, setExpanded] = useState<Set<number>>(() => new Set());
+    const requestSequence = useRef(0);
+    const lastRevalidationAt = useRef(0);
+    const hasLoaded = useRef(false);
+
+    const loadHistory = useCallback(
+        async (cursor: string | null = null, append = false) => {
+            const sequence = ++requestSequence.current;
+
+            if (append) {
+                setLoadingMore(true);
+                setLoadMoreError(null);
+            } else if (!hasLoaded.current) {
+                setLoading(true);
+                setError(null);
+            }
+
+            try {
+                const response = await axios.get<{
+                    data: TransactionItem[];
+                    meta: HistoryMeta;
+                }>("/user/transactions", {
+                    params: {
+                        per_page: 12,
+                        ...(cursor ? { cursor } : {}),
+                    },
+                });
+
+                if (sequence !== requestSequence.current) return;
+
+                setTransactions((current) =>
+                    append
+                        ? [
+                              ...current,
+                              ...response.data.data.filter(
+                                  (item) =>
+                                      !current.some((old) => old.id === item.id),
+                              ),
+                          ]
+                        : response.data.data,
+                );
+                setMeta(response.data.meta);
+                setError(null);
+                hasLoaded.current = true;
+            } catch {
+                if (sequence !== requestSequence.current) return;
+
+                if (append) {
+                    setLoadMoreError(
+                        "Transaksi berikutnya belum dapat dimuat. Coba lagi.",
+                    );
+                } else if (!hasLoaded.current) {
+                    setError(
+                        "Riwayat pembayaran belum dapat dimuat. Data Anda tetap aman.",
+                    );
+                }
+            } finally {
+                if (sequence === requestSequence.current) {
+                    setLoading(false);
+                    setLoadingMore(false);
+                }
+            }
+        },
+        [],
+    );
+
+    useEffect(() => void loadHistory(), [loadHistory, reloadKey]);
 
     useEffect(() => {
-        let active = true;
-        setLoading(true);
-        setError(null);
-        axios
-            .get("/user/transactions")
-            .then((res) => {
-                if (active) setTransactions(res.data);
-            })
-            .catch(() => {
-                if (active) setError("Gagal memuat data transaksi.");
-            })
-            .finally(() => {
-                if (active) setLoading(false);
-            });
-        return () => {
-            active = false;
-        };
-    }, [reloadKey]);
+        const revalidate = () => {
+            if (
+                document.visibilityState !== "visible" ||
+                Date.now() - lastRevalidationAt.current < 750
+            ) {
+                return;
+            }
 
-    const summary = useMemo(() => {
-        const paid = transactions.filter((t) => t.payment_status === "PAID");
-        const unpaid = transactions.filter(
-            (t) => t.payment_status === "UNPAID",
+            lastRevalidationAt.current = Date.now();
+            setReloadKey((value) => value + 1);
+        };
+
+        document.addEventListener("visibilitychange", revalidate);
+        window.addEventListener("focus", revalidate);
+
+        return () => {
+            document.removeEventListener("visibilitychange", revalidate);
+            window.removeEventListener("focus", revalidate);
+        };
+    }, []);
+
+    useEffect(() => {
+        const next = transactions
+            .flatMap((transaction) => [
+                transaction.next_transition_at,
+                ...transaction.items.map((item) => item.next_transition_at),
+                transaction.membership?.next_transition_at ?? null,
+            ])
+            .filter((value): value is string => Boolean(value))
+            .map((value) => new Date(value).getTime())
+            .filter((value) => Number.isFinite(value) && value > Date.now())
+            .sort((a, b) => a - b)[0];
+
+        if (!next) return;
+
+        const timer = window.setTimeout(
+            () => setReloadKey((value) => value + 1),
+            Math.min(Math.max(1_000, next - Date.now() + 350), 2_147_000_000),
         );
-        const totalPaid = paid.reduce((sum, t) => sum + t.amount, 0);
-        return { count: transactions.length, totalPaid, unpaid: unpaid.length };
+
+        return () => window.clearTimeout(timer);
     }, [transactions]);
+
+    const summary = useMemo(
+        () => ({
+            count: meta?.total ?? transactions.length,
+            paidCount:
+                meta?.paid_count ??
+                transactions.filter((item) => item.payment_status === "PAID")
+                    .length,
+            totalPaid:
+                meta?.paid_total ??
+                transactions
+                    .filter((item) => item.payment_status === "PAID")
+                    .reduce((total, item) => total + item.amount, 0),
+            awaiting:
+                meta?.awaiting_payment ??
+                transactions.filter((item) => item.payment_status === "UNPAID")
+                    .length,
+        }),
+        [meta, transactions],
+    );
+
+    const toggleExpanded = (id: number) =>
+        setExpanded((current) => {
+            const next = new Set(current);
+            next.has(id) ? next.delete(id) : next.add(id);
+            return next;
+        });
 
     return (
         <AccountModalShell
-            bannerGradient="from-[#13315e] via-navy-900 to-navy-950"
-            eyebrow="Riwayat"
-            title="Riwayat Pembayaran"
-            subtitle="Semua transaksi booking dan membership Anda."
+            bannerGradient="ledger"
+            eyebrow="Riwayat Pembayaran"
+            title="Transaksi dan Dokumen"
+            subtitle="Pantau transaksi, layanan, status pembayaran, dan invoice dalam satu tampilan."
             wordmark="Riwayat"
-            accent="#3B82F6"
+            index="02"
+            accent="#0f5f80"
+            maxWidthClass="sm:max-w-[960px]"
             onClose={onClose}
         >
-            {/* ── Summary strip ── */}
-            {!loading && !error && transactions.length > 0 && (
-                <div className="mb-5 grid grid-cols-3 gap-2.5">
-                    <div className="kl-stagger kl-tactile rounded-2xl border border-navy-900/[0.07] bg-white px-3 py-3 text-center" style={{ ["--i" as string]: 0 }}>
-                        <NumberReel
-                            value={summary.count}
-                            className="justify-center font-clash text-[22px] font-bold leading-none text-navy-900"
-                        />
-                        <p className="mt-1.5 font-bdo text-[10px] uppercase tracking-wide text-navy-900/45">
-                            Transaksi
-                        </p>
-                    </div>
-                    <div className="kl-stagger kl-tactile relative col-span-2 overflow-hidden rounded-2xl border border-navy-900/[0.07] bg-white px-3.5 py-3 text-left" style={{ ["--i" as string]: 1 }}>
-                        <div className="pointer-events-none absolute -right-6 -top-8 h-20 w-20 rounded-full bg-accent-red/10 blur-2xl" />
-                        <p className="relative font-clash text-[18px] font-bold leading-none text-navy-900">
-                            {formatRupiah(summary.totalPaid)}
-                        </p>
-                        <p className="relative mt-1.5 font-bdo text-[10px] uppercase tracking-wide text-navy-900/45">
-                            Total Terbayar
-                        </p>
-                        <Barcode className="relative mt-2 h-4 text-navy-900/25" />
-                    </div>
-                </div>
-            )}
-
-            {/* ── Loading ── */}
-            {loading && (
-                <div className="space-y-3">
-                    <SkeletonRow />
-                    <SkeletonRow />
-                    <SkeletonRow />
-                </div>
-            )}
-
-            {/* ── Error ── */}
-            {!loading && error && (
-                <div className="flex flex-col items-center rounded-2xl border border-rose-200 bg-rose-50/60 px-6 py-10 text-center">
-                    <AlertCircle className="mb-3 h-9 w-9 text-rose-400" />
-                    <p className="font-bdo text-[14px] font-medium text-rose-600">
-                        {error}
-                    </p>
-                    <button
-                        type="button"
-                        onClick={() => setReloadKey((k) => k + 1)}
-                        className="mt-4 inline-flex items-center gap-2 rounded-xl border border-navy-900/15 bg-white px-4 py-2 font-clash text-[13px] font-semibold text-navy-900 transition-colors hover:bg-navy-900/[0.04]"
+            <div
+                className="acc-ledger"
+                aria-busy={loading || loadingMore}
+                aria-live="polite"
+            >
+                {!loading && !error && summary.count > 0 && (
+                    <section
+                        className="acc-ledger-summary"
+                        aria-labelledby="payment-summary-title"
                     >
-                        <RefreshCw className="h-4 w-4" />
-                        Coba Lagi
-                    </button>
-                </div>
-            )}
+                        <div>
+                            <p className="acc-ledger-summary__eyebrow">
+                                Total pembayaran lunas
+                            </p>
+                            <h3 id="payment-summary-title">
+                                {formatRupiah(summary.totalPaid)}
+                            </h3>
+                        </div>
+                        <div className="acc-ledger-summary__facts">
+                            <span>
+                                <strong>{summary.count}</strong> transaksi
+                            </span>
+                            <span>
+                                <strong>{summary.paidCount}</strong> lunas
+                            </span>
+                            <span>
+                                <strong>{summary.awaiting}</strong> menunggu
+                            </span>
+                        </div>
+                    </section>
+                )}
 
-            {/* ── Empty ── */}
-            {!loading && !error && transactions.length === 0 && (
-                <div className="flex flex-col items-center rounded-2xl border border-navy-900/[0.07] bg-white px-6 py-14 text-center">
-                    <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-navy-900/[0.05]">
-                        <Receipt className="h-7 w-7 text-navy-900/30" />
+                <header className="acc-ledger-heading">
+                    <div>
+                        <p className="acc-ledger-heading__eyebrow">
+                            Riwayat pembayaran
+                        </p>
+                        <h3>Arsip Tiket</h3>
                     </div>
-                    <p className="font-clash text-[15px] font-semibold text-navy-900">
-                        Belum ada transaksi
-                    </p>
-                    <p className="mt-1 font-bdo text-[13px] text-navy-900/45">
-                        Transaksi booking dan membership Anda akan tampil di
-                        sini.
-                    </p>
-                </div>
-            )}
+                    <span className="acc-ledger-heading__count">
+                        {summary.count
+                            ? `${String(summary.count).padStart(2, "0")} transaksi`
+                            : "Belum ada transaksi"}
+                    </span>
+                </header>
 
-            {/* ── List ── */}
-            {!loading && !error && transactions.length > 0 && (
-                <ul className="space-y-3">
-                    {transactions.map((t, idx) => {
-                        const status =
-                            STATUS_CONFIG[t.payment_status] ??
-                            STATUS_CONFIG.FAILED;
-                        const isMembership = t.type === "membership";
-                        const isUnpaid = t.payment_status === "UNPAID";
-                        const title = isMembership
-                            ? (t.membership_plan ?? "Membership")
-                            : t.facility_name;
-                        return (
-                            <li
-                                key={t.id}
-                                className="kl-stagger kl-tactile rounded-2xl border border-navy-900/[0.07] bg-white p-4 transition-all duration-300"
-                                style={{ ["--i" as string]: Math.min(idx, 8) }}
+                {loading && (
+                    <div
+                        className="acc-ledger-skeletons"
+                        role="status"
+                        aria-label="Memuat riwayat pembayaran"
+                    >
+                        <SkeletonTransaction />
+                        <SkeletonTransaction />
+                        <SkeletonTransaction />
+                    </div>
+                )}
+
+                {!loading && error && (
+                    <section className="acc-ledger-message is-error" role="alert">
+                        <div>
+                            <span
+                                className="acc-ledger-message__icon"
+                                aria-hidden="true"
                             >
-                                <div className="flex items-start justify-between gap-3">
-                                    <div className="flex min-w-0 flex-1 items-stretch gap-3">
-                                        {/* Ticket stub */}
-                                        <div className="flex flex-col items-center gap-2 self-stretch pr-3">
-                                            <div
+                                <CircleAlert />
+                            </span>
+                            <h3>Riwayat Belum Dapat Dimuat</h3>
+                            <p>{error}</p>
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setReloadKey((value) => value + 1)
+                                }
+                            >
+                                <RefreshCw /> Coba Lagi
+                            </button>
+                        </div>
+                    </section>
+                )}
+
+                {!loading && !error && transactions.length === 0 && (
+                    <section className="acc-ledger-message">
+                        <div>
+                            <span
+                                className="acc-ledger-message__icon"
+                                aria-hidden="true"
+                            >
+                                <ReceiptText />
+                            </span>
+                            <h3>Belum Ada Transaksi</h3>
+                            <p>
+                                Reservasi, kelas, atau membership pertama Anda akan
+                                tercatat otomatis di sini.
+                            </p>
+                        </div>
+                    </section>
+                )}
+
+                {!loading && !error && transactions.length > 0 && (
+                    <div className="acc-ledger-list">
+                        {transactions.map((transaction, transactionIndex) => {
+                            const payment =
+                                PAYMENT_STATUS[transaction.payment_status];
+                            const service =
+                                SERVICE_STATUS[transaction.service_status] ??
+                                SERVICE_STATUS.archived;
+                            const isMembership =
+                                transaction.service_kind === "membership";
+                            const isExpanded = expanded.has(transaction.id);
+                            const visibleItems = isExpanded
+                                ? transaction.items
+                                : transaction.items.slice(0, 1);
+                            const detailsId = `payment-details-${transaction.id}`;
+                            const hasDetailToggle =
+                                !isMembership && transaction.items_count > 1;
+                            const hasActions =
+                                hasDetailToggle ||
+                                Boolean(transaction.checkout_url) ||
+                                Boolean(transaction.invoice_url);
+                            const firstItem = transaction.items[0] ?? null;
+                            const imageName = isMembership
+                                ? (transaction.membership?.plan_name ??
+                                  transaction.title)
+                                : (firstItem?.facility_name ?? transaction.title);
+                            const primaryImage = isMembership
+                                ? transaction.membership?.image_url
+                                : firstItem?.image_url;
+                            const primaryFallback = fallbackImage(
+                                imageName,
+                                isMembership,
+                            );
+
+                            return (
+                                <article
+                                    key={transaction.id}
+                                    className="acc-ledger-transaction"
+                                    data-payment={transaction.payment_status.toLowerCase()}
+                                    data-kind={transaction.service_kind}
+                                >
+                                    <figure className="acc-ledger-transaction__media">
+                                        <ServiceImage
+                                            src={primaryImage}
+                                            fallback={primaryFallback}
+                                            alt={`Visual ${imageName}`}
+                                            eager={transactionIndex === 0}
+                                        />
+                                        <figcaption>
+                                            <span>
+                                                UBSC /{" "}
+                                                {kindLabel(
+                                                    transaction.service_kind,
+                                                )}
+                                            </span>
+                                            <strong>
+                                                {transaction.items_count > 1
+                                                    ? `${imageName} +${transaction.items_count - 1}`
+                                                    : imageName}
+                                            </strong>
+                                        </figcaption>
+                                    </figure>
+
+                                    <div className="acc-ledger-transaction__body">
+                                        <header className="acc-ledger-transaction__identity">
+                                            <p className="acc-ledger-transaction__kicker">
+                                                {kindLabel(
+                                                    transaction.service_kind,
+                                                )}
+                                            </p>
+                                            <h3>{transaction.title}</h3>
+                                            <p className="acc-ledger-transaction__receipt">
+                                                {transaction.receipt_number}
+                                            </p>
+                                        </header>
+
+                                        <div className="acc-ledger-transaction__meta">
+                                            <span
                                                 className={cn(
-                                                    "flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl",
-                                                    isMembership
-                                                        ? "bg-accent-red/10"
-                                                        : "bg-navy-900/[0.06]",
+                                                    "acc-ledger-service-state",
+                                                    service.tone,
                                                 )}
                                             >
-                                                {isMembership ? (
-                                                    <Dumbbell className="h-5 w-5 text-accent-red" />
-                                                ) : (
-                                                    <MapPin className="h-5 w-5 text-navy-900/55" />
-                                                )}
-                                            </div>
-                                            <span
-                                                aria-hidden="true"
-                                                className="w-px flex-1 border-l-2 border-dashed border-navy-900/15"
-                                            />
-                                        </div>
-                                        <div className="min-w-0 flex-1">
-                                            <p className="truncate font-clash text-[14px] font-semibold text-navy-900">
-                                                {title}
-                                            </p>
-                                            <p className="mt-0.5 flex items-center gap-1.5 font-bdo text-[11px] text-navy-900/45">
-                                                <CalendarDays className="h-3 w-3" />
+                                                {service.label}
+                                            </span>
+                                            <span>
+                                                {transaction.paid_at
+                                                    ? "Dibayar"
+                                                    : "Dibuat"}{" "}
                                                 {formatDate(
-                                                    t.booking_date ??
-                                                        t.paid_at ??
-                                                        t.created_at,
+                                                    transaction.paid_at ??
+                                                        transaction.created_at,
                                                 )}
-                                                <span className="text-navy-900/20">
-                                                    •
+                                            </span>
+                                            {transaction.payment_method && (
+                                                <span>
+                                                    {transaction.payment_method}
                                                 </span>
-                                                {isMembership
-                                                    ? "Membership"
-                                                    : "Booking"}
-                                            </p>
-                                            <p className="mt-1.5 font-clash text-[15px] font-bold text-navy-900">
-                                                {formatRupiah(t.amount)}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <span
-                                        className={cn(
-                                            "inline-flex flex-shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 font-bdo text-[11px] font-semibold",
-                                            status.pill,
-                                        )}
-                                    >
-                                        <span
-                                            className={cn(
-                                                "h-1.5 w-1.5 rounded-full",
-                                                status.dot,
                                             )}
-                                            style={
-                                                isUnpaid
-                                                    ? {
-                                                          animation:
-                                                              "kl-dot-pulse 2s ease-in-out infinite",
-                                                      }
-                                                    : undefined
-                                            }
-                                        />
-                                        {status.label}
-                                    </span>
-                                </div>
+                                            {transaction.payment_status ===
+                                                "PAID" && <span>Terverifikasi</span>}
+                                        </div>
 
-                                {isUnpaid && t.checkout_url && (
-                                    <a
-                                        href={t.checkout_url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="group relative mt-3 flex h-11 w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-navy-900 font-clash text-[13px] font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] transition-all hover:bg-navy-800 active:scale-[0.99]"
+                                        {isMembership &&
+                                            transaction.membership && (
+                                                <dl
+                                                    className="acc-ledger-membership"
+                                                    id={detailsId}
+                                                >
+                                                    <div className="acc-ledger-membership__cell">
+                                                        <small>Mulai</small>
+                                                        <strong>
+                                                            {formatDate(
+                                                                transaction
+                                                                    .membership
+                                                                    .start_date,
+                                                            )}
+                                                        </strong>
+                                                    </div>
+                                                    <div className="acc-ledger-membership__cell">
+                                                        <small>Berakhir</small>
+                                                        <strong>
+                                                            {formatDate(
+                                                                transaction
+                                                                    .membership
+                                                                    .end_date,
+                                                            )}
+                                                        </strong>
+                                                    </div>
+                                                    <div className="acc-ledger-membership__cell">
+                                                        <small>Status periode</small>
+                                                        <strong>
+                                                            {membershipPeriodCopy(
+                                                                transaction,
+                                                            )}
+                                                        </strong>
+                                                    </div>
+                                                </dl>
+                                            )}
+
+                                        {!isMembership &&
+                                            visibleItems.length > 0 && (
+                                                <div
+                                                    className="acc-ledger-booking-details"
+                                                    id={detailsId}
+                                                >
+                                                    {visibleItems.map(
+                                                        (item, itemIndex) => {
+                                                            const itemStatus =
+                                                                SERVICE_STATUS[
+                                                                    item.status
+                                                                ] ??
+                                                                SERVICE_STATUS.archived;
+                                                            const itemFallback =
+                                                                fallbackImage(
+                                                                    item.facility_name,
+                                                                );
+
+                                                            return (
+                                                                <div
+                                                                    className="acc-ledger-booking"
+                                                                    key={`${transaction.id}-${item.id ?? `${item.booking_date}-${item.start_time}`}`}
+                                                                >
+                                                                    <figure className="acc-ledger-booking__visual">
+                                                                        <ServiceImage
+                                                                            src={
+                                                                                item.image_url
+                                                                            }
+                                                                            fallback={
+                                                                                itemFallback
+                                                                            }
+                                                                            alt={`Visual ${item.facility_name}`}
+                                                                        />
+                                                                        <span className="acc-ledger-booking__index">
+                                                                            {String(
+                                                                                itemIndex +
+                                                                                    1,
+                                                                            ).padStart(
+                                                                                2,
+                                                                                "0",
+                                                                            )}
+                                                                        </span>
+                                                                    </figure>
+                                                                    <div className="acc-ledger-booking__name">
+                                                                        <h4>
+                                                                            {
+                                                                                item.facility_name
+                                                                            }
+                                                                        </h4>
+                                                                        <p>
+                                                                            {item.kind ===
+                                                                            "class"
+                                                                                ? "Kelas"
+                                                                                : "Fasilitas"}
+                                                                            {item.facility_unit_name
+                                                                                ? ` · ${item.facility_unit_name}`
+                                                                                : ""}
+                                                                            {item.location
+                                                                                ? ` · ${item.location}`
+                                                                                : ""}
+                                                                        </p>
+                                                                    </div>
+                                                                    <div className="acc-ledger-booking__schedule">
+                                                                        <span>
+                                                                            {formatDate(
+                                                                                item.booking_date,
+                                                                            )}
+                                                                        </span>
+                                                                        <span>
+                                                                            {item.start_time ??
+                                                                                "-"}
+                                                                            –
+                                                                            {item.end_time ??
+                                                                                "-"}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="acc-ledger-booking__price">
+                                                                        <span>
+                                                                            {
+                                                                                itemStatus.label
+                                                                            }
+                                                                        </span>
+                                                                        <strong>
+                                                                            {formatRupiah(
+                                                                                item.subtotal,
+                                                                            )}
+                                                                        </strong>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        },
+                                                    )}
+                                                </div>
+                                            )}
+                                    </div>
+
+                                    <aside
+                                        className="acc-ledger-transaction__stub"
+                                        aria-label={`Nilai transaksi ${transaction.receipt_number}`}
                                     >
-                                        <span
-                                            aria-hidden="true"
-                                            className="pointer-events-none absolute inset-0 -translate-x-[130%] skew-x-[-18deg] bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-[230%]"
-                                        />
-                                        <span className="relative flex items-center gap-2">
-                                            Lanjutkan Pembayaran
-                                            <ArrowUpRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-                                        </span>
-                                    </a>
-                                )}
-                            </li>
-                        );
-                    })}
-                </ul>
-            )}
+                                        <div>
+                                            <p className="acc-ledger-stub__label">
+                                                Status pembayaran
+                                            </p>
+                                            <span
+                                                className={cn(
+                                                    "acc-ledger-stub__status",
+                                                    payment.state,
+                                                )}
+                                            >
+                                                {payment.label}
+                                            </span>
+                                            <strong className="acc-ledger-stub__amount">
+                                                {formatRupiah(transaction.amount)}
+                                            </strong>
+                                        </div>
+
+                                        <p className="acc-ledger-stub__serial">
+                                            Nomor bukti
+                                            <b>{transaction.receipt_number}</b>
+                                        </p>
+
+                                        {hasActions ? (
+                                            <footer className="acc-ledger-transaction__actions">
+                                                {hasDetailToggle && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            toggleExpanded(
+                                                                transaction.id,
+                                                            )
+                                                        }
+                                                        className="acc-ledger-action"
+                                                        aria-expanded={isExpanded}
+                                                        aria-controls={detailsId}
+                                                    >
+                                                        {isExpanded
+                                                            ? "Ringkas Jadwal"
+                                                            : `Lihat ${transaction.items_count} Jadwal`}
+                                                        <ChevronDown
+                                                            className={cn(
+                                                                isExpanded &&
+                                                                    "is-open",
+                                                            )}
+                                                        />
+                                                    </button>
+                                                )}
+                                                {transaction.checkout_url && (
+                                                    <a
+                                                        href={
+                                                            transaction.checkout_url
+                                                        }
+                                                        className="acc-ledger-action is-primary"
+                                                    >
+                                                        Bayar Sekarang{" "}
+                                                        <AccountCtaArrow />
+                                                    </a>
+                                                )}
+                                                {transaction.invoice_url && (
+                                                    <a
+                                                        href={invoiceDownload(
+                                                            transaction.invoice_url,
+                                                        )}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="acc-ledger-action"
+                                                        aria-label="Unduh invoice di tab baru"
+                                                    >
+                                                        <FileDown /> Unduh Invoice
+                                                    </a>
+                                                )}
+                                            </footer>
+                                        ) : (
+                                            <p className="acc-ledger-archive-note">
+                                                Tersimpan di arsip akun
+                                            </p>
+                                        )}
+                                    </aside>
+                                </article>
+                            );
+                        })}
+                    </div>
+                )}
+
+                {meta?.has_more && meta.next_cursor && (
+                    <div className="acc-ledger-more">
+                        {loadMoreError && <p role="alert">{loadMoreError}</p>}
+                        <button
+                            type="button"
+                            disabled={loadingMore}
+                            onClick={() =>
+                                void loadHistory(meta.next_cursor, true)
+                            }
+                        >
+                            <RefreshCw
+                                className={cn(loadingMore && "animate-spin")}
+                            />
+                            {loadingMore
+                                ? "Memuat Transaksi..."
+                                : loadMoreError
+                                  ? "Coba Lagi"
+                                  : "Muat Transaksi Berikutnya"}
+                        </button>
+                    </div>
+                )}
+            </div>
         </AccountModalShell>
     );
 }

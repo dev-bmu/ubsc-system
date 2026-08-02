@@ -1,0 +1,652 @@
+.membership-plan-carousel {
+    --membership-plan-slide-gap: clamp(14px, 1.35vw, 22px);
+}
+
+.membership-plan-carousel__viewport {
+    overflow: hidden;
+    cursor: grab;
+    touch-action: pan-y pinch-zoom;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+}
+
+.membership-plan-carousel__viewport:active {
+    cursor: grabbing;
+}
+
+.membership-plan-carousel__track {
+    display: flex;
+    backface-visibility: hidden;
+    will-change: transform;
+}
+
+.membership-plan-carousel__slide {
+    box-sizing: border-box;
+    flex: 0 0 calc(100% + var(--membership-plan-slide-gap));
+    min-width: 0;
+    padding-right: var(--membership-plan-slide-gap);
+}
+
+/* The gutter belongs between slides, never after the final snap. Keeping the
+   last slide at exactly one viewport lets Embla's final start snap land on the
+   content edge instead of retaining a clipped trailing gutter. */
+.membership-plan-carousel__slide:last-child {
+    flex-basis: 100%;
+    padding-right: 0;
+}
+
+.membership-plan-card__accent {
+    background: linear-gradient(
+        90deg,
+        var(--membership-tier-accent-bright),
+        var(--membership-tier-accent-deep)
+    );
+}
+
+.membership-plan-cta__accent {
+    background: linear-gradient(90deg, #ff0000 0%, #790a0a 100%);
+}
+
+[data-membership-plan-card] {
+    --membership-tier-title: #0e5d84;
+    --membership-tier-accent-bright: #42a5f5;
+    --membership-tier-accent-deep: #1530a8;
+    --membership-tier-feature-accent: #75b8d8;
+    --membership-tier-shell-filter: none;
+    --membership-tier-shell-tint: transparent;
+    --membership-tier-shell-tint-opacity: 0;
+    --membership-tier-shell-shadow: rgba(3, 17, 29, 0.2);
+    --membership-tier-badge-a: #42a5f5;
+    --membership-tier-badge-b: #7dd3fc;
+    --membership-tier-badge-c: #1e6fd9;
+    --membership-tier-badge-d: #1530a8;
+    --membership-tier-badge-outline: rgba(21, 48, 168, 0.22);
+    --membership-tier-badge-shadow: rgba(21, 48, 168, 0.38);
+    --membership-tier-badge-shadow-soft: rgba(21, 48, 168, 0.28);
+    contain: layout paint;
+}
+
+[data-membership-plan-card] .ubsc-text-reveal.is-visible > .ubsc-text-reveal__block,
+[data-membership-plan-card] .ubsc-text-reveal.is-visible > .ubsc-text-reveal__word,
+[data-membership-plan-card] .ubsc-text-reveal.is-visible > .ubsc-text-reveal__line {
+    will-change: auto;
+}
+
+[data-membership-plan-card][data-membership-text-static="true"]
+    .ubsc-text-reveal__block,
+[data-membership-plan-card][data-membership-text-static="true"]
+    .ubsc-text-reveal__word,
+[data-membership-plan-card][data-membership-text-static="true"]
+    .ubsc-text-reveal__line {
+    opacity: 1;
+    filter: none;
+    transform: none;
+    transition: none;
+    transition-delay: 0ms;
+    will-change: auto;
+}
+
+[data-membership-plan-card][data-membership-tier="hemat"] {
+    --membership-tier-title: #505b63;
+    --membership-tier-accent-bright: #cdd3d7;
+    --membership-tier-accent-deep: #454d54;
+    --membership-tier-feature-accent: #c4cbd0;
+    --membership-tier-shell-filter: grayscale(1) saturate(0) contrast(1.06)
+        brightness(0.88);
+    --membership-tier-shell-tint: #434a50;
+    --membership-tier-shell-tint-opacity: 0.12;
+    --membership-tier-shell-shadow: rgba(23, 29, 34, 0.2);
+    --membership-tier-badge-a: #eef1f3;
+    --membership-tier-badge-b: #c7cdd2;
+    --membership-tier-badge-c: #7b858d;
+    --membership-tier-badge-d: #343b41;
+    --membership-tier-badge-outline: rgba(52, 59, 65, 0.22);
+    --membership-tier-badge-shadow: rgba(52, 59, 65, 0.34);
+    --membership-tier-badge-shadow-soft: rgba(52, 59, 65, 0.25);
+}
+
+[data-membership-plan-card][data-membership-tier="performa"] {
+    --membership-tier-title: #b10c08;
+    --membership-tier-accent-bright: #ff2a20;
+    --membership-tier-accent-deep: #720500;
+    --membership-tier-feature-accent: #ff6258;
+    --membership-tier-shell-filter: hue-rotate(158deg) saturate(1.48)
+        contrast(1.1) brightness(0.82);
+    --membership-tier-shell-tint: #b40000;
+    --membership-tier-shell-tint-opacity: 0.22;
+    --membership-tier-shell-shadow: rgba(126, 5, 0, 0.26);
+    --membership-tier-badge-a: #ff3b30;
+    --membership-tier-badge-b: #ff756b;
+    --membership-tier-badge-c: #d50b03;
+    --membership-tier-badge-d: #720500;
+    --membership-tier-badge-outline: rgba(177, 12, 8, 0.24);
+    --membership-tier-badge-shadow: rgba(177, 12, 8, 0.4);
+    --membership-tier-badge-shadow-soft: rgba(114, 5, 0, 0.3);
+}
+
+[data-membership-plan-card][data-membership-tier="eksklusif"] {
+    --membership-tier-title: #a94f00;
+    --membership-tier-accent-bright: #ffc15a;
+    --membership-tier-accent-deep: #873700;
+    --membership-tier-feature-accent: #ffd18a;
+    --membership-tier-shell-filter: hue-rotate(188deg) saturate(1.3)
+        contrast(1.05) brightness(0.91);
+    --membership-tier-shell-tint: #cf6800;
+    --membership-tier-shell-tint-opacity: 0.16;
+    --membership-tier-shell-shadow: rgba(135, 55, 0, 0.23);
+    --membership-tier-badge-a: #ffc96e;
+    --membership-tier-badge-b: #ffe0a8;
+    --membership-tier-badge-c: #e9780b;
+    --membership-tier-badge-d: #873700;
+    --membership-tier-badge-outline: rgba(197, 91, 0, 0.22);
+    --membership-tier-badge-shadow: rgba(197, 91, 0, 0.38);
+    --membership-tier-badge-shadow-soft: rgba(135, 55, 0, 0.28);
+}
+
+.membership-plan-card__shell {
+    position: relative;
+    isolation: isolate;
+    background: #061322;
+    box-shadow: 0 18px 38px rgba(3, 17, 29, 0.14);
+    contain: paint;
+}
+
+.membership-plan-card__shell::before,
+.membership-plan-card__shell::after {
+    position: absolute;
+    z-index: 0;
+    inset: 0;
+    content: "";
+    pointer-events: none;
+}
+
+.membership-plan-card__shell::before {
+    background-image: url("/assets/images/ub-sport-card-membership.png");
+    background-position: center;
+    background-size: cover;
+    filter: var(--membership-tier-shell-filter);
+    transform: scale(1.002);
+}
+
+.membership-plan-card__shell::after {
+    background: var(--membership-tier-shell-tint);
+    mix-blend-mode: color;
+    opacity: var(--membership-tier-shell-tint-opacity);
+}
+
+.membership-plan-card__shell > * {
+    position: relative;
+    z-index: 1;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .group:hover .membership-plan-card__shell {
+        box-shadow: 0 24px 48px var(--membership-tier-shell-shadow);
+    }
+}
+
+.membership-plan-card__title-line {
+    font-size: 21.735px;
+    font-weight: 600;
+    line-height: 1.04;
+    letter-spacing: -0.045em;
+}
+
+.membership-plan-card__title-line--tier {
+    color: var(--membership-tier-title);
+}
+
+.membership-plan-price-affix.ubsc-text-reveal--block {
+    margin-block: -0.14em;
+    padding-inline: 0.12em;
+    padding-block: 0.14em;
+}
+
+.membership-plan-price-value.ubsc-text-reveal--block {
+    margin-block: -0.2em;
+    margin-inline: -0.1em;
+    padding-block: 0.2em;
+    padding-inline: 0.1em;
+}
+
+.membership-plan-price-origin {
+    display: flex;
+    min-height: 0.8rem;
+    align-items: baseline;
+    gap: 0.48rem;
+    margin-bottom: 0.38rem;
+    font-family: var(--font-bdo), "BDO Grotesk", sans-serif;
+    font-size: 9px;
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: -0.01em;
+    color: rgba(15, 23, 42, 0.48);
+}
+
+.membership-plan-price-origin__value {
+    display: inline-block;
+    color: rgba(15, 23, 42, 0.68);
+    font-family: var(--font-bdo), "BDO Grotesk", sans-serif;
+    font-size: 1.5em;
+    font-weight: 500;
+    line-height: 1.02;
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
+}
+
+.membership-plan-price-origin__price {
+    display: inline-flex;
+    min-width: 0;
+    align-items: baseline;
+    gap: 0.24rem;
+    white-space: nowrap;
+}
+
+.membership-plan-price-origin__prefix {
+    color: rgba(15, 23, 42, 0.58);
+    font-family: var(--font-bdo), "BDO Grotesk", sans-serif;
+    font-size: 1em;
+    font-weight: 500;
+    line-height: 1;
+}
+
+.membership-plan-price-origin__prefix.ubsc-text-reveal--block {
+    margin-block: -0.14em;
+    padding-block: 0.14em;
+}
+
+.membership-plan-price-origin__value.ubsc-text-reveal--block {
+    margin-block: -0.2em;
+    padding-block: 0.2em;
+}
+
+.membership-plan-price-origin__value .ubsc-text-reveal__block {
+    position: relative;
+    width: max-content;
+}
+
+.membership-plan-price-origin__value .ubsc-text-reveal__block::after {
+    position: absolute;
+    top: 68%;
+    right: 0;
+    left: 0;
+    height: 1.25px;
+    border-radius: 999px;
+    background:
+        linear-gradient(
+                90deg,
+                transparent 0%,
+                rgba(255, 255, 255, 0.08) 30%,
+                rgba(255, 255, 255, 0.96) 50%,
+                rgba(255, 255, 255, 0.08) 70%,
+                transparent 100%
+            )
+            -45% 0 / 34% 100% no-repeat,
+        linear-gradient(90deg, #790a0a 0%, #ff0000 100%);
+    box-shadow: 0 0.1rem 0.32rem rgba(255, 0, 0, 0.16);
+    content: "";
+    opacity: 0;
+    transform: rotate(-10deg) translateY(-50%) scaleX(0);
+    transform-origin: left center;
+}
+
+.membership-plan-price-origin__value.is-visible
+    .ubsc-text-reveal__block::after {
+    animation:
+        membership-plan-price-origin-strike 860ms 150ms
+            cubic-bezier(0.16, 1, 0.3, 1) both,
+        membership-plan-price-origin-gloss 3.8s 1.05s
+            cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+[data-membership-plan-card][data-membership-text-static="true"]
+    .membership-plan-price-origin__value
+    .ubsc-text-reveal__block::after {
+    animation: none;
+    background-position:
+        50% 0,
+        0 0;
+    opacity: 1;
+    transform: rotate(-10deg) translateY(-50%) scaleX(1);
+}
+
+@media (min-width: 640px) {
+    .membership-plan-price-origin {
+        font-size: 10.5px;
+    }
+}
+
+@media (min-width: 1280px) {
+    .membership-plan-price-origin {
+        margin-bottom: 0.32rem;
+        font-size: 8.5px;
+    }
+}
+
+@media (min-width: 640px) {
+    .membership-plan-card__title-line {
+        font-size: 24.15px;
+    }
+}
+
+@media (min-width: 768px) {
+    .membership-plan-card__title-line {
+        font-size: 25.3px;
+    }
+}
+
+@media (min-width: 1280px) {
+    .membership-plan-card__title-line {
+        font-size: 20.7px;
+        white-space: nowrap;
+    }
+}
+
+.membership-plan-cta {
+    isolation: isolate;
+    background-color: #000;
+    background-image: linear-gradient(
+        180deg,
+        #383838 0%,
+        #111 48%,
+        #000 100%
+    );
+    box-shadow:
+        0 12px 18px rgba(0, 0, 0, 0.28),
+        inset 0 1px 0 rgba(255, 255, 255, 0.28),
+        inset 0 -2px 0 rgba(0, 0, 0, 0.82);
+    transition: box-shadow 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.membership-plan-cta::before {
+    position: absolute;
+    z-index: 0;
+    inset: 0;
+    background: #000;
+    content: "";
+    opacity: 0;
+    transition: opacity 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.membership-plan-cta__accent {
+    position: absolute;
+    top: 0;
+    left: 13%;
+    width: 34%;
+    height: 2px;
+    overflow: hidden;
+    opacity: 1;
+    z-index: 2;
+}
+
+.membership-plan-cta__accent::after {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 38%;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.9) 50%,
+        transparent 100%
+    );
+    content: "";
+    transform: translate3d(-180%, 0, 0);
+    animation: membership-plan-cta-accent-gloss 3.8s
+        cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    will-change: transform;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .membership-plan-cta:hover {
+        box-shadow: 0 10px 16px rgba(0, 0, 0, 0.24);
+    }
+
+    .membership-plan-cta:hover::before {
+        opacity: 1;
+    }
+}
+
+.membership-plan-favorite {
+    position: relative;
+    z-index: 0;
+    overflow: hidden;
+    color: #fff;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    padding: 3px 8px 3px 6.5px;
+    gap: 4.5px;
+    box-shadow:
+        0 0 0 0.5px var(--membership-tier-badge-outline),
+        0 2px 12px -1px var(--membership-tier-badge-shadow),
+        0 6px 24px -4px var(--membership-tier-badge-shadow-soft);
+}
+
+/* ── Rotating conic-gradient border — ultra slow ── */
+.membership-plan-favorite::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 300%;
+    height: 300%;
+    margin-top: -150%;
+    margin-left: -150%;
+    z-index: -2;
+    background: conic-gradient(
+        from 0deg,
+        var(--membership-tier-badge-a),
+        var(--membership-tier-badge-b),
+        rgba(255, 255, 255, 0.92),
+        var(--membership-tier-badge-c),
+        var(--membership-tier-badge-a),
+        var(--membership-tier-badge-b),
+        rgba(255, 255, 255, 0.88),
+        var(--membership-tier-badge-a)
+    );
+    animation: favorit-border-spin 10s linear infinite;
+    border-radius: 50%;
+}
+
+/* ── Inner fill — deep royal to bright cyan ── */
+.membership-plan-favorite::after {
+    content: "";
+    position: absolute;
+    inset: 1.5px;
+    z-index: -1;
+    border-radius: 4.5px;
+    background:
+        linear-gradient(
+            180deg,
+            rgba(255, 255, 255, 0.18) 0%,
+            rgba(255, 255, 255, 0.04) 50%,
+            transparent 100%
+        ),
+        linear-gradient(
+            155deg,
+            var(--membership-tier-badge-a) 0%,
+            var(--membership-tier-badge-c) 45%,
+            var(--membership-tier-badge-d) 100%
+        );
+}
+
+[data-membership-plan-card][data-membership-slide-active="false"]
+    .membership-plan-favorite::before,
+[data-membership-plan-card][data-membership-slide-active="false"]
+    .membership-plan-cta__accent::after,
+[data-membership-plan-card][data-membership-slide-active="false"]
+    .membership-plan-price-origin__value.is-visible
+    .ubsc-text-reveal__block::after {
+    animation-play-state: paused;
+}
+
+.membership-plan-favorite-icon {
+    position: relative;
+    z-index: 1;
+    width: 9.5px;
+    height: 9.5px;
+    color: #fff;
+    filter: drop-shadow(
+        0 0.5px 1.5px var(--membership-tier-badge-shadow)
+    );
+}
+
+.membership-plan-favorite-text {
+    position: relative;
+    z-index: 1;
+    color: #fff;
+    -webkit-text-fill-color: #fff;
+    background: none;
+    -webkit-background-clip: unset;
+    background-clip: unset;
+    text-shadow: 0 0.5px 1.5px var(--membership-tier-badge-shadow);
+    font-weight: 500;
+    letter-spacing: 0.015em;
+}
+
+@media (min-width: 640px) {
+    .membership-plan-favorite {
+        position: absolute;
+        top: 0.25rem;
+        right: 0;
+    }
+}
+
+/* ── Border rotation — slow & elegant ── */
+@keyframes favorit-border-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.membership-plan-feature__label {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.membership-plan-feature__icon {
+    color: var(--membership-tier-feature-accent);
+}
+
+.membership-plan-features {
+    position: relative;
+    border-top-width: 0;
+}
+
+.membership-plan-features::before {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    height: 1.25px;
+    background: currentColor;
+    content: "";
+    opacity: 0.125;
+    pointer-events: none;
+}
+
+@media (min-width: 1280px) {
+    .membership-plan-features {
+        grid-template-columns: minmax(0, 1fr) fit-content(52%);
+        grid-auto-rows: minmax(34px, auto);
+        align-content: center;
+        column-gap: 24px;
+        row-gap: 12px;
+        padding: 22px 34px 22px 20px;
+    }
+
+    .membership-plan-feature {
+        grid-template-columns: 12px minmax(0, 1fr);
+        min-height: 34px;
+        column-gap: 9px;
+        padding: 0;
+        font-size: 12px;
+        line-height: 1.25;
+    }
+
+    .membership-plan-feature:nth-child(even) {
+        width: 100%;
+        justify-self: end;
+    }
+
+    .membership-plan-feature__icon {
+        width: 10px;
+        height: 10px;
+    }
+}
+
+@keyframes membership-plan-cta-accent-gloss {
+    0%,
+    56% {
+        transform: translate3d(-180%, 0, 0);
+    }
+
+    78%,
+    100% {
+        transform: translate3d(420%, 0, 0);
+    }
+}
+
+@keyframes membership-plan-price-origin-gloss {
+    0%,
+    56% {
+        background-position:
+            -45% 0,
+            0 0;
+    }
+
+    78%,
+    100% {
+        background-position:
+            145% 0,
+            0 0;
+    }
+}
+
+@keyframes membership-plan-price-origin-strike {
+    0% {
+        opacity: 0;
+        transform: rotate(-10deg) translateY(-50%) scaleX(0);
+    }
+
+    28% {
+        opacity: 1;
+    }
+
+    72% {
+        transform: rotate(-10deg) translateY(-50%) scaleX(0.91);
+    }
+
+    100% {
+        opacity: 1;
+        transform: rotate(-10deg) translateY(-50%) scaleX(1);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .membership-plan-cta,
+    .membership-plan-cta::before {
+        transition: none;
+    }
+
+    .membership-plan-cta__accent::after {
+        animation: none;
+    }
+
+    .membership-plan-favorite::before {
+        animation: none;
+    }
+
+    .membership-plan-price-origin__value .ubsc-text-reveal__block::after {
+        animation: none;
+        background-position:
+            50% 0,
+            0 0;
+        opacity: 1;
+        transform: rotate(-10deg) translateY(-50%) scaleX(1);
+    }
+
+}

@@ -1,319 +1,537 @@
-import { useEffect, useState } from "react";
-import { Dumbbell, MessageCircle, Sparkles } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties } from "react";
+import {
+    CircleAlert,
+    Dumbbell,
+    MessageCircleMore,
+    RefreshCcw,
+    Sparkles,
+} from "lucide-react";
 import axios from "axios";
 import { usePage } from "@inertiajs/react";
 import type { PageProps } from "@/types";
 import AccountModalShell, { PrimaryButton } from "./AccountModalShell";
-import {
-    Guilloche,
-    Microtext,
-    Barcode,
-    FoilText,
-    Serial,
-    NumberReel,
-} from "./PassKit";
+import "./GymMembershipModal.css";
 
 interface Props {
     onClose: () => void;
 }
 
-interface TransactionItem {
-    id: number;
-    type: "booking" | "membership";
-    payment_status: "UNPAID" | "PAID" | "EXPIRED" | "FAILED";
-    created_at: string;
-    membership_plan: string | null;
-    membership_status: "active" | "expired" | "cancelled" | null;
-    membership_period: { start_date: string | null; end_date: string | null } | null;
+type MembershipStatus =
+    | "active"
+    | "scheduled"
+    | "expired"
+    | "cancelled"
+    | "awaiting_payment"
+    | "archived";
+
+interface MembershipRecord {
+    id: number | null;
+    plan_name: string;
+    image_url?: string | null;
+    status: MembershipStatus;
+    stored_status: string | null;
+    payment_status: string | null;
+    receipt_number: string | null;
+    start_date: string | null;
+    end_date: string | null;
+    starts_at: string | null;
+    expires_at: string | null;
+    next_transition_at: string | null;
+    days_remaining: number;
+    progress: number;
 }
 
-interface ActiveMembership {
-    plan: string;
-    startDate: string | null;
-    endDate: string | null;
-    daysRemaining: number;
-    progress: number; // 0..1 elapsed
+interface MembershipResponse {
+    current: MembershipRecord | null;
+    scheduled: MembershipRecord | null;
+    latest: MembershipRecord | null;
+    meta: {
+        server_now: string;
+        next_transition_at: string | null;
+    };
 }
 
-const WHATSAPP_URL = "https://wa.me/6285280809080";
+const WHATSAPP_URL = `https://wa.me/6285280809080?text=${encodeURIComponent(
+    "Halo tim UB Sport Center, saya ingin berkonsultasi mengenai membership gym saya.",
+)}`;
+const FALLBACK_PLAN_IMAGE =
+    "/assets/images/poster-gym-konten-program-ub-sport-center.avif";
+
+function dateValue(primary: string | null, fallback: string | null) {
+    const value = primary ?? fallback;
+    if (!value) return null;
+    return value.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? null;
+}
 
 function formatLongDate(dateStr: string | null) {
-    if (!dateStr) return "-";
-    return new Date(dateStr).toLocaleDateString("id-ID", {
+    if (!dateStr) return "Belum ditentukan";
+    const date = new Date(`${dateStr}T12:00:00`);
+    if (Number.isNaN(date.getTime())) return "Belum ditentukan";
+
+    return date.toLocaleDateString("id-ID", {
         day: "numeric",
-        month: "long",
+        month: "short",
         year: "numeric",
     });
 }
 
-function deriveActive(transactions: TransactionItem[]): ActiveMembership | null {
-    const memberships = transactions.filter(
-        (t) => t.type === "membership" && t.membership_status === "active",
-    );
-    if (memberships.length === 0) return null;
+function formatUpdatedTime(value: string | undefined) {
+    if (!value) return "Diperbarui otomatis";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "Diperbarui otomatis";
 
-    // Most recent active membership
-    const m = memberships.sort(
-        (a, b) =>
-            new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-    )[0];
-
-    const start = m.membership_period?.start_date
-        ? new Date(m.membership_period.start_date)
-        : null;
-    const end = m.membership_period?.end_date
-        ? new Date(m.membership_period.end_date)
-        : null;
-
-    const now = new Date();
-    let daysRemaining = 0;
-    let progress = 0;
-    if (end) {
-        daysRemaining = Math.max(
-            0,
-            Math.ceil((end.getTime() - now.getTime()) / 86_400_000),
-        );
-    }
-    if (start && end && end.getTime() > start.getTime()) {
-        progress = Math.min(
-            1,
-            Math.max(
-                0,
-                (now.getTime() - start.getTime()) /
-                    (end.getTime() - start.getTime()),
-            ),
-        );
-    }
-
-    return {
-        plan: m.membership_plan ?? "Membership",
-        startDate: m.membership_period?.start_date ?? null,
-        endDate: m.membership_period?.end_date ?? null,
-        daysRemaining,
-        progress,
-    };
+    return `Diperbarui ${date.toLocaleTimeString("id-ID", {
+        hour: "2-digit",
+        minute: "2-digit",
+    })}`;
 }
+
+function durationLabel(start: string | null, end: string | null) {
+    if (!start || !end) return "Periode fleksibel";
+    const startAt = new Date(`${start}T12:00:00`).getTime();
+    const endAt = new Date(`${end}T12:00:00`).getTime();
+
+    if (!Number.isFinite(startAt) || !Number.isFinite(endAt) || endAt < startAt) {
+        return "Periode fleksibel";
+    }
+
+    const days = Math.max(1, Math.round((endAt - startAt) / 86_400_000) + 1);
+    if (days >= 330) return `${Math.max(1, Math.round(days / 365))} tahun`;
+    if (days >= 28) return `${Math.max(1, Math.round(days / 30))} bulan`;
+    return `${days} hari`;
+}
+
+function stateLabel(status: MembershipStatus) {
+    return {
+        active: "Aktif",
+        scheduled: "Terjadwal",
+        expired: "Berakhir",
+        cancelled: "Dibatalkan",
+        awaiting_payment: "Menunggu pembayaran",
+        archived: "Tersimpan",
+    }[status];
+}
+
+function accessPeriodCopy(membership: MembershipRecord) {
+    if (membership.status === "active") {
+        const days = Math.max(0, membership.days_remaining);
+        return {
+            value: days === 0 ? "Hari terakhir" : `${days} hari`,
+            label: days === 0 ? "Akses berakhir hari ini" : "Sisa masa akses",
+        };
+    }
+
+    if (membership.status === "scheduled") {
+        return { value: "Terjadwal", label: "Aktif pada tanggal mulai" };
+    }
+
+    if (membership.status === "awaiting_payment") {
+        return { value: "Menunggu", label: "Aktif setelah pembayaran" };
+    }
+
+    if (membership.status === "cancelled") {
+        return { value: "Dibatalkan", label: "Periode tidak dilanjutkan" };
+    }
+
+    if (membership.status === "expired") {
+        return { value: "Selesai", label: "Masa akses telah berakhir" };
+    }
+
+    return { value: "Tersimpan", label: "Credential berada di arsip" };
+}
+
+function membershipNote(status: MembershipStatus) {
+    if (status === "active") {
+        return "Perpanjangan dapat dipilih lebih awal. Periode baru dimulai setelah akses aktif ini berakhir.";
+    }
+    if (status === "scheduled") {
+        return "Akses akan aktif otomatis pada tanggal mulai tanpa tindakan tambahan.";
+    }
+    if (status === "awaiting_payment") {
+        return "Membership dijadwalkan setelah pembayaran berhasil dikonfirmasi.";
+    }
+    if (status === "cancelled") {
+        return "Riwayat paket tetap tersimpan. Tim membership siap membantu bila diperlukan.";
+    }
+    return "Riwayat pembayaran tetap tersimpan. Anda dapat memilih paket baru kapan saja.";
+}
+
+function MembershipImage({
+    src,
+    planName,
+}: {
+    src?: string | null;
+    planName: string;
+}) {
+    const [imageSrc, setImageSrc] = useState(src || FALLBACK_PLAN_IMAGE);
+
+    useEffect(() => {
+        setImageSrc(src || FALLBACK_PLAN_IMAGE);
+    }, [src]);
+
+    return (
+        <img
+            src={imageSrc}
+            alt={`Visual paket ${planName}`}
+            decoding="async"
+            referrerPolicy="no-referrer"
+            onError={(event) => {
+                if (imageSrc !== FALLBACK_PLAN_IMAGE) {
+                    setImageSrc(FALLBACK_PLAN_IMAGE);
+                    return;
+                }
+                event.currentTarget.hidden = true;
+            }}
+        />
+    );
+}
+
+type ProgressStyle = CSSProperties & { "--progress": string };
 
 export default function GymMembershipModal({ onClose }: Props) {
     const { auth } = usePage<PageProps>().props;
     const user = auth.user!;
-
-    const [membership, setMembership] = useState<ActiveMembership | null>(null);
+    const [payload, setPayload] = useState<MembershipResponse | null>(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const requestSequence = useRef(0);
+    const lastRevalidationAt = useRef(0);
+    const hasLoaded = useRef(false);
+
+    const loadMembership = useCallback(async () => {
+        const sequence = ++requestSequence.current;
+        if (!hasLoaded.current) {
+            setLoading(true);
+            setError(null);
+        }
+
+        try {
+            const response =
+                await axios.get<MembershipResponse>("/user/membership");
+            if (sequence === requestSequence.current) {
+                setPayload(response.data);
+                setError(null);
+                hasLoaded.current = true;
+            }
+        } catch {
+            if (sequence === requestSequence.current && !hasLoaded.current) {
+                setError(
+                    "Data membership belum berhasil dimuat. Data Anda tetap aman dan tidak berubah.",
+                );
+            }
+        } finally {
+            if (sequence === requestSequence.current) setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => void loadMembership(), [loadMembership]);
 
     useEffect(() => {
-        let active = true;
-        axios
-            .get("/user/transactions")
-            .then((res) => {
-                if (active) setMembership(deriveActive(res.data));
-            })
-            .catch(() => {
-                if (active) setMembership(null);
-            })
-            .finally(() => {
-                if (active) setLoading(false);
-            });
-        return () => {
-            active = false;
+        const revalidate = () => {
+            if (document.visibilityState !== "visible") return;
+            const now = Date.now();
+            if (now - lastRevalidationAt.current < 750) return;
+            lastRevalidationAt.current = now;
+            void loadMembership();
         };
-    }, []);
+
+        document.addEventListener("visibilitychange", revalidate);
+        window.addEventListener("focus", revalidate);
+
+        return () => {
+            document.removeEventListener("visibilitychange", revalidate);
+            window.removeEventListener("focus", revalidate);
+        };
+    }, [loadMembership]);
+
+    useEffect(() => {
+        const nextTransition = payload?.meta.next_transition_at;
+        if (!nextTransition) return;
+
+        const transitionAt = new Date(nextTransition).getTime();
+        if (!Number.isFinite(transitionAt) || transitionAt <= Date.now()) return;
+
+        const timer = window.setTimeout(
+            () => void loadMembership(),
+            Math.min(
+                Math.max(1_000, transitionAt - Date.now() + 350),
+                2_147_000_000,
+            ),
+        );
+
+        return () => window.clearTimeout(timer);
+    }, [loadMembership, payload?.meta.next_transition_at]);
+
+    const membership =
+        payload?.current ?? payload?.scheduled ?? payload?.latest ?? null;
+    const isActive = membership?.status === "active";
+    const progress = useMemo(
+        () =>
+            membership
+                ? Math.max(0, Math.min(100, Math.round(membership.progress * 100)))
+                : 0,
+        [membership],
+    );
+    const startDate = membership
+        ? dateValue(membership.start_date, membership.starts_at)
+        : null;
+    const endDate = membership
+        ? dateValue(membership.end_date, membership.expires_at)
+        : null;
+    const periodCopy = membership ? accessPeriodCopy(membership) : null;
+    const reference = membership
+        ? membership.receipt_number ??
+          (membership.id
+              ? `UBSC-${String(membership.id).padStart(6, "0")}`
+              : "UBSC-MEMBER")
+        : null;
+    const credentialNumber = membership?.id
+        ? `MEMBER-${String(membership.id).padStart(6, "0")}`
+        : "MEMBER-TERVERIFIKASI";
+    const scheduledStart = payload?.scheduled
+        ? dateValue(payload.scheduled.start_date, payload.scheduled.starts_at)
+        : null;
 
     return (
         <AccountModalShell
-            bannerGradient="from-navy-900 via-[#3a1220] to-accent-red"
-            eyebrow="Keanggotaan"
-            title="Membership Gym"
-            subtitle="Status keanggotaan gym Anda di UB Sport Center."
-            wordmark="Member"
-            accent="#D50000"
-            maxWidthClass="sm:max-w-md"
+            bannerGradient="membership"
+            eyebrow="Membership Gym"
+            title="Status Membership"
+            subtitle="Pantau paket, masa aktif, periode berikutnya, dan opsi perpanjangan Anda."
+            wordmark="Membership"
+            index="03"
+            accent="#15678d"
+            maxWidthClass="sm:max-w-[940px]"
             onClose={onClose}
             footer={
-                membership ? undefined : (
-                    <div className="flex flex-col gap-2">
+                !loading && !error ? (
+                    <div className="acc-member__footer">
                         <PrimaryButton
                             type="button"
                             onClick={() => {
                                 window.location.href = "/pricing";
                             }}
                         >
-                            <Sparkles className="h-[18px] w-[18px]" />
-                            Lihat Paket Membership
+                            <Sparkles />
+                            {isActive
+                                ? "Lihat Harga Perpanjangan"
+                                : "Pilih Paket Membership"}
                         </PrimaryButton>
                         <button
                             type="button"
-                            onClick={() => window.open(WHATSAPP_URL, "_blank")}
-                            className="flex h-[48px] w-full items-center justify-center gap-2 rounded-2xl border border-navy-900/12 bg-white font-clash text-[14px] font-semibold text-navy-900 transition-all hover:bg-navy-900/[0.03] active:scale-[0.99]"
+                            className="acc-member__help"
+                            onClick={() =>
+                                window.open(
+                                    WHATSAPP_URL,
+                                    "_blank",
+                                    "noopener,noreferrer",
+                                )
+                            }
                         >
-                            <MessageCircle className="h-[18px] w-[18px]" />
-                            Hubungi Resepsionis
+                            <MessageCircleMore />
+                            Konsultasi Membership
                         </button>
                     </div>
-                )
+                ) : undefined
             }
         >
-            {/* ── Loading ── */}
-            {loading && (
-                <div className="space-y-4">
-                    <div className="account-skeleton h-44 w-full rounded-3xl" />
-                    <div className="account-skeleton h-12 w-full rounded-2xl" />
-                </div>
-            )}
-
-            {/* ── Active membership card ── */}
-            {!loading && membership && (
-                <div className="space-y-5">
+            <div
+                className="acc-member"
+                style={{ "--progress": `${progress}%` } as ProgressStyle}
+                aria-live="polite"
+                aria-busy={loading}
+            >
+                {loading && (
                     <div
-                        className="pass-foil-host kl-stagger relative isolate overflow-hidden rounded-3xl bg-gradient-to-br from-navy-800 via-navy-900 to-navy-950"
-                        style={{ ["--i" as string]: 0, boxShadow: '0 20px 48px -16px rgba(7,21,48,0.7)' }}
+                        className="acc-member__loading"
+                        role="status"
+                        aria-label="Memuat membership"
                     >
-                        {/* Guilloché engraving */}
-                        <Guilloche />
-                        {/* One-shot specular sheen on reveal */}
-                        <div className="kl-sheen-bar" aria-hidden="true" />
-                        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white/20" />
+                        <span className="acc-member__sr-only">
+                            Memuat informasi membership Anda.
+                        </span>
+                        <div className="acc-member__loading-photo" />
+                        <div className="acc-member__loading-main" />
+                        <div className="acc-member__loading-stub" />
+                    </div>
+                )}
 
-                        {/* Microtext top edge */}
-                        <Microtext
-                            className="relative pt-3 text-white/30"
-                            text="UB Sport Center · Gym Membership"
-                        />
+                {!loading && error && (
+                    <section className="acc-member__error" role="alert">
+                        <div>
+                            <span
+                                className="acc-member__state-icon"
+                                aria-hidden="true"
+                            >
+                                <CircleAlert />
+                            </span>
+                            <h3>Data Membership Belum Tersedia</h3>
+                            <p>{error}</p>
+                            <button
+                                type="button"
+                                className="acc-member__retry"
+                                onClick={() => void loadMembership()}
+                            >
+                                <RefreshCcw /> Coba Lagi
+                            </button>
+                        </div>
+                    </section>
+                )}
 
-                        <div className="relative px-5 pb-5 pt-3">
-                            {/* Top row: brand + ACTIVE stamp */}
-                            <div className="flex items-start justify-between">
-                                <div className="flex items-center gap-2">
-                                    <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-white/10">
-                                        <Dumbbell className="h-[18px] w-[18px] text-white" />
+                {!loading && !error && membership && periodCopy && (
+                    <>
+                        <section
+                            className="acc-member__ticket"
+                            data-status={membership.status}
+                            aria-labelledby="membership-pass-title"
+                        >
+                            <figure className="acc-member__media">
+                                <MembershipImage
+                                    src={membership.image_url}
+                                    planName={membership.plan_name}
+                                />
+                                <figcaption className="acc-member__media-caption">
+                                    <span>UBSC / Member access</span>
+                                    <strong>{membership.plan_name}</strong>
+                                </figcaption>
+                            </figure>
+
+                            <div className="acc-member__body">
+                                <header className="acc-member__ticket-head">
+                                    <div>
+                                        <p className="acc-member__eyebrow">
+                                            Membership credential
+                                        </p>
+                                        <p className="acc-member__reference">
+                                            {reference}
+                                        </p>
                                     </div>
-                                    <FoilText className="font-clash text-[15px] font-bold uppercase tracking-tight">
-                                        UB Sport Center
-                                    </FoilText>
+                                </header>
+
+                                <div className="acc-member__hero">
+                                    <p className="acc-member__plan-label">
+                                        Paket membership
+                                    </p>
+                                    <h3
+                                        id="membership-pass-title"
+                                        className="acc-member__plan-name"
+                                    >
+                                        {membership.plan_name}
+                                    </h3>
+                                    <p className="acc-member__holder">
+                                        Pemegang akses <strong>{user.name}</strong>
+                                    </p>
                                 </div>
-                                <span className="pass-stamp inline-flex items-center gap-1.5 px-2.5 py-1 font-clash text-[11px] font-bold uppercase text-emerald-300">
-                                    <span
-                                        className="h-1.5 w-1.5 rounded-full bg-emerald-400"
-                                        style={{
-                                            animation:
-                                                "kl-dot-pulse 2.4s ease-in-out infinite",
-                                        }}
-                                    />
-                                    Valid
-                                </span>
+
+                                <dl className="acc-member__validity">
+                                    <div className="acc-member__validity-item">
+                                        <dt>Mulai</dt>
+                                        <dd>{formatLongDate(startDate)}</dd>
+                                    </div>
+                                    <div className="acc-member__validity-item">
+                                        <dt>Berakhir</dt>
+                                        <dd>{formatLongDate(endDate)}</dd>
+                                    </div>
+                                    <div className="acc-member__validity-item">
+                                        <dt>Durasi</dt>
+                                        <dd>{durationLabel(startDate, endDate)}</dd>
+                                    </div>
+                                </dl>
                             </div>
 
-                            {/* Tier name (foil) + member */}
-                            <div className="mt-6">
-                                <p className="font-bdo text-[10px] font-bold uppercase tracking-[0.28em] text-white/40">
-                                    Paket
-                                </p>
-                                <FoilText className="mt-1 block font-clash text-[28px] font-bold uppercase leading-none tracking-tight">
-                                    {membership.plan}
-                                </FoilText>
-                                <p className="mt-2 font-bdo text-[13px] text-white/60">
-                                    {user.name}
-                                </p>
-                            </div>
-
-                            {/* Days remaining — odometer reel */}
-                            <div className="mt-6 flex items-end justify-between">
+                            <aside
+                                className="acc-member__stub"
+                                aria-label={`Member pass ${membership.plan_name}`}
+                            >
                                 <div>
-                                    <p className="font-bdo text-[10px] font-bold uppercase tracking-[0.24em] text-white/40">
-                                        Sisa Hari
+                                    <p className="acc-member__stub-label">
+                                        Member pass
                                     </p>
-                                    <div className="mt-1 flex items-baseline gap-1.5">
-                                        <NumberReel
-                                            value={membership.daysRemaining}
-                                            className="font-clash text-[40px] font-bold leading-none text-white"
-                                        />
-                                        <span className="font-bdo text-[12px] text-white/45">
-                                            hari
-                                        </span>
-                                    </div>
+                                    <span
+                                        className="acc-member__status"
+                                        data-status={membership.status}
+                                    >
+                                        {stateLabel(membership.status)}
+                                    </span>
+                                    <strong className="acc-member__stub-value">
+                                        {periodCopy.value}
+                                    </strong>
+                                    <span className="acc-member__stub-copy">
+                                        {periodCopy.label}
+                                    </span>
+                                    {isActive && (
+                                        <div
+                                            className="acc-member__progress"
+                                            role="progressbar"
+                                            aria-label="Progres periode membership"
+                                            aria-valuemin={0}
+                                            aria-valuemax={100}
+                                            aria-valuenow={progress}
+                                            aria-valuetext={periodCopy.value}
+                                        >
+                                            <span />
+                                        </div>
+                                    )}
                                 </div>
-                                <div className="text-right">
-                                    <p className="font-bdo text-[10px] uppercase tracking-[0.2em] text-white/35">
-                                        Berlaku s/d
+                                <div className="acc-member__serial">
+                                    <p className="acc-member__serial-label">
+                                        Nomor akses
                                     </p>
-                                    <p className="mt-1 font-clash text-[13px] font-semibold text-white/80">
-                                        {formatLongDate(membership.endDate)}
+                                    <p className="acc-member__serial-value">
+                                        {credentialNumber}
+                                    </p>
+                                    <p className="acc-member__updated">
+                                        {formatUpdatedTime(payload?.meta.server_now)}
                                     </p>
                                 </div>
-                            </div>
+                            </aside>
+                        </section>
 
-                            {/* Progress */}
-                            <div className="relative mt-4">
-                                <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/12">
-                                    <div
-                                        className="kl-progress-fill h-full rounded-full bg-gradient-to-r from-accent-red to-rose-400"
-                                        style={{
-                                            ["--kl-pct" as string]: `${Math.round(membership.progress * 100)}%`,
-                                        }}
-                                    />
+                        {payload?.current && payload.scheduled && (
+                            <section
+                                className="acc-member__renewal"
+                                aria-label="Periode membership berikutnya"
+                            >
+                                <div>
+                                    <p className="acc-member__renewal-title">
+                                        Periode berikutnya sudah siap
+                                    </p>
+                                    <p className="acc-member__renewal-copy">
+                                        {payload.scheduled.plan_name} dimulai setelah
+                                        masa aktif sekarang selesai.
+                                    </p>
                                 </div>
-                            </div>
+                                <span className="acc-member__renewal-date">
+                                    Mulai {formatLongDate(scheduledStart)}
+                                </span>
+                            </section>
+                        )}
 
-                            {/* Barcode + serial footer */}
-                            <div className="mt-5 flex items-center justify-between gap-4">
-                                <Barcode className="h-9 flex-1 text-white/70" />
-                                <Serial className="shrink-0 text-[10px] font-semibold uppercase text-white/45">
-                                    № UBSC-{String(membership.daysRemaining).padStart(3, "0")}
-                                </Serial>
-                            </div>
-                        </div>
-                    </div>
+                        <p className="acc-member__note">
+                            {membershipNote(membership.status)}
+                        </p>
+                    </>
+                )}
 
-                    {/* Period detail */}
-                    <div className="grid grid-cols-2 gap-3">
-                        <div className="kl-stagger kl-tactile rounded-2xl border border-navy-900/[0.07] bg-white px-4 py-3.5" style={{ ["--i" as string]: 1 }}>
-                            <p className="font-bdo text-[11px] text-navy-900/45">
-                                Mulai
-                            </p>
-                            <p className="mt-1 font-clash text-[14px] font-semibold text-navy-900">
-                                {formatLongDate(membership.startDate)}
-                            </p>
-                        </div>
-                        <div className="kl-stagger kl-tactile rounded-2xl border border-navy-900/[0.07] bg-white px-4 py-3.5" style={{ ["--i" as string]: 2 }}>
-                            <p className="font-bdo text-[11px] text-navy-900/45">
-                                Berakhir
-                            </p>
-                            <p className="mt-1 font-clash text-[14px] font-semibold text-navy-900">
-                                {formatLongDate(membership.endDate)}
+                {!loading && !error && !membership && (
+                    <section className="acc-member__empty">
+                        <div>
+                            <span
+                                className="acc-member__state-icon"
+                                aria-hidden="true"
+                            >
+                                <Dumbbell />
+                            </span>
+                            <h3>Belum Ada Membership Aktif</h3>
+                            <p>
+                                Setelah paket selesai dibayar, masa aktif dan detail
+                                membership akan muncul otomatis di sini.
                             </p>
                         </div>
-                    </div>
-
-                    <button
-                        type="button"
-                        onClick={() => window.open(WHATSAPP_URL, "_blank")}
-                        className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-navy-900/12 bg-white font-clash text-[14px] font-semibold text-navy-900 transition-all hover:bg-navy-900/[0.04] hover:border-navy-900/18 active:scale-[0.99]"
-                    >
-                        <MessageCircle className="h-[18px] w-[18px]" />
-                        Perpanjang via Resepsionis
-                    </button>
-                </div>
-            )}
-
-            {/* ── Empty / inactive ── */}
-            {!loading && !membership && (
-                <div className="kl-stagger flex flex-col items-center rounded-3xl border border-navy-900/[0.07] bg-white px-6 py-12 text-center" style={{ ["--i" as string]: 0 }}>
-                    <div
-                        className="relative mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-navy-900/[0.05]"
-                        style={{ animation: "kl-pop-in 0.6s cubic-bezier(0.34,1.56,0.64,1) both" }}
-                    >
-                        <div className="pointer-events-none absolute inset-0 rounded-2xl bg-accent-red/10 blur-xl" />
-                        <Dumbbell className="relative h-8 w-8 text-navy-900/40" />
-                    </div>
-                    <p className="font-clash text-[16px] font-semibold text-navy-900">
-                        Belum ada membership aktif
-                    </p>
-                    <p className="mt-1.5 max-w-[18rem] font-bdo text-[13px] leading-relaxed text-navy-900/50">
-                        Jadikan latihan Anda lebih hemat dan fleksibel dengan
-                        paket membership UB Sport Center.
-                    </p>
-                </div>
-            )}
+                    </section>
+                )}
+            </div>
         </AccountModalShell>
     );
 }

@@ -1,0 +1,818 @@
+.acc-member {
+    --member-canvas: var(--ae-bed, #f3f3f0);
+    --member-paper: #fcfbf7;
+    --member-stub: #fcfbf7;
+    --member-ink: #11171d;
+    --member-muted: #697078;
+    --member-edge: rgba(17, 23, 29, 0.15);
+    --member-rule: rgba(17, 23, 29, 0.1);
+    --member-blue: #0f5f80;
+    --member-green: #1b6b50;
+    --member-amber: #8a5a09;
+    --member-danger: #a93b32;
+    color: var(--member-ink);
+    font-family: "BDO Grotesk", sans-serif;
+}
+
+.acc-member *,
+.acc-member *::before,
+.acc-member *::after {
+    box-sizing: border-box;
+}
+
+.acc-member__sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.acc-member__ticket {
+    position: relative;
+    display: grid;
+    min-height: 318px;
+    grid-template-columns: minmax(165px, 0.7fr) minmax(0, 1.55fr) minmax(158px, 0.58fr);
+    overflow: visible;
+    border: 1px solid var(--member-edge);
+    border-radius: 16px;
+    background: var(--member-paper);
+    transition: border-color 180ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .acc-member__ticket:hover {
+        border-color: rgba(15, 95, 128, 0.3);
+    }
+
+    .acc-member__ticket:hover .acc-member__media img {
+        transform: scale(1.01);
+    }
+}
+
+.acc-member__media {
+    position: relative;
+    min-width: 0;
+    margin: 10px 0 10px 10px;
+    overflow: hidden;
+    border-radius: 11px;
+    background: #d9dcdd;
+}
+
+.acc-member__media img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 280ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.acc-member__media::after {
+    position: absolute;
+    inset: auto 0 0;
+    height: 48%;
+    background: linear-gradient(to top, rgba(8, 13, 17, 0.74), transparent);
+    content: "";
+    pointer-events: none;
+}
+
+.acc-member__media-caption {
+    position: absolute;
+    z-index: 1;
+    right: 14px;
+    bottom: 13px;
+    left: 14px;
+    color: white;
+}
+
+.acc-member__media-caption span {
+    display: block;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.13em;
+    line-height: 1.3;
+    text-transform: uppercase;
+}
+
+.acc-member__media-caption strong {
+    display: block;
+    margin-top: 5px;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.25;
+}
+
+.acc-member__body {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    padding: 25px 28px 23px;
+}
+
+.acc-member__ticket-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.acc-member__eyebrow,
+.acc-member__plan-label,
+.acc-member__stub-label,
+.acc-member__validity-item dt,
+.acc-member__serial-label {
+    color: var(--member-muted);
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    line-height: 1.35;
+    text-transform: uppercase;
+}
+
+.acc-member__reference {
+    margin-top: 5px;
+    overflow-wrap: anywhere;
+    color: rgba(17, 23, 29, 0.54);
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.35;
+}
+
+.acc-member__status {
+    display: inline-flex;
+    min-height: 28px;
+    flex: none;
+    align-items: center;
+    gap: 7px;
+    padding: 0 9px;
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    color: var(--member-blue);
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.acc-member__status::before {
+    width: 5px;
+    height: 5px;
+    flex: none;
+    border-radius: 50%;
+    background: currentColor;
+    content: "";
+}
+
+.acc-member__status[data-status="active"] {
+    color: var(--member-green);
+}
+
+.acc-member__status[data-status="scheduled"],
+.acc-member__status[data-status="awaiting_payment"] {
+    color: var(--member-amber);
+}
+
+.acc-member__status[data-status="expired"],
+.acc-member__status[data-status="archived"] {
+    color: #747b81;
+}
+
+.acc-member__status[data-status="cancelled"] {
+    color: var(--member-danger);
+}
+
+.acc-member__hero {
+    margin-top: clamp(38px, 6vw, 56px);
+}
+
+.acc-member__plan-name {
+    max-width: 17ch;
+    margin-top: 8px;
+    overflow-wrap: anywhere;
+    color: var(--member-ink);
+    font-size: clamp(29px, 4.6vw, 42px);
+    font-weight: 500;
+    letter-spacing: -0.045em;
+    line-height: 0.98;
+    text-wrap: balance;
+}
+
+.acc-member__holder {
+    margin-top: 12px;
+    color: var(--member-muted);
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.acc-member__holder strong {
+    color: var(--member-ink);
+    font-weight: 600;
+}
+
+.acc-member__validity {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-top: auto;
+    padding-top: 24px;
+}
+
+.acc-member__validity-item {
+    min-width: 0;
+}
+
+.acc-member__validity-item + .acc-member__validity-item {
+    margin-left: 15px;
+    padding-left: 15px;
+    border-left: 1px solid var(--member-rule);
+}
+
+.acc-member__validity-item dd {
+    margin-top: 6px;
+    overflow-wrap: anywhere;
+    color: var(--member-ink);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.acc-member__stub {
+    position: relative;
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    padding: 25px 19px 20px;
+    border-left: 1px dashed rgba(17, 23, 29, 0.26);
+    border-radius: 0 15px 15px 0;
+    background: var(--member-stub);
+}
+
+.acc-member__stub::before,
+.acc-member__stub::after {
+    position: absolute;
+    left: -11px;
+    z-index: 5;
+    width: 20px;
+    height: 10px;
+    border: 1px solid var(--member-edge);
+    background: var(--member-canvas);
+    content: "";
+}
+
+.acc-member__stub::before {
+    top: -1px;
+    border-top: 0;
+    border-radius: 0 0 11px 11px;
+}
+
+.acc-member__stub::after {
+    bottom: -1px;
+    border-bottom: 0;
+    border-radius: 11px 11px 0 0;
+}
+
+.acc-member__stub-status {
+    display: block;
+    margin-top: 9px;
+    color: var(--member-ink);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.acc-member__stub-value {
+    display: block;
+    margin-top: 34px;
+    overflow-wrap: anywhere;
+    color: var(--member-ink);
+    font-size: clamp(24px, 3vw, 30px);
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+    letter-spacing: -0.04em;
+    line-height: 0.98;
+}
+
+.acc-member__stub-copy {
+    display: block;
+    margin-top: 9px;
+    color: var(--member-muted);
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.acc-member__progress {
+    height: 2px;
+    margin-top: 15px;
+    overflow: hidden;
+    background: rgba(17, 23, 29, 0.12);
+}
+
+.acc-member__progress span {
+    display: block;
+    width: var(--progress);
+    height: 100%;
+    background: var(--member-green);
+}
+
+.acc-member__serial {
+    margin-top: auto;
+    padding-top: 28px;
+}
+
+.acc-member__serial-value {
+    margin-top: 6px;
+    overflow-wrap: anywhere;
+    color: var(--member-ink);
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    line-height: 1.35;
+}
+
+.acc-member__updated {
+    margin-top: 12px;
+    color: rgba(17, 23, 29, 0.48);
+    font-size: 9.5px;
+    line-height: 1.35;
+}
+
+.acc-member__renewal,
+.acc-member__note {
+    margin-inline: 3px;
+    border-bottom: 1px solid var(--member-rule);
+}
+
+.acc-member__renewal {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 18px;
+    padding: 18px 3px;
+}
+
+.acc-member__renewal-title {
+    color: var(--member-ink);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.35;
+}
+
+.acc-member__renewal-copy,
+.acc-member__renewal-date,
+.acc-member__note {
+    color: var(--member-muted);
+    font-size: 11.5px;
+    line-height: 1.5;
+}
+
+.acc-member__renewal-copy {
+    margin-top: 4px;
+}
+
+.acc-member__renewal-date {
+    align-self: center;
+    color: var(--member-blue);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.acc-member__note {
+    padding: 16px 3px 2px;
+    border-bottom: 0;
+}
+
+.acc-member__empty,
+.acc-member__error,
+.acc-member__loading {
+    min-height: 300px;
+    border: 1px solid var(--member-edge);
+    border-radius: 16px;
+    background: var(--member-paper);
+}
+
+.acc-member__empty,
+.acc-member__error {
+    display: grid;
+    place-items: center;
+    padding: 38px 24px;
+    text-align: center;
+}
+
+.acc-member__state-icon {
+    display: grid;
+    width: 48px;
+    height: 48px;
+    margin: 0 auto;
+    place-items: center;
+    border: 1px solid var(--member-edge);
+    border-radius: 50%;
+    color: var(--member-blue);
+}
+
+.acc-member__state-icon svg {
+    width: 19px;
+    height: 19px;
+    stroke-width: 1.6;
+}
+
+.acc-member__empty h3,
+.acc-member__error h3 {
+    margin-top: 16px;
+    font-size: 21px;
+    font-weight: 500;
+    letter-spacing: -0.025em;
+    line-height: 1.15;
+}
+
+.acc-member__empty p,
+.acc-member__error p {
+    max-width: 42ch;
+    margin: 8px auto 0;
+    color: var(--member-muted);
+    font-size: 12px;
+    line-height: 1.55;
+}
+
+.acc-member__retry {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    gap: 8px;
+    margin-top: 18px;
+    padding: 0 15px;
+    border: 1px solid var(--member-edge);
+    border-radius: 9px;
+    color: var(--member-ink);
+    background: white;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.acc-member__retry svg {
+    width: 15px;
+    height: 15px;
+}
+
+.acc-member__loading {
+    display: grid;
+    grid-template-columns: minmax(140px, 0.7fr) minmax(0, 1.5fr) minmax(140px, 0.55fr);
+    gap: 24px;
+    padding: 18px;
+}
+
+.acc-member__loading-photo,
+.acc-member__loading-main,
+.acc-member__loading-stub {
+    position: relative;
+    overflow: hidden;
+    border-radius: 11px;
+    background: rgba(17, 23, 29, 0.065);
+}
+
+.acc-member__loading-main {
+    margin-block: 18px;
+}
+
+.acc-member__loading-stub {
+    border-radius: 0 10px 10px 0;
+}
+
+.acc-member__loading-photo::after,
+.acc-member__loading-main::after,
+.acc-member__loading-stub::after {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, transparent, rgba(255, 255, 255, 0.82), transparent);
+    content: "";
+    transform: translateX(-100%);
+    animation: acc-member-shimmer 1.35s ease-in-out infinite;
+}
+
+.acc-member__footer {
+    display: grid;
+    gap: 8px;
+}
+
+.acc-member__footer .ae-primary svg,
+.acc-member__help svg {
+    width: 16px;
+    height: 16px;
+}
+
+.acc-member__help {
+    display: flex;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: 1px solid var(--member-edge);
+    border-radius: 10px;
+    color: var(--member-muted);
+    background: rgba(255, 255, 255, 0.55);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition:
+        color 180ms ease,
+        border-color 180ms ease,
+        background 180ms ease;
+}
+
+.acc-member__help:hover {
+    border-color: rgba(15, 95, 128, 0.25);
+    color: var(--member-blue);
+    background: white;
+}
+
+.acc-member__retry:focus-visible,
+.acc-member__help:focus-visible {
+    outline: 2px solid var(--member-blue);
+    outline-offset: 2px;
+}
+
+@keyframes acc-member-shimmer {
+    to {
+        transform: translateX(100%);
+    }
+}
+
+@media (min-width: 640px) {
+    .acc-member__footer {
+        grid-template-columns: minmax(0, 1fr) 190px;
+    }
+}
+
+@media (max-width: 760px) {
+    .acc-member__ticket {
+        min-height: 0;
+        grid-template-columns: 108px minmax(0, 1fr);
+        border-radius: 14px;
+    }
+
+    .acc-member__media {
+        margin: 7px 0 7px 7px;
+        border-radius: 8px;
+    }
+
+    .acc-member__media::after,
+    .acc-member__media-caption {
+        display: none;
+    }
+
+    .acc-member__body {
+        padding: 17px 16px 16px;
+    }
+
+    .acc-member__ticket-head {
+        min-height: 26px;
+    }
+
+    .acc-member__eyebrow {
+        font-size: 8px;
+    }
+
+    .acc-member__reference {
+        margin-top: 3px;
+        font-size: 9px;
+    }
+
+    .acc-member__hero {
+        margin-top: 18px;
+    }
+
+    .acc-member__plan-name {
+        max-width: 15ch;
+        margin-top: 5px;
+        font-size: clamp(24px, 6vw, 31px);
+        line-height: 1;
+    }
+
+    .acc-member__holder {
+        margin-top: 8px;
+        font-size: 10.5px;
+    }
+
+    .acc-member__validity {
+        gap: 10px;
+        padding-top: 18px;
+    }
+
+    .acc-member__validity-item + .acc-member__validity-item {
+        margin-left: 0;
+        padding-left: 0;
+        border-left: 0;
+    }
+
+    .acc-member__validity-item dt {
+        font-size: 7.5px;
+        letter-spacing: 0.09em;
+    }
+
+    .acc-member__validity-item dd {
+        margin-top: 4px;
+        font-size: 10px;
+        line-height: 1.25;
+    }
+
+    .acc-member__stub {
+        display: grid;
+        grid-column: 1 / -1;
+        grid-template-columns: minmax(0, 1fr) minmax(118px, 0.72fr);
+        gap: 12px 16px;
+        padding: 15px 16px 14px;
+        border-top: 1px dashed rgba(17, 23, 29, 0.26);
+        border-left: 0;
+        border-radius: 0 0 13px 13px;
+    }
+
+    .acc-member__stub::before,
+    .acc-member__stub::after {
+        top: -11px;
+        bottom: auto;
+        width: 10px;
+        height: 20px;
+    }
+
+    .acc-member__stub::before {
+        left: -1px;
+        border-top: 1px solid var(--member-edge);
+        border-left: 0;
+        border-radius: 0 11px 11px 0;
+    }
+
+    .acc-member__stub::after {
+        right: -1px;
+        left: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--member-edge);
+        border-radius: 11px 0 0 11px;
+    }
+
+    .acc-member__stub-value {
+        margin-top: 8px;
+        font-size: 22px;
+    }
+
+    .acc-member__stub-copy {
+        margin-top: 5px;
+        font-size: 9.5px;
+    }
+
+    .acc-member__stub-label,
+    .acc-member__serial-label {
+        font-size: 8px;
+    }
+
+    .acc-member__status {
+        min-height: 24px;
+        margin-top: 6px;
+        padding-inline: 7px;
+        font-size: 9px;
+    }
+
+    .acc-member__serial {
+        margin-top: 0;
+        padding-top: 0;
+        text-align: right;
+    }
+
+    .acc-member__progress {
+        max-width: 220px;
+        margin-top: 10px;
+    }
+
+    .acc-member__loading {
+        grid-template-columns: 120px minmax(0, 1fr);
+    }
+
+    .acc-member__loading-stub {
+        grid-column: 1 / -1;
+        min-height: 78px;
+    }
+}
+
+@media (max-width: 520px) {
+    .acc-member__ticket {
+        grid-template-columns: 88px minmax(0, 1fr);
+    }
+
+    .acc-member__media {
+        height: auto;
+        min-height: 150px;
+        margin: 6px 0 6px 6px;
+        border-radius: 7px;
+    }
+
+    .acc-member__body {
+        padding: 14px 12px 13px;
+    }
+
+    .acc-member__ticket-head {
+        display: none;
+    }
+
+    .acc-member__hero {
+        margin-top: 0;
+    }
+
+    .acc-member__plan-name {
+        font-size: clamp(22px, 6.6vw, 27px);
+    }
+
+    .acc-member__holder {
+        margin-top: 7px;
+    }
+
+    .acc-member__validity {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 7px;
+        padding-top: 15px;
+    }
+
+    .acc-member__validity-item:nth-child(3),
+    .acc-member__progress,
+    .acc-member__updated {
+        display: none;
+    }
+
+    .acc-member__validity-item dt {
+        font-size: 7px;
+    }
+
+    .acc-member__validity-item dd {
+        font-size: 9px;
+    }
+
+    .acc-member__stub {
+        grid-template-columns: minmax(0, 1fr) minmax(104px, 0.7fr);
+        gap: 10px 12px;
+        padding: 13px 13px 12px;
+    }
+
+    .acc-member__stub-value {
+        font-size: 20px;
+    }
+
+    .acc-member__serial {
+        text-align: right;
+    }
+
+    .acc-member__serial-value {
+        font-size: 8.5px;
+    }
+
+    .acc-member__renewal {
+        grid-template-columns: 1fr;
+        gap: 5px;
+        padding-block: 13px;
+    }
+
+    .acc-member__renewal-date {
+        white-space: normal;
+    }
+
+    .acc-member__note {
+        padding-top: 12px;
+        font-size: 10.5px;
+    }
+
+    .acc-member__loading {
+        grid-template-columns: 88px minmax(0, 1fr);
+        gap: 10px;
+        min-height: 240px;
+        padding: 10px;
+    }
+
+    .acc-member__loading-photo {
+        min-height: 160px;
+    }
+
+    .acc-member__loading-main {
+        min-height: 160px;
+        margin-block: 0;
+    }
+
+    .acc-member__loading-stub {
+        grid-column: 1 / -1;
+        min-height: 62px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .acc-member__ticket,
+    .acc-member__media img,
+    .acc-member__help {
+        transition: none;
+    }
+
+    .acc-member__loading-photo::after,
+    .acc-member__loading-main::after,
+    .acc-member__loading-stub::after {
+        animation: none;
+    }
+}

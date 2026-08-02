@@ -1,0 +1,1041 @@
+.acc-ledger {
+    --ledger-canvas: var(--ae-bed, #f3f3f0);
+    --ledger-paper: #fcfbf7;
+    --ledger-stub: #fcfbf7;
+    --ledger-ink: #11171d;
+    --ledger-muted: #697078;
+    --ledger-edge: rgba(17, 23, 29, 0.15);
+    --ledger-rule: rgba(17, 23, 29, 0.1);
+    --ledger-blue: #0f5f80;
+    --ledger-green: #1b6b50;
+    --ledger-amber: #8a5a09;
+    --ledger-danger: #a93b32;
+    color: var(--ledger-ink);
+    font-family: "BDO Grotesk", sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.acc-ledger *,
+.acc-ledger *::before,
+.acc-ledger *::after {
+    box-sizing: border-box;
+}
+
+.acc-ledger button,
+.acc-ledger a {
+    font: inherit;
+}
+
+.acc-ledger-summary {
+    display: grid;
+    grid-template-columns: minmax(210px, 1fr) auto;
+    align-items: end;
+    gap: 20px;
+    padding: 3px 2px 20px;
+    border-bottom: 1px solid var(--ledger-edge);
+}
+
+.acc-ledger-summary__eyebrow,
+.acc-ledger-heading__eyebrow,
+.acc-ledger-transaction__kicker,
+.acc-ledger-stub__label,
+.acc-ledger-membership small,
+.acc-ledger-stub__serial,
+.acc-ledger-booking__index {
+    color: var(--ledger-muted);
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    line-height: 1.35;
+    text-transform: uppercase;
+}
+
+.acc-ledger-summary h3 {
+    margin-top: 7px;
+    color: var(--ledger-ink);
+    font-size: clamp(27px, 4vw, 36px);
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+    letter-spacing: -0.045em;
+    line-height: 1;
+}
+
+.acc-ledger-summary__facts {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 7px 16px;
+    padding-bottom: 2px;
+    color: var(--ledger-muted);
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.acc-ledger-summary__facts span + span::before {
+    margin-right: 16px;
+    color: rgba(17, 23, 29, 0.3);
+    content: "·";
+}
+
+.acc-ledger-summary__facts strong {
+    color: var(--ledger-ink);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+
+.acc-ledger-heading {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 18px;
+    margin: 25px 2px 13px;
+}
+
+.acc-ledger-heading h3 {
+    margin-top: 4px;
+    font-size: 19px;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+    line-height: 1.2;
+}
+
+.acc-ledger-heading__count {
+    flex: none;
+    color: var(--ledger-muted);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.35;
+}
+
+.acc-ledger-list {
+    display: grid;
+    gap: 16px;
+}
+
+.acc-ledger-transaction {
+    --ticket-state: var(--ledger-blue);
+    position: relative;
+    display: grid;
+    min-height: 214px;
+    grid-template-columns: 148px minmax(0, 1fr) 182px;
+    overflow: visible;
+    border: 1px solid var(--ledger-edge);
+    border-radius: 16px;
+    background: var(--ledger-paper);
+    transition: border-color 180ms ease;
+}
+
+.acc-ledger-transaction[data-payment="paid"] {
+    --ticket-state: var(--ledger-green);
+}
+
+.acc-ledger-transaction[data-payment="unpaid"] {
+    --ticket-state: var(--ledger-amber);
+}
+
+.acc-ledger-transaction[data-payment="expired"],
+.acc-ledger-transaction[data-payment="failed"] {
+    --ticket-state: var(--ledger-danger);
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .acc-ledger-transaction:hover {
+        border-color: rgba(15, 95, 128, 0.3);
+    }
+
+    .acc-ledger-transaction:hover .acc-ledger-transaction__media img {
+        transform: scale(1.01);
+    }
+}
+
+.acc-ledger-transaction__media {
+    position: relative;
+    min-width: 0;
+    margin: 10px 0 10px 10px;
+    overflow: hidden;
+    border-radius: 11px;
+    background: #d9dcdd;
+}
+
+.acc-ledger-transaction__media img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 280ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.acc-ledger-transaction__media::after {
+    position: absolute;
+    inset: auto 0 0;
+    height: 48%;
+    background: linear-gradient(to top, rgba(8, 13, 17, 0.76), transparent);
+    content: "";
+    pointer-events: none;
+}
+
+.acc-ledger-transaction__media figcaption {
+    position: absolute;
+    z-index: 1;
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+    color: white;
+}
+
+.acc-ledger-transaction__media figcaption span,
+.acc-ledger-transaction__media figcaption strong {
+    display: block;
+}
+
+.acc-ledger-transaction__media figcaption span {
+    font-size: 8.5px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    line-height: 1.3;
+    text-transform: uppercase;
+}
+
+.acc-ledger-transaction__media figcaption strong {
+    margin-top: 5px;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.25;
+}
+
+.acc-ledger-transaction__body {
+    min-width: 0;
+    padding: 23px 24px 20px;
+}
+
+.acc-ledger-transaction__identity h3 {
+    max-width: 28ch;
+    margin-top: 7px;
+    overflow-wrap: anywhere;
+    color: var(--ledger-ink);
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.028em;
+    line-height: 1.08;
+    text-wrap: balance;
+}
+
+.acc-ledger-transaction__receipt {
+    margin-top: 7px;
+    overflow-wrap: anywhere;
+    color: rgba(17, 23, 29, 0.5);
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.045em;
+    line-height: 1.35;
+}
+
+.acc-ledger-transaction__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 7px 11px;
+    margin-top: 16px;
+    color: var(--ledger-muted);
+    font-size: 10.5px;
+    line-height: 1.4;
+}
+
+.acc-ledger-transaction__meta span + span::before {
+    margin-right: 11px;
+    color: rgba(17, 23, 29, 0.27);
+    content: "·";
+}
+
+.acc-ledger-service-state {
+    color: var(--ledger-muted);
+    font-weight: 600;
+}
+
+.acc-ledger-service-state.is-live {
+    color: var(--ledger-green);
+}
+
+.acc-ledger-service-state.is-blue {
+    color: var(--ledger-blue);
+}
+
+.acc-ledger-service-state.is-waiting {
+    color: var(--ledger-amber);
+}
+
+.acc-ledger-service-state.is-failed {
+    color: var(--ledger-danger);
+}
+
+.acc-ledger-booking-details,
+.acc-ledger-membership {
+    margin-top: 19px;
+    padding-top: 14px;
+    border-top: 1px solid var(--ledger-rule);
+}
+
+.acc-ledger-membership {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.acc-ledger-membership__cell {
+    min-width: 0;
+}
+
+.acc-ledger-membership__cell + .acc-ledger-membership__cell {
+    margin-left: 14px;
+    padding-left: 14px;
+    border-left: 1px solid var(--ledger-rule);
+}
+
+.acc-ledger-membership strong {
+    display: block;
+    margin-top: 5px;
+    overflow-wrap: anywhere;
+    color: var(--ledger-ink);
+    font-size: 11.5px;
+    font-weight: 600;
+    line-height: 1.35;
+}
+
+.acc-ledger-booking {
+    display: grid;
+    grid-template-columns: 48px minmax(120px, 1fr) minmax(145px, 0.95fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(17, 23, 29, 0.07);
+}
+
+.acc-ledger-booking:first-child {
+    padding-top: 0;
+}
+
+.acc-ledger-booking:last-child {
+    padding-bottom: 0;
+    border-bottom: 0;
+}
+
+.acc-ledger-booking__visual {
+    position: relative;
+    width: 48px;
+    height: 48px;
+    overflow: hidden;
+    border-radius: 8px;
+    background: #d9dcdd;
+}
+
+.acc-ledger-booking__visual img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.acc-ledger-booking__index {
+    position: absolute;
+    right: 4px;
+    bottom: 4px;
+    padding: 2px 4px;
+    border-radius: 4px;
+    color: white;
+    background: rgba(8, 13, 17, 0.7);
+    font-size: 7px;
+    letter-spacing: 0.05em;
+}
+
+.acc-ledger-booking__name,
+.acc-ledger-booking__schedule {
+    min-width: 0;
+}
+
+.acc-ledger-booking__name h4 {
+    overflow-wrap: anywhere;
+    color: var(--ledger-ink);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.acc-ledger-booking__name p,
+.acc-ledger-booking__schedule span,
+.acc-ledger-booking__price span {
+    color: var(--ledger-muted);
+    font-size: 10px;
+    line-height: 1.35;
+}
+
+.acc-ledger-booking__name p {
+    margin-top: 4px;
+}
+
+.acc-ledger-booking__schedule {
+    display: grid;
+    gap: 4px;
+}
+
+.acc-ledger-booking__price {
+    min-width: 92px;
+    text-align: right;
+}
+
+.acc-ledger-booking__price span {
+    display: block;
+    color: var(--ticket-state);
+    font-weight: 600;
+}
+
+.acc-ledger-booking__price strong {
+    display: block;
+    margin-top: 5px;
+    color: var(--ledger-ink);
+    font-size: 11.5px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    line-height: 1.3;
+    white-space: nowrap;
+}
+
+.acc-ledger-transaction__stub {
+    position: relative;
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    padding: 23px 17px 17px;
+    border-left: 1px dashed rgba(17, 23, 29, 0.26);
+    border-radius: 0 15px 15px 0;
+    background: var(--ledger-stub);
+}
+
+.acc-ledger-transaction__stub::before,
+.acc-ledger-transaction__stub::after {
+    position: absolute;
+    left: -11px;
+    z-index: 5;
+    width: 20px;
+    height: 10px;
+    border: 1px solid var(--ledger-edge);
+    background: var(--ledger-canvas);
+    content: "";
+}
+
+.acc-ledger-transaction__stub::before {
+    top: -1px;
+    border-top: 0;
+    border-radius: 0 0 11px 11px;
+}
+
+.acc-ledger-transaction__stub::after {
+    bottom: -1px;
+    border-bottom: 0;
+    border-radius: 11px 11px 0 0;
+}
+
+.acc-ledger-stub__status {
+    display: inline-flex;
+    width: fit-content;
+    align-items: center;
+    gap: 7px;
+    margin-top: 8px;
+    color: var(--ticket-state);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.acc-ledger-stub__status::before {
+    width: 5px;
+    height: 5px;
+    flex: none;
+    border-radius: 50%;
+    background: currentColor;
+    content: "";
+}
+
+.acc-ledger-stub__amount {
+    display: block;
+    margin-top: 30px;
+    overflow-wrap: anywhere;
+    color: var(--ledger-ink);
+    font-size: 22px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+    letter-spacing: -0.045em;
+    line-height: 1;
+}
+
+.acc-ledger-stub__serial {
+    margin-top: auto;
+    padding-top: 26px;
+}
+
+.acc-ledger-stub__serial b {
+    display: block;
+    margin-top: 5px;
+    overflow-wrap: anywhere;
+    color: var(--ledger-ink);
+    font-size: 9.5px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    letter-spacing: 0.045em;
+    line-height: 1.4;
+    text-transform: none;
+}
+
+.acc-ledger-transaction__actions {
+    display: grid;
+    gap: 7px;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--ledger-rule);
+}
+
+.acc-ledger-action {
+    display: inline-flex;
+    width: 100%;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 0 11px;
+    border: 1px solid var(--ledger-edge);
+    border-radius: 9px;
+    color: var(--ledger-ink);
+    background: rgba(255, 255, 255, 0.5);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+    text-align: center;
+    text-decoration: none;
+    transition:
+        color 180ms ease,
+        border-color 180ms ease,
+        background 180ms ease;
+}
+
+.acc-ledger-action:hover {
+    border-color: rgba(15, 95, 128, 0.25);
+    color: var(--ledger-blue);
+    background: white;
+}
+
+.acc-ledger-action.is-primary {
+    border-color: var(--ledger-ink);
+    color: white;
+    background: var(--ledger-ink);
+}
+
+.acc-ledger-action.is-primary:hover {
+    border-color: var(--ledger-blue);
+    color: white;
+    background: var(--ledger-blue);
+}
+
+.acc-ledger-action svg {
+    width: 14px;
+    height: 14px;
+    stroke-width: 1.7;
+}
+
+.acc-ledger-action svg.is-open {
+    transform: rotate(180deg);
+}
+
+.acc-ledger-action:focus-visible,
+.acc-ledger-more button:focus-visible,
+.acc-ledger-message button:focus-visible {
+    outline: 2px solid var(--ledger-blue);
+    outline-offset: 2px;
+}
+
+.acc-ledger-archive-note {
+    margin-top: 14px;
+    padding-top: 13px;
+    border-top: 1px solid var(--ledger-rule);
+    color: var(--ledger-muted);
+    font-size: 10px;
+    line-height: 1.4;
+}
+
+.acc-ledger-skeletons {
+    display: grid;
+    gap: 12px;
+}
+
+.acc-ledger-skeleton {
+    display: grid;
+    min-height: 190px;
+    grid-template-columns: 140px minmax(0, 1fr) 175px;
+    gap: 22px;
+    padding: 11px;
+    border: 1px solid var(--ledger-edge);
+    border-radius: 16px;
+    background: var(--ledger-paper);
+}
+
+.acc-ledger-skeleton > span,
+.acc-ledger-skeleton > div,
+.acc-ledger-skeleton > i {
+    border-radius: 10px;
+}
+
+.acc-ledger-skeleton > div {
+    display: grid;
+    align-content: center;
+    gap: 10px;
+    background: transparent;
+}
+
+.acc-ledger-skeleton > div i {
+    display: block;
+    height: 10px;
+    border-radius: 5px;
+}
+
+.acc-ledger-skeleton > div i:first-child {
+    width: 35%;
+}
+
+.acc-ledger-skeleton > div i:nth-child(2) {
+    width: 78%;
+    height: 22px;
+}
+
+.acc-ledger-skeleton > div i:last-child {
+    width: 56%;
+}
+
+.acc-ledger-message {
+    display: grid;
+    min-height: 230px;
+    place-items: center;
+    padding: 32px 24px;
+    border: 1px solid var(--ledger-edge);
+    border-radius: 16px;
+    background: var(--ledger-paper);
+    text-align: center;
+}
+
+.acc-ledger-message__icon {
+    display: grid;
+    width: 46px;
+    height: 46px;
+    margin: 0 auto;
+    place-items: center;
+    border: 1px solid var(--ledger-edge);
+    border-radius: 50%;
+    color: var(--ledger-blue);
+}
+
+.acc-ledger-message.is-error .acc-ledger-message__icon {
+    color: var(--ledger-danger);
+}
+
+.acc-ledger-message__icon svg {
+    width: 18px;
+    height: 18px;
+    stroke-width: 1.6;
+}
+
+.acc-ledger-message h3 {
+    margin-top: 15px;
+    font-size: 20px;
+    font-weight: 500;
+    letter-spacing: -0.025em;
+    line-height: 1.2;
+}
+
+.acc-ledger-message p {
+    max-width: 430px;
+    margin: 7px auto 0;
+    color: var(--ledger-muted);
+    font-size: 12px;
+    line-height: 1.55;
+}
+
+.acc-ledger-message button {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    gap: 8px;
+    margin-top: 17px;
+    padding: 0 15px;
+    border: 1px solid var(--ledger-ink);
+    border-radius: 9px;
+    color: white;
+    background: var(--ledger-ink);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.acc-ledger-message button svg {
+    width: 15px;
+    height: 15px;
+}
+
+.acc-ledger-more {
+    padding-top: 16px;
+}
+
+.acc-ledger-more p {
+    margin-bottom: 8px;
+    color: var(--ledger-danger);
+    font-size: 11px;
+    text-align: center;
+}
+
+.acc-ledger-more button {
+    display: flex;
+    width: 100%;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: 1px solid var(--ledger-edge);
+    border-radius: 10px;
+    color: var(--ledger-muted);
+    background: var(--ledger-paper);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.acc-ledger-more button:hover {
+    border-color: rgba(15, 95, 128, 0.25);
+    color: var(--ledger-blue);
+}
+
+.acc-ledger-more button:disabled {
+    cursor: wait;
+    opacity: 0.5;
+}
+
+.acc-ledger-more svg {
+    width: 15px;
+    height: 15px;
+}
+
+@media (max-width: 800px) {
+    .acc-ledger-list {
+        gap: 12px;
+    }
+
+    .acc-ledger-transaction {
+        min-height: 0;
+        grid-template-columns: 106px minmax(0, 1fr);
+        border-radius: 14px;
+    }
+
+    .acc-ledger-transaction__media {
+        margin: 7px 0 7px 7px;
+        border-radius: 8px;
+    }
+
+    .acc-ledger-transaction__media::after,
+    .acc-ledger-transaction__media figcaption {
+        display: none;
+    }
+
+    .acc-ledger-transaction__body {
+        padding: 17px 16px 15px;
+    }
+
+    .acc-ledger-transaction__kicker {
+        font-size: 8px;
+    }
+
+    .acc-ledger-transaction__identity h3 {
+        margin-top: 5px;
+        font-size: 17px;
+        line-height: 1.08;
+    }
+
+    .acc-ledger-transaction__receipt {
+        margin-top: 5px;
+        font-size: 8.5px;
+    }
+
+    .acc-ledger-transaction__meta {
+        gap: 5px 8px;
+        margin-top: 10px;
+        font-size: 9px;
+    }
+
+    .acc-ledger-transaction__meta span + span::before {
+        margin-right: 8px;
+    }
+
+    .acc-ledger-booking-details,
+    .acc-ledger-membership {
+        margin-top: 13px;
+        padding-top: 10px;
+    }
+
+    .acc-ledger-membership__cell + .acc-ledger-membership__cell {
+        margin-left: 9px;
+        padding-left: 9px;
+    }
+
+    .acc-ledger-membership small {
+        font-size: 7.5px;
+        letter-spacing: 0.09em;
+    }
+
+    .acc-ledger-membership strong {
+        margin-top: 4px;
+        font-size: 9.5px;
+    }
+
+    .acc-ledger-transaction__stub {
+        display: grid;
+        grid-column: 1 / -1;
+        grid-template-columns: minmax(0, 1fr) minmax(120px, 0.75fr);
+        gap: 10px 16px;
+        padding: 14px 16px 13px;
+        border-top: 1px dashed rgba(17, 23, 29, 0.26);
+        border-left: 0;
+        border-radius: 0 0 13px 13px;
+    }
+
+    .acc-ledger-transaction__stub::before,
+    .acc-ledger-transaction__stub::after {
+        top: -11px;
+        bottom: auto;
+        width: 10px;
+        height: 20px;
+    }
+
+    .acc-ledger-transaction__stub::before {
+        left: -1px;
+        border-top: 1px solid var(--ledger-edge);
+        border-left: 0;
+        border-radius: 0 11px 11px 0;
+    }
+
+    .acc-ledger-transaction__stub::after {
+        right: -1px;
+        left: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--ledger-edge);
+        border-radius: 11px 0 0 11px;
+    }
+
+    .acc-ledger-stub__amount {
+        margin-top: 7px;
+        font-size: 20px;
+    }
+
+    .acc-ledger-stub__status {
+        margin-top: 5px;
+        font-size: 9.5px;
+    }
+
+    .acc-ledger-stub__label,
+    .acc-ledger-stub__serial {
+        font-size: 8px;
+    }
+
+    .acc-ledger-stub__serial {
+        margin-top: 0;
+        padding-top: 0;
+        text-align: right;
+    }
+
+    .acc-ledger-transaction__actions,
+    .acc-ledger-archive-note {
+        grid-column: 1 / -1;
+    }
+
+    .acc-ledger-transaction__actions {
+        grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+        gap: 6px;
+        margin-top: 9px;
+        padding-top: 10px;
+    }
+
+    .acc-ledger-skeleton {
+        grid-template-columns: 110px minmax(0, 1fr);
+    }
+
+    .acc-ledger-skeleton > i {
+        grid-column: 1 / -1;
+        min-height: 72px;
+    }
+}
+
+@media (max-width: 620px) {
+    .acc-ledger-summary {
+        grid-template-columns: 1fr;
+        gap: 8px;
+        padding-bottom: 14px;
+    }
+
+    .acc-ledger-summary h3 {
+        margin-top: 5px;
+        font-size: 27px;
+    }
+
+    .acc-ledger-summary__facts {
+        justify-content: flex-start;
+        gap: 5px 10px;
+        font-size: 9.5px;
+    }
+
+    .acc-ledger-summary__facts span + span::before {
+        margin-right: 8px;
+    }
+
+    .acc-ledger-heading {
+        align-items: flex-start;
+        margin: 18px 2px 10px;
+    }
+
+    .acc-ledger-heading h3 {
+        font-size: 17px;
+    }
+
+    .acc-ledger-booking {
+        grid-template-columns: 40px minmax(0, 1fr) auto;
+        align-items: start;
+        gap: 6px 8px;
+        padding-block: 9px;
+    }
+
+    .acc-ledger-booking__visual {
+        grid-row: 1 / span 2;
+        width: 40px;
+        height: 40px;
+        border-radius: 7px;
+    }
+
+    .acc-ledger-booking__name {
+        grid-column: 2 / -1;
+    }
+
+    .acc-ledger-booking__name h4 {
+        font-size: 10.5px;
+    }
+
+    .acc-ledger-booking__name p,
+    .acc-ledger-booking__schedule span,
+    .acc-ledger-booking__price span {
+        font-size: 8.5px;
+    }
+
+    .acc-ledger-booking__schedule {
+        grid-column: 2;
+    }
+
+    .acc-ledger-booking__price {
+        grid-column: 3;
+        min-width: 82px;
+        text-align: right;
+    }
+
+    .acc-ledger-booking__price strong {
+        margin-top: 3px;
+        font-size: 10px;
+    }
+}
+
+@media (max-width: 480px) {
+    .acc-ledger-transaction {
+        grid-template-columns: 88px minmax(0, 1fr);
+    }
+
+    .acc-ledger-transaction__media {
+        height: auto;
+        min-height: 148px;
+        margin: 6px 0 6px 6px;
+        border-radius: 7px;
+    }
+
+    .acc-ledger-transaction__body {
+        padding: 14px 12px 12px;
+    }
+
+    .acc-ledger-transaction__identity h3 {
+        font-size: 15.5px;
+    }
+
+    .acc-ledger-transaction__receipt,
+    .acc-ledger-transaction__meta > span:nth-child(n + 3) {
+        display: none;
+    }
+
+    .acc-ledger-membership {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 7px;
+    }
+
+    .acc-ledger-membership__cell:nth-child(3) {
+        display: none;
+    }
+
+    .acc-ledger-membership__cell + .acc-ledger-membership__cell {
+        margin-left: 0;
+        padding-top: 0;
+        padding-left: 0;
+        border-top: 0;
+        border-left: 0;
+    }
+
+    .acc-ledger-transaction__stub {
+        grid-template-columns: minmax(0, 1fr) minmax(104px, 0.72fr);
+        gap: 9px 12px;
+        padding: 12px 13px 11px;
+    }
+
+    .acc-ledger-stub__serial {
+        text-align: right;
+    }
+
+    .acc-ledger-stub__serial b {
+        margin-top: 4px;
+        font-size: 8.5px;
+    }
+
+    .acc-ledger-transaction__actions {
+        grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+    }
+
+    .acc-ledger-action {
+        min-height: 44px;
+        padding-inline: 8px;
+        font-size: 10px;
+    }
+
+    .acc-ledger-archive-note {
+        margin-top: 9px;
+        padding-top: 9px;
+        font-size: 8.5px;
+    }
+
+    .acc-ledger-skeleton {
+        min-height: 230px;
+        grid-template-columns: 88px minmax(0, 1fr);
+        gap: 10px;
+        padding: 9px;
+    }
+
+    .acc-ledger-skeleton > span {
+        min-height: 145px;
+    }
+
+    .acc-ledger-skeleton > i {
+        grid-column: 1 / -1;
+        min-height: 58px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .acc-ledger-transaction,
+    .acc-ledger-transaction__media img,
+    .acc-ledger-action {
+        transition: none;
+    }
+}

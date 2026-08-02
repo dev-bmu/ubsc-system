@@ -1,0 +1,495 @@
+.membership-modal-heading {
+    max-width: 27rem;
+    margin-bottom: -0.09em;
+    padding-bottom: 0.09em;
+    color: #0b0c0d;
+    font-family: "BDO Grotesk", Arial, sans-serif;
+    font-size: 1.44rem;
+    font-style: normal;
+    font-weight: 600;
+    letter-spacing: -0.058em;
+    line-height: 1.16;
+    text-wrap: pretty;
+}
+
+.membership-registration-heading {
+    width: 100%;
+    max-width: none;
+}
+
+.membership-registration-input:-webkit-autofill,
+.membership-registration-input:-webkit-autofill:hover,
+.membership-registration-input:-webkit-autofill:focus {
+    -webkit-text-fill-color: #181a1d;
+    box-shadow: 0 0 0 1000px #f5f5f4 inset;
+    transition: background-color 9999s ease-out;
+}
+
+.membership-select-trigger {
+    position: relative;
+    display: flex;
+    cursor: pointer;
+    align-items: center;
+    padding-right: 2.7rem;
+    text-align: left;
+}
+
+.membership-select-trigger.is-placeholder {
+    color: #8d8d8d;
+}
+
+.membership-form-field {
+    position: relative;
+    z-index: 1;
+}
+
+.membership-form-field:focus-within {
+    z-index: 120;
+}
+
+@supports selector(:has(*)) {
+    .membership-form-field:has(
+            [data-membership-dropdown-open="true"]
+        ) {
+        z-index: 120;
+    }
+}
+
+.membership-select-chevron {
+    position: absolute;
+    top: 50%;
+    right: 0.48rem;
+    display: flex;
+    width: 1.45rem;
+    height: 1.45rem;
+    pointer-events: none;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(14, 18, 22, 0.055);
+    border-radius: 0.28rem;
+    background: rgba(14, 18, 22, 0.045);
+    color: rgba(31, 41, 55, 0.68);
+    transform: translateY(-50%);
+}
+
+.membership-select-chevron svg {
+    transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.membership-select-chevron.is-open svg {
+    transform: rotate(180deg);
+}
+
+.membership-plan-options,
+.membership-compact-options {
+    max-height: 16rem;
+    max-height: min(16rem, 40dvh);
+    overflow-x: hidden;
+    overflow-y: auto;
+    border: 1px solid rgba(14, 18, 22, 0.1);
+    border-radius: 0.42rem;
+    background: #fff;
+    box-shadow: 0 0.7rem 1.8rem rgba(14, 18, 22, 0.11);
+    overscroll-behavior-y: contain;
+    scrollbar-color: rgba(21, 103, 141, 0.38) transparent;
+    scrollbar-width: thin;
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
+    transform-origin: top;
+    transition:
+        opacity 150ms ease,
+        transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.membership-plan-options[data-scrollable="true"] {
+    max-height: 11.125rem;
+    max-height: min(11.125rem, 40dvh);
+    scrollbar-gutter: stable;
+}
+
+.membership-plan-options::-webkit-scrollbar,
+.membership-compact-options::-webkit-scrollbar {
+    width: 0.3rem;
+}
+
+.membership-plan-options::-webkit-scrollbar-track,
+.membership-compact-options::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.membership-plan-options::-webkit-scrollbar-thumb,
+.membership-compact-options::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(21, 103, 141, 0.38);
+}
+
+.membership-compact-options[data-closed] {
+    opacity: 0;
+    transform: translateY(-0.2rem) scale(0.985);
+}
+
+.membership-compact-option {
+    display: flex;
+    width: 100%;
+    min-height: 2.15rem;
+    cursor: pointer;
+    align-items: center;
+    gap: 0.48rem;
+    border-bottom: 1px solid rgba(14, 18, 22, 0.07);
+    padding: 0.42rem 0.62rem;
+    background: #fff;
+    color: #171a1d;
+    font-family: "BDO Grotesk", Arial, sans-serif;
+    font-size: 0.72rem;
+    font-weight: 500;
+    line-height: 1.1;
+    text-align: left;
+    outline: none;
+    transition:
+        background-color 140ms ease,
+        color 140ms ease;
+}
+
+.membership-compact-option:last-child {
+    border-bottom: 0;
+}
+
+.membership-compact-option[data-focus] {
+    background: #f2f3f3;
+}
+
+.membership-compact-option[data-selected] {
+    background: #101112;
+    color: #fff;
+}
+
+.membership-compact-option__index {
+    width: 1.45rem;
+    flex: 0 0 auto;
+    color: rgba(23, 26, 29, 0.4);
+    font-size: 0.58rem;
+    letter-spacing: -0.02em;
+}
+
+.membership-compact-option[data-selected]
+    .membership-compact-option__index {
+    color: rgba(255, 255, 255, 0.52);
+}
+
+.membership-compact-option__check {
+    width: 0.78rem;
+    height: 0.78rem;
+    flex: 0 0 auto;
+    opacity: 0;
+}
+
+.membership-compact-option[data-selected]
+    .membership-compact-option__check {
+    opacity: 1;
+}
+
+.membership-plan-select,
+.membership-plan-option,
+.membership-payment-summary {
+    --membership-tier-color: #15678d;
+    --membership-tier-soft: rgba(21, 103, 141, 0.1);
+}
+
+.membership-plan-select[data-tier="hemat"],
+.membership-plan-option[data-tier="hemat"],
+.membership-payment-summary[data-tier="hemat"] {
+    --membership-tier-color: #667079;
+    --membership-tier-soft: rgba(102, 112, 121, 0.11);
+}
+
+.membership-plan-select[data-tier="favorit"],
+.membership-plan-option[data-tier="favorit"],
+.membership-payment-summary[data-tier="favorit"] {
+    --membership-tier-color: #15678d;
+    --membership-tier-soft: rgba(21, 103, 141, 0.1);
+}
+
+.membership-plan-select[data-tier="performa"],
+.membership-plan-option[data-tier="performa"],
+.membership-payment-summary[data-tier="performa"] {
+    --membership-tier-color: #e00000;
+    --membership-tier-soft: rgba(224, 0, 0, 0.08);
+}
+
+.membership-plan-select[data-tier="eksklusif"],
+.membership-plan-option[data-tier="eksklusif"],
+.membership-payment-summary[data-tier="eksklusif"] {
+    --membership-tier-color: #e77800;
+    --membership-tier-soft: rgba(231, 120, 0, 0.1);
+}
+
+.membership-payment-summary__signal {
+    width: 0.38rem;
+    height: 0.38rem;
+    flex: 0 0 auto;
+    background: var(--membership-tier-color);
+    box-shadow: 0 0 0 0.22rem var(--membership-tier-soft);
+    transform: rotate(45deg);
+}
+
+.membership-plan-select__index,
+.membership-plan-option__index {
+    color: var(--membership-tier-color);
+}
+
+.membership-plan-select__index {
+    flex: 0 0 auto;
+    font-family: "BDO Grotesk", Arial, sans-serif;
+    font-size: 0.64rem;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+}
+
+.membership-plan-select.is-placeholder .membership-plan-select__index {
+    color: rgba(23, 26, 29, 0.35);
+}
+
+.membership-plan-select__price {
+    color: rgba(0, 0, 0, 0.42);
+    font-family: "BDO Grotesk", Arial, sans-serif;
+    font-size: 0.62rem;
+    font-weight: 500;
+}
+
+.membership-plan-option {
+    min-height: 2.75rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    color: #171a1d;
+    outline: none;
+}
+
+.membership-plan-option:last-child {
+    border-bottom: 0;
+}
+
+.membership-plan-option.is-focused {
+    background: rgba(0, 0, 0, 0.045);
+}
+
+.membership-plan-option.is-selected {
+    background: #101112;
+    color: #fff;
+}
+
+.membership-plan-option__meta {
+    color: rgba(0, 0, 0, 0.44);
+}
+
+.membership-plan-option__value {
+    color: rgba(0, 0, 0, 0.58);
+}
+
+.membership-plan-option.is-selected .membership-plan-option__index,
+.membership-plan-option.is-selected .membership-plan-option__meta,
+.membership-plan-option.is-selected .membership-plan-option__value {
+    color: rgba(255, 255, 255, 0.62);
+}
+
+.membership-payment-stage__eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    color: rgba(0, 0, 0, 0.48);
+    font-family: "BDO Grotesk", Arial, sans-serif;
+    font-size: 0.66rem;
+    font-weight: 500;
+}
+
+.membership-payment-stage__eyebrow > span {
+    width: 0.36rem;
+    height: 0.36rem;
+    background: #18a044;
+    transform: rotate(45deg);
+}
+
+.membership-payment-summary {
+    position: relative;
+    display: flex;
+    min-height: 4.15rem;
+    align-items: center;
+    gap: 0.8rem;
+    overflow: hidden;
+    border-top: 1px solid rgba(0, 0, 0, 0.12);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+    padding: 0.7rem 0.15rem;
+}
+
+.membership-payment-summary::after {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 1px;
+    content: "";
+    background: linear-gradient(
+        90deg,
+        var(--membership-tier-color),
+        transparent 42%
+    );
+    opacity: 0.68;
+}
+
+.membership-registration-submit {
+    display: flex;
+    width: 100%;
+    height: 2.75rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.52rem;
+    border: 1px solid #0e1012;
+    border-radius: 999px;
+    background: #0e1012;
+    color: #fff;
+    font-family: "BDO Grotesk", Arial, sans-serif;
+    font-size: 0.78rem;
+    font-weight: 500;
+    box-shadow: 0 0.85rem 1.7rem rgba(0, 0, 0, 0.15);
+    transition:
+        transform 280ms cubic-bezier(0.16, 1, 0.3, 1),
+        box-shadow 280ms cubic-bezier(0.16, 1, 0.3, 1),
+        opacity 180ms ease;
+}
+
+.membership-registration-submit--checkout {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    justify-content: center;
+    border: 0;
+    border-radius: 5px;
+    padding: 0 2.8rem;
+    background: linear-gradient(
+        105deg,
+        #08151b 0%,
+        #0d4055 54%,
+        #15678d 100%
+    );
+    color: #fff;
+    letter-spacing: -0.01em;
+    box-shadow: 0 0.65rem 1.5rem rgba(5, 39, 53, 0.18);
+}
+
+.membership-registration-submit__label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.membership-registration-submit__icon {
+    position: absolute;
+    right: 0.85rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.94);
+    transition: transform 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.membership-registration-submit:hover:not(:disabled) {
+    transform: translateY(-0.12rem);
+    box-shadow: 0 1rem 2rem rgba(0, 0, 0, 0.19);
+}
+
+.membership-registration-submit--checkout:hover:not(:disabled) {
+    box-shadow: 0 0.8rem 1.7rem rgba(5, 39, 53, 0.24);
+}
+
+.membership-registration-submit--checkout:hover:not(:disabled)
+    .membership-registration-submit__icon {
+    transform: translate(0.12rem, -0.12rem);
+}
+
+.membership-registration-submit--checkout:focus-visible {
+    outline: 2px solid rgba(21, 103, 141, 0.34);
+    outline-offset: 3px;
+}
+
+.membership-registration-submit:disabled {
+    cursor: not-allowed;
+    opacity: 0.48;
+}
+
+@media (max-width: 1023px) {
+    .membership-registration-modal.auth-modal-open {
+        animation-name: membership-modal-mobile-enter;
+        animation-duration: 620ms;
+        animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+        animation-fill-mode: both;
+    }
+
+    .membership-registration-panel {
+        -webkit-backdrop-filter: none !important;
+        backdrop-filter: none !important;
+        filter: none !important;
+        -webkit-font-smoothing: antialiased;
+    }
+
+    .membership-modal-heading {
+        max-width: none;
+        font-size: 1.38rem;
+        text-wrap: wrap;
+    }
+}
+
+@media (max-width: 479px) {
+    .membership-registration-panel .auth-modal-content {
+        padding-top: 1.7rem;
+        padding-bottom: 0.7rem;
+    }
+
+    .membership-registration-input {
+        height: 2.3rem;
+    }
+}
+
+@media (max-width: 639px) {
+    .membership-plan-options,
+    .membership-compact-options {
+        max-height: 15rem;
+        max-height: min(15rem, 42dvh);
+        transform-origin: bottom;
+    }
+
+    .membership-plan-options[data-scrollable="true"] {
+        max-height: 11.125rem;
+        max-height: min(11.125rem, 42dvh);
+    }
+}
+
+@keyframes membership-modal-mobile-enter {
+    from {
+        opacity: 0;
+        transform: translateY(1.4rem);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .membership-registration-modal,
+    .membership-registration-submit,
+    .membership-plan-option,
+    .membership-compact-option,
+    .membership-compact-options {
+        animation: none !important;
+        transition: none !important;
+        transform: none !important;
+    }
+
+    .membership-select-chevron svg {
+        transition: none !important;
+    }
+
+    .membership-registration-submit__icon {
+        transition: none !important;
+        transform: none !important;
+    }
+}

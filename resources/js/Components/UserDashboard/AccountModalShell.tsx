@@ -1,24 +1,15 @@
-import { ReactNode, useCallback, useEffect, useState } from "react";
-import { X } from "lucide-react";
+import {
+    CSSProperties,
+    KeyboardEvent as ReactKeyboardEvent,
+    ReactNode,
+    useCallback,
+    useEffect,
+    useId,
+    useRef,
+    useState,
+} from "react";
+import { ShieldCheck, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Guilloche, Microtext, FoilText, Serial, Perforation } from "./PassKit";
-
-/* ════════════════════════════════════════════════════════════════════
-   ACCOUNT MODAL SHELL — "Obsidian Lux" Premium dialog frame
-   --------------------------------------------------------------------
-   Award-caliber, fully CSS-driven (no framer-motion). Shared by
-   ProfileModal · PaymentHistoryModal · GymMembershipModal.
-
-   Signature moments:
-     • Smooth aurora gradient banner — drifting glow blobs
-     • Cinematic entrance with spring-bounce overshoot
-     • One-shot specular sheen wipe on open
-     • Editorial entrance: UB/wordmark clip-reveal, title prints up,
-       hairline rule draws itself, body cascades on a stagger
-     • Frosted close button that spins its glyph on hover
-     • Graceful exit via [data-leaving] + deferred unmount
-     • Desktop dialog ↔ mobile bottom-sheet, reduced-motion safe
-   ════════════════════════════════════════════════════════════════════ */
 
 export interface AccountModalShellProps {
     bannerGradient: string;
@@ -27,13 +18,405 @@ export interface AccountModalShellProps {
     subtitle: string;
     wordmark: string;
     accent?: string;
-    /** Engraved serial shown top-right of the pass header */
     serial?: string;
+    index?: string;
     onClose: () => void;
     children: ReactNode;
     footer?: ReactNode;
     maxWidthClass?: string;
 }
+
+const sectionIndex: Record<string, string> = {
+    Profil: "01",
+    Riwayat: "02",
+    Member: "03",
+    Membership: "03",
+    Bantuan: "04",
+};
+
+const ACCOUNT_WORKSPACE_CSS = String.raw`
+    .ae-root {
+        --ae-ink: #10151c;
+        --ae-night: #0b1219;
+        --ae-paper: #fcfcfb;
+        --ae-bed: #f3f3f0;
+        --ae-muted: #69717a;
+        --ae-line: rgba(16,21,28,.10);
+        --ae-blue: #15678d;
+        --ae-red: #ff0000;
+        position: fixed;
+        inset: 0;
+        z-index: 220;
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+        isolation: isolate;
+        font-family: "BDO Grotesk", sans-serif;
+        font-synthesis: none;
+    }
+    .ae-console,
+    .ae-console * { font-family: "BDO Grotesk", sans-serif !important; }
+    .ae-backdrop {
+        position: absolute;
+        inset: 0;
+        border: 0;
+        background:
+            radial-gradient(circle at 18% 8%, rgba(21,103,141,.17), transparent 34%),
+            radial-gradient(circle at 86% 92%, rgba(255,0,0,.08), transparent 31%),
+            rgba(4,8,12,.78);
+        backdrop-filter: blur(16px) saturate(.86);
+        animation: ae-backdrop-in .24s ease both;
+    }
+    .ae-backdrop[data-leaving="true"] { animation: ae-backdrop-out .18s ease both; }
+    .ae-console {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        width: 100%;
+        max-height: 96dvh;
+        flex-direction: column;
+        overflow: hidden;
+        border-radius: 15px 15px 0 0;
+        color: var(--ae-ink);
+        background: var(--ae-night);
+        box-shadow: 0 40px 110px -34px rgba(0,0,0,.82), inset 0 1px rgba(255,255,255,.12);
+        animation: ae-console-in .34s cubic-bezier(.16,1,.3,1) both;
+        transform-origin: 50% 100%;
+    }
+    .ae-console[data-leaving="true"] { animation: ae-console-out .18s cubic-bezier(.4,0,1,1) both; }
+    .ae-stage {
+        position: relative;
+        height: 132px;
+        flex: none;
+        overflow: hidden;
+        padding: 17px 18px 0;
+        color: white;
+        background:
+            radial-gradient(ellipse at 73% 6%, rgba(21,103,141,.18), transparent 42%),
+            linear-gradient(145deg, #121b24 0%, #0b1219 58%, #080d12 100%);
+    }
+    .ae-stage::before,
+    .ae-stage::after { position: absolute; content: ""; pointer-events: none; }
+    .ae-stage::before {
+        inset: 0;
+        background:
+            linear-gradient(90deg, transparent 0 13%, rgba(255,255,255,.045) 13% 13.15%, transparent 13.15% 49%, rgba(255,255,255,.04) 49% 49.12%, transparent 49.12% 82%, rgba(255,255,255,.035) 82% 82.12%, transparent 82.12%),
+            radial-gradient(ellipse at 18% 104%, rgba(255,0,0,.055), transparent 34%),
+            radial-gradient(ellipse at 78% 98%, rgba(21,103,141,.14), transparent 40%);
+        opacity: .82;
+    }
+    .ae-stage::after {
+        right: -4%;
+        bottom: 31px;
+        width: 57%;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(153,205,232,.22), rgba(153,205,232,.04));
+        box-shadow: 0 0 18px rgba(21,103,141,.08);
+    }
+    .ae-stage[data-surface="history"]::after,
+    .ae-stage[data-surface="support"]::after {
+        right: auto;
+        left: -10%;
+        background: linear-gradient(90deg, rgba(255,0,0,.03), rgba(255,0,0,.17), transparent);
+        box-shadow: 0 0 18px rgba(255,0,0,.045);
+    }
+    .ae-topline {
+        position: relative;
+        z-index: 2;
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 18px;
+    }
+    .ae-context { display: flex; min-width: 0; align-items: flex-start; gap: 10px; }
+    .ae-context__mark {
+        width: 3px;
+        height: 30px;
+        flex: none;
+        border-radius: 2px;
+        background: linear-gradient(to bottom, var(--ae-accent), color-mix(in srgb,var(--ae-accent) 38%,transparent));
+        box-shadow: 0 0 18px color-mix(in srgb,var(--ae-accent) 24%,transparent);
+    }
+    .ae-context__copy { min-width: 0; }
+    .ae-context__title {
+        overflow: hidden;
+        color: rgba(255,255,255,.95);
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1.2;
+        letter-spacing: -.012em;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .ae-context__meta {
+        margin-top: 4px;
+        color: rgba(255,255,255,.54);
+        font-size: 11px;
+        line-height: 1.3;
+    }
+    .ae-head-actions { display: flex; flex: none; align-items: center; gap: 10px; }
+    .ae-section-index {
+        color: rgba(255,255,255,.73);
+        font-size: 11px;
+        font-weight: 500;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: .025em;
+    }
+    .ae-close {
+        display: grid;
+        width: 34px;
+        height: 34px;
+        place-items: center;
+        border: 1px solid rgba(255,255,255,.14);
+        border-radius: 10px;
+        color: rgba(255,255,255,.86);
+        background: rgba(255,255,255,.065);
+        transition: color .2s ease, background .2s ease, transform .2s ease;
+    }
+    .ae-close svg { width: 15px; height: 15px; stroke-width: 1.7; }
+    .ae-close:hover { color: white; background: rgba(255,255,255,.12); transform: translateY(-1px); }
+    .ae-close:focus-visible { outline: 2px solid rgba(255,255,255,.88); outline-offset: 2px; }
+    .ae-stage-rail {
+        position: absolute;
+        z-index: 2;
+        right: 18px;
+        bottom: 24px;
+        left: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        color: rgba(255,255,255,.48);
+        font-size: 11px;
+        line-height: 1.25;
+    }
+    .ae-stage-rail__secure { display: inline-flex; align-items: center; gap: 7px; }
+    .ae-stage-rail__secure svg { width: 13px; height: 13px; color: rgba(162,205,230,.84); stroke-width: 1.7; }
+    .ae-paper {
+        position: relative;
+        z-index: 3;
+        display: flex;
+        min-height: 0;
+        flex: 1;
+        flex-direction: column;
+        margin-top: -28px;
+        overflow: hidden;
+        border-radius: 15px 15px 0 0;
+        background: var(--ae-paper);
+        box-shadow: 0 -1px rgba(255,255,255,.92), 0 -18px 44px rgba(0,0,0,.09);
+    }
+    .ae-identity {
+        position: relative;
+        flex: none;
+        padding: 23px 18px 18px;
+    }
+    .ae-identity::after {
+        position: absolute;
+        right: 18px;
+        bottom: 0;
+        left: 18px;
+        height: 1px;
+        content: "";
+        background: linear-gradient(90deg, var(--ae-line), rgba(16,21,28,.025) 72%, transparent);
+    }
+    .ae-title {
+        max-width: 26ch;
+        color: var(--ae-ink);
+        font-size: clamp(27px,7vw,34px);
+        font-weight: 600;
+        line-height: 1;
+        letter-spacing: -.035em;
+        text-wrap: balance;
+    }
+    .ae-subtitle {
+        max-width: 72ch;
+        margin-top: 8px;
+        color: rgba(16,21,28,.59);
+        font-size: 12.5px;
+        line-height: 1.48;
+        text-wrap: pretty;
+    }
+    .ae-content-frame {
+        display: flex;
+        min-height: 0;
+        flex: 1;
+        flex-direction: column;
+        margin: 12px 9px 9px;
+        overflow: hidden;
+        border-radius: 15px;
+        background: var(--ae-bed);
+        box-shadow: inset 0 1px rgba(255,255,255,.9), inset 0 0 0 1px rgba(16,21,28,.025);
+    }
+    .ae-scroll {
+        min-height: 0;
+        flex: 1;
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding: 17px 14px max(20px,env(safe-area-inset-bottom));
+        color: var(--ae-ink);
+        font-size: 13px;
+        line-height: 1.5;
+        scrollbar-color: rgba(16,21,28,.22) transparent;
+        scrollbar-width: thin;
+    }
+    .ae-scroll :where(p, label, small, input, select, textarea, button, a) { font-family: "BDO Grotesk", sans-serif !important; }
+    .ae-scroll :where(input, select, textarea) { font-size: 14px !important; }
+    .ae-scroll::-webkit-scrollbar { width: 5px; }
+    .ae-scroll::-webkit-scrollbar-track { background: transparent; }
+    .ae-scroll::-webkit-scrollbar-thumb { border-radius: 999px; background: rgba(16,21,28,.2); }
+    .ae-dock {
+        position: relative;
+        flex: none;
+        padding: 0 14px max(12px,env(safe-area-inset-bottom));
+        background: linear-gradient(to bottom, rgba(243,243,240,.35), var(--ae-bed) 34%);
+    }
+    .ae-dock__actions { padding-top: 10px; border-top: 1px solid var(--ae-line); }
+    .ae-primary,
+    .ae-secondary {
+        display: flex;
+        min-height: 48px;
+        width: 100%;
+        align-items: center;
+        border-radius: 10px;
+        font-size: 13px;
+        font-weight: 600;
+        transition: transform .2s ease, color .2s ease, background .2s ease, border-color .2s ease;
+    }
+    .ae-primary {
+        justify-content: space-between;
+        gap: 14px;
+        padding: 5px 5px 5px 17px;
+        border: 1px solid var(--ae-ink);
+        color: white;
+        background: var(--ae-ink);
+        box-shadow: 0 14px 28px -22px rgba(16,21,28,.82);
+    }
+    .ae-primary:hover { transform: translateY(-1px); background: #05090d; }
+    .ae-primary:disabled { cursor: not-allowed; opacity: .45; transform: none; }
+    .ae-primary__copy { display: flex; min-width: 0; align-items: center; gap: 9px; }
+    .ae-primary__orb {
+        display: grid;
+        width: 36px;
+        height: 36px;
+        flex: none;
+        place-items: center;
+        border-radius: 8px;
+        color: var(--ae-ink);
+        background: white;
+        transform: rotate(-45deg);
+        transition: transform .55s cubic-bezier(.76,0,.24,1), color .2s ease, background .2s ease;
+    }
+    .ae-primary:hover .ae-primary__orb,
+    .ae-primary:focus-visible .ae-primary__orb { transform: rotate(0deg); }
+    .ae-cta-arrow { display: block; width: 16px; height: 16px; flex: none; overflow: visible; }
+    .ae-secondary {
+        justify-content: center;
+        gap: 8px;
+        padding: 0 17px;
+        border: 1px solid var(--ae-line);
+        color: rgba(16,21,28,.66);
+        background: rgba(255,255,255,.55);
+    }
+    .ae-secondary svg { width: 15px; height: 15px; stroke-width: 1.7; }
+    .ae-secondary:hover { color: var(--ae-ink); border-color: rgba(16,21,28,.18); background: white; transform: translateY(-1px); }
+    .ae-primary:focus-visible,
+    .ae-secondary:focus-visible { outline: 2px solid var(--ae-blue); outline-offset: 2px; }
+    .ae-root:is([data-account-surface="membership"], [data-account-surface="ledger"]) .ae-console,
+    .ae-root:is([data-account-surface="membership"], [data-account-surface="ledger"]) .ae-stage::after,
+    .ae-root:is([data-account-surface="membership"], [data-account-surface="ledger"]) .ae-context__mark,
+    .ae-root:is([data-account-surface="membership"], [data-account-surface="ledger"]) .ae-paper,
+    .ae-root:is([data-account-surface="membership"], [data-account-surface="ledger"]) .ae-content-frame,
+    .ae-root:is([data-account-surface="membership"], [data-account-surface="ledger"]) .ae-primary {
+        box-shadow: none;
+    }
+    @keyframes ae-console-in {
+        from { opacity: 0; transform: translate3d(0,28px,0) scale(.982); }
+        to { opacity: 1; transform: translate3d(0,0,0) scale(1); }
+    }
+    @keyframes ae-console-out {
+        from { opacity: 1; transform: translate3d(0,0,0) scale(1); }
+        to { opacity: 0; transform: translate3d(0,18px,0) scale(.99); }
+    }
+    @keyframes ae-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes ae-backdrop-out { from { opacity: 1; } to { opacity: 0; } }
+    @media (min-width: 640px) {
+        .ae-root { align-items: center; padding: 18px; }
+        .ae-console {
+            width: min(960px,calc(100vw - 44px));
+            max-height: min(88dvh,790px);
+            border-radius: 15px;
+            transform-origin: 50% 50%;
+        }
+        .ae-stage { height: 148px; padding: 20px 26px 0; }
+        .ae-stage-rail { right: 26px; bottom: 27px; left: 26px; }
+        .ae-paper { margin-top: -31px; border-radius: 15px; }
+        .ae-identity { padding: 25px 28px 19px; }
+        .ae-identity::after { right: 28px; left: 28px; }
+        .ae-title { font-size: 34px; }
+        .ae-subtitle { max-width: 76ch; font-size: 13px; }
+        .ae-content-frame { margin: 13px 17px 15px; }
+        .ae-scroll { padding: 22px 23px 24px; }
+        .ae-dock { padding: 0 23px 13px; }
+    }
+    @media (max-width: 639px) {
+        .ae-stage-rail > span:first-child { display: none; }
+        .ae-stage-rail { justify-content: flex-end; }
+        .ae-title { max-width: 20ch; }
+        .ae-close { width: 42px; height: 42px; }
+        .ae-root:is([data-account-surface="membership"], [data-account-surface="ledger"]) .ae-stage {
+            height: 110px;
+            padding: 14px 14px 0;
+        }
+        .ae-root:is([data-account-surface="membership"], [data-account-surface="ledger"]) .ae-stage-rail {
+            right: 14px;
+            bottom: 15px;
+            left: 14px;
+        }
+        .ae-root:is([data-account-surface="membership"], [data-account-surface="ledger"]) .ae-paper {
+            margin-top: -18px;
+        }
+        .ae-root:is([data-account-surface="membership"], [data-account-surface="ledger"]) .ae-identity {
+            padding: 17px 16px 13px;
+        }
+        .ae-root:is([data-account-surface="membership"], [data-account-surface="ledger"]) .ae-identity::after {
+            right: 16px;
+            left: 16px;
+        }
+        .ae-root:is([data-account-surface="membership"], [data-account-surface="ledger"]) .ae-title {
+            max-width: 18ch;
+            font-size: 26px;
+        }
+        .ae-root:is([data-account-surface="membership"], [data-account-surface="ledger"]) .ae-subtitle {
+            margin-top: 5px;
+            font-size: 11.5px;
+            line-height: 1.35;
+        }
+        .ae-root:is([data-account-surface="membership"], [data-account-surface="ledger"]) .ae-content-frame {
+            margin: 8px 6px 6px;
+            border-radius: 12px;
+        }
+        .ae-root:is([data-account-surface="membership"], [data-account-surface="ledger"]) .ae-scroll {
+            padding: 10px 8px 12px;
+        }
+        .ae-root:is([data-account-surface="membership"], [data-account-surface="ledger"]) .ae-dock {
+            padding: 0 8px max(8px,env(safe-area-inset-bottom));
+        }
+        .ae-root:is([data-account-surface="membership"], [data-account-surface="ledger"]) .ae-dock__actions {
+            padding-top: 8px;
+        }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .ae-console,
+        .ae-backdrop { animation: none !important; }
+        .ae-primary,
+        .ae-primary__orb,
+        .ae-secondary,
+        .ae-close { transition: none !important; }
+    }
+`;
+
+type AccountWorkspaceStyle = CSSProperties & { "--ae-accent": string };
 
 export default function AccountModalShell({
     bannerGradient,
@@ -41,248 +424,184 @@ export default function AccountModalShell({
     title,
     subtitle,
     wordmark,
-    accent = "#D50000",
-    serial = "UBSC · 2026",
+    accent = "#15678d",
+    serial = "UBSC / 2026",
+    index,
     onClose,
     children,
     footer,
-    maxWidthClass = "sm:max-w-lg",
+    maxWidthClass = "sm:max-w-2xl",
 }: AccountModalShellProps) {
     const [leaving, setLeaving] = useState(false);
+    const dialogRef = useRef<HTMLDivElement>(null);
+    const closeTimerRef = useRef<number | null>(null);
+    const titleId = useId();
+    const descriptionId = useId();
+    const number = index ?? sectionIndex[wordmark] ?? "01";
 
-    /* Animate out, then unmount via parent's onClose */
     const requestClose = useCallback(() => {
-        setLeaving((l) => {
-            if (l) return l;
-            window.setTimeout(onClose, 250);
+        setLeaving((current) => {
+            if (current) return current;
+            closeTimerRef.current = window.setTimeout(onClose, 180);
             return true;
         });
     }, [onClose]);
 
-    /* Page scroll lock — locks the real scroll element (<html>, used by
-       Lenis), not just <body>. Compensates scrollbar width to avoid a
-       layout jump. The modal's own content still scrolls natively because
-       the overlay carries data-lenis-prevent. */
+    useEffect(() => () => {
+        if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current);
+    }, []);
+
     useEffect(() => {
         const html = document.documentElement;
         const body = document.body;
         const scrollbar = window.innerWidth - html.clientWidth;
-        const prev = {
+        const previous = {
             htmlOverflow: html.style.overflow,
             bodyOverflow: body.style.overflow,
-            htmlPadRight: html.style.paddingRight,
+            htmlPaddingRight: html.style.paddingRight,
         };
+
         html.style.overflow = "hidden";
         body.style.overflow = "hidden";
         if (scrollbar > 0) html.style.paddingRight = `${scrollbar}px`;
+
+        const previouslyFocused = document.activeElement as HTMLElement | null;
+        window.requestAnimationFrame(() => {
+            dialogRef.current
+                ?.querySelector<HTMLElement>(
+                    "button, a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])",
+                )
+                ?.focus({ preventScroll: true });
+        });
+
         return () => {
-            html.style.overflow = prev.htmlOverflow;
-            body.style.overflow = prev.bodyOverflow;
-            html.style.paddingRight = prev.htmlPadRight;
+            html.style.overflow = previous.htmlOverflow;
+            body.style.overflow = previous.bodyOverflow;
+            html.style.paddingRight = previous.htmlPaddingRight;
+            previouslyFocused?.focus?.({ preventScroll: true });
         };
     }, []);
 
-    /* Escape to close */
     useEffect(() => {
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key === "Escape") requestClose();
+        const onKey = (event: KeyboardEvent) => {
+            if (event.key === "Escape") requestClose();
         };
         document.addEventListener("keydown", onKey);
         return () => document.removeEventListener("keydown", onKey);
     }, [requestClose]);
 
+    const trapFocus = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+        if (event.key !== "Tab" || !dialogRef.current) return;
+        const focusable = Array.from(
+            dialogRef.current.querySelectorAll<HTMLElement>(
+                "button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])",
+            ),
+        ).filter((element) => element.offsetParent !== null);
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+        }
+    };
+
     return (
         <div
-            className="fixed inset-0 z-[200] flex items-end justify-center sm:items-center sm:p-4"
+            className="ae-root"
+            style={{ "--ae-accent": accent } as AccountWorkspaceStyle}
+            data-account-surface={bannerGradient}
             data-lenis-prevent
         >
-            {/* Backdrop — enhanced with blur transition */}
-            <div
-                className="kl-backdrop absolute inset-0 bg-navy-950/60 backdrop-blur-xl"
+            <style>{ACCOUNT_WORKSPACE_CSS}</style>
+            <button
+                type="button"
+                className="ae-backdrop"
                 data-leaving={leaving}
                 onClick={requestClose}
+                aria-label="Tutup panel akun"
+                tabIndex={-1}
             />
 
-            {/* Dialog / bottom sheet */}
             <div
-                className={cn(
-                    "kl-dialog kl-glass-border relative z-10 flex w-full flex-col overflow-hidden bg-[#FAF9F7]",
-                    "max-h-[94vh] rounded-t-[32px] sm:max-h-[92vh] sm:rounded-[30px]",
-                    "shadow-[0_-8px_60px_rgba(7,21,48,0.35)] sm:shadow-[0_32px_100px_-24px_rgba(7,21,48,0.6),0_0_0_1px_rgba(255,255,255,0.08)]",
-                    maxWidthClass,
-                )}
+                ref={dialogRef}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby={titleId}
+                aria-describedby={descriptionId}
+                onKeyDown={trapFocus}
+                className={cn("ae-console", maxWidthClass)}
                 data-leaving={leaving}
             >
-                {/* Mobile grab handle */}
-                <div className="flex justify-center pt-2.5 sm:hidden">
-                    <span className="h-1.5 w-11 rounded-full bg-navy-900/15" />
-                </div>
-
-                {/* ── PASS HEADER — Aurora Gradient ── */}
-                <div
-                    className={cn(
-                        "pass-foil-host relative isolate overflow-hidden bg-gradient-to-br px-6 pb-8 pt-3 sm:px-7",
-                        bannerGradient,
-                    )}
-                >
-                    {/* Aurora wave background (replaces old Guilloché moiré) */}
-                    <Guilloche />
-
-                    {/* One-shot specular sheen on open */}
-                    <div className="kl-sheen-bar" aria-hidden="true" />
-                    <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white/25" />
-
-                    {/* Security microtext top border */}
-                    <Microtext
-                        className="relative -mx-6 mb-3 text-white/35 sm:-mx-7"
-                        text="UB Sport Center · Member Pass"
-                    />
-
-                    {/* Close button — frosted glass with rotation glow */}
-                    <button
-                        type="button"
-                        onClick={requestClose}
-                        aria-label="Tutup"
-                        className="kl-close absolute right-4 top-7 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white/90 backdrop-blur-sm hover:bg-white/25 hover:text-white"
-                    >
-                        <X className="h-4 w-4" />
-                    </button>
-
-                    {/* Brand mark row — foil + serial */}
-                    <div className="relative flex items-start justify-between pr-10">
-                        <div
-                            className="kl-clip"
-                            style={{ ["--i" as string]: 0 }}
-                        >
-                            <span className="flex items-baseline gap-2">
-                                <FoilText className="font-clash text-2xl font-bold tracking-tight">
-                                    UB
-                                </FoilText>
-                                <span className="font-clash text-[10px] font-semibold uppercase tracking-[0.3em] text-white/45">
-                                    Sport Center
-                                </span>
-                            </span>
+                <header className="ae-stage" data-surface={bannerGradient}>
+                    <div className="ae-topline">
+                        <div className="ae-context">
+                            <span className="ae-context__mark" aria-hidden="true" />
+                            <div className="ae-context__copy">
+                                <p className="ae-context__title">{eyebrow}</p>
+                                <p className="ae-context__meta">{wordmark} · pusat akun</p>
+                            </div>
+                        </div>
+                        <div className="ae-head-actions">
+                            <span className="ae-section-index">{String(number).padStart(2, "0")} / 04</span>
+                            <button type="button" className="ae-close" onClick={requestClose} aria-label="Tutup">
+                                <X aria-hidden="true" />
+                            </button>
                         </div>
                     </div>
-
-                    {/* Pass type wordmark */}
-                    <div className="relative mt-4 flex items-end justify-between pr-2">
-                        <div>
-                            <p
-                                className="kl-stagger font-bdo text-[9px] font-bold uppercase tracking-[0.3em] text-white/40"
-                                style={{ ["--i" as string]: 1 }}
-                            >
-                                Member Pass
-                            </p>
-                            <h3
-                                className="kl-clip font-clash text-[26px] font-bold uppercase leading-none tracking-tight text-white sm:text-[30px]"
-                                style={{ ["--i" as string]: 2 }}
-                            >
-                                <span>{wordmark}</span>
-                            </h3>
-                        </div>
-                        <Serial
-                            className="kl-stagger mb-0.5 text-[10px] font-semibold uppercase text-white/45"
-                            style={{ ["--i" as string]: 3 }}
-                        >
-                            № {serial}
-                        </Serial>
+                    <div className="ae-stage-rail">
+                        <span>{serial}</span>
+                        <span className="ae-stage-rail__secure"><ShieldCheck aria-hidden="true" /> Sesi akun terlindungi</span>
                     </div>
-                </div>
+                </header>
 
-                {/* Ticket perforation seam */}
-                <Perforation />
-
-                {/* ── Title block ── */}
-                <div className="flex-shrink-0 px-6 pt-5 sm:px-7">
-                    <p
-                        className="kl-stagger flex items-center gap-1.5 font-bdo text-[10px] font-bold uppercase tracking-[0.22em]"
-                        style={{ color: accent, ["--i" as string]: 1 }}
-                    >
-                        <span
-                            className="inline-block h-1.5 w-1.5 rounded-full"
-                            style={{
-                                background: accent,
-                                animation:
-                                    "kl-dot-pulse 3s ease-in-out infinite",
-                            }}
-                        />
-                        {eyebrow}
-                    </p>
-                    <h2
-                        className="kl-stagger mt-1.5 font-clash text-[22px] font-semibold leading-tight text-navy-900"
-                        style={{ ["--i" as string]: 2 }}
-                    >
-                        {title}
-                    </h2>
-                    <p
-                        className="kl-stagger mt-1 font-bdo text-[13px] leading-relaxed text-navy-900/55"
-                        style={{ ["--i" as string]: 3 }}
-                    >
-                        {subtitle}
-                    </p>
-                    <div
-                        className="kl-rule mt-4 h-px w-full bg-gradient-to-r from-navy-900/20 via-navy-900/10 to-transparent"
-                        style={{ ["--i" as string]: 4 }}
-                    />
-                </div>
-
-                {/* ── Scrollable content ── */}
-                <div className="account-modal-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5 sm:px-7">
-                    {children}
-                </div>
-
-                {/* ── Sticky footer ── */}
-                {footer && (
-                    <div className="relative flex-shrink-0 border-t border-navy-900/[0.07] bg-[#FAF9F7]/95 px-6 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 backdrop-blur-sm sm:px-7">
-                        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white/60" />
-                        {footer}
+                <section className="ae-paper">
+                    <div className="ae-identity">
+                        <h2 id={titleId} className="ae-title">{title}</h2>
+                        <p id={descriptionId} className="ae-subtitle">{subtitle}</p>
                     </div>
-                )}
+
+                    <div className="ae-content-frame">
+                        <div className="account-modal-scroll ae-scroll">{children}</div>
+                        {footer && <footer className="ae-dock"><div className="ae-dock__actions">{footer}</div></footer>}
+                    </div>
+                </section>
             </div>
         </div>
     );
 }
 
-/* ── Shared buttons (bevel + hover sheen + tactile press) ── */
-
-export function PrimaryButton({
-    children,
-    className,
-    ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+export function PrimaryButton({ children, className, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
     return (
-        <button
-            {...props}
-            className={cn(
-                "group relative flex h-[52px] w-full items-center justify-center gap-2.5 overflow-hidden rounded-2xl bg-navy-900 px-5 font-clash text-[15px] font-semibold text-white transition-all hover:bg-navy-800 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50",
-                "shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_10px_24px_-8px_rgba(11,30,59,0.6)] active:shadow-[inset_0_3px_8px_rgba(0,0,0,0.32)]",
-                className,
-            )}
-        >
-            {/* Hover sheen */}
-            <span
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-0 -translate-x-[130%] skew-x-[-18deg] bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-[230%]"
-            />
-            <span className="relative flex items-center gap-2.5">{children}</span>
+        <button {...props} className={cn("ae-primary", className)}>
+            <span className="ae-primary__copy">{children}</span>
+            <span className="ae-primary__orb" aria-hidden="true"><AccountCtaArrow /></span>
         </button>
     );
 }
 
-export function SecondaryButton({
-    children,
-    className,
-    ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+export function AccountCtaArrow({ className }: { className?: string }) {
     return (
-        <button
-            {...props}
-            className={cn(
-                "flex h-[48px] w-full items-center justify-center gap-2 rounded-2xl bg-transparent px-5 font-clash text-[14px] font-semibold text-navy-900/60 transition-all hover:bg-navy-900/[0.04] hover:text-navy-900 active:scale-[0.99]",
-                className,
-            )}
+        <svg
+            className={cn("ae-cta-arrow", className)}
+            viewBox="0 0 72 72"
+            fill="none"
+            aria-hidden="true"
         >
+            <path d="M24 36H53" stroke="currentColor" strokeWidth="3.8" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M42 22L56 36L42 50" stroke="currentColor" strokeWidth="3.8" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M29 32.8C32.6 34.9 36 35.8 40 36" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" opacity=".48" />
+        </svg>
+    );
+}
+
+export function SecondaryButton({ children, className, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+    return (
+        <button {...props} className={cn("ae-secondary", className)}>
+            <X aria-hidden="true" />
             {children}
         </button>
     );

@@ -259,7 +259,13 @@ export default function UserDashboardModal({
     useEffect(() => {
         axios
             .get("/user/transactions")
-            .then((response) => setTransactions(response.data))
+            .then((response) =>
+                setTransactions(
+                    Array.isArray(response.data)
+                        ? response.data
+                        : (response.data?.data ?? []),
+                ),
+            )
             .catch(() => setTransactionError("Data transaksi belum bisa dimuat."))
             .finally(() => setLoadingTransactions(false));
     }, []);
@@ -392,9 +398,15 @@ export default function UserDashboardModal({
                         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                             <div className="flex items-center gap-3 pr-12">
                                 <img
-                                    src="/UBSC.svg"
+                                    src="/assets/brand/ubsc-logo-640.webp"
                                     alt="UB Sport Center"
                                     className="h-9 w-auto object-contain"
+                                    width={640}
+                                    height={320}
+                                    decoding="async"
+                                    style={{
+                                        filter: "brightness(0) invert(1)",
+                                    }}
                                 />
                                 <div className="h-8 w-px bg-white/15" />
                                 <div>
@@ -1383,7 +1395,7 @@ function SupportSection() {
                 </h3>
                 <div className="mt-4 space-y-3">
                     <ContactItem icon={Mail} label="Email" value="contact@ubsportcenter.co.id" />
-                    <ContactItem icon={Phone} label="Telepon" value="0341 579956" />
+                    <ContactItem icon={Phone} label="Telepon" value="0341 5799155" />
                     <ContactItem icon={MapPin} label="Lokasi" value="Jl. Terusan Cibogo No.1, Malang" />
                 </div>
             </section>
