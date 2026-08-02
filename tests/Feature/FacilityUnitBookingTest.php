@@ -2,13 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Http\Resources\Public\FacilityResource;
 use App\Models\Booking;
 use App\Models\BookingSchedule;
 use App\Models\Facility;
 use App\Models\FacilityCategory;
 use App\Models\FacilityPrice;
 use App\Models\User;
-use App\Http\Resources\Public\FacilityResource;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Spatie\Permission\Models\Permission;
@@ -108,6 +108,62 @@ class FacilityUnitBookingTest extends TestCase
             ->assertJsonPath('slots.0.facility_unit_id', $unit->id);
     }
 
+    public function test_public_booking_slots_reject_inactive_facility(): void
+    {
+        $facility = $this->facility();
+        $facility->update(['is_active' => false]);
+
+        $this->getJson(route('booking.slots', [
+            'facility_id' => $facility->id,
+            'date' => Carbon::now()->addDay()->toDateString(),
+        ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('facility_id');
+    }
+
+    public function test_public_booking_slots_reject_past_date(): void
+    {
+        $facility = $this->facility();
+
+        $this->getJson(route('booking.slots', [
+            'facility_id' => $facility->id,
+            'date' => Carbon::now()->subDay()->toDateString(),
+        ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('date');
+    }
+
+    public function test_public_booking_slots_reject_unit_outside_active_facility(): void
+    {
+        [$facility, $unit] = $this->facilityWithUnit();
+        $otherFacility = Facility::create([
+            'facility_category_id' => $facility->facility_category_id,
+            'name' => 'Lapangan Badminton',
+            'slug' => 'lapangan-badminton',
+            'capacity' => 1,
+            'is_active' => true,
+        ]);
+        $date = Carbon::now()->addDay()->toDateString();
+
+        $this->getJson(route('booking.slots', [
+            'facility_id' => $otherFacility->id,
+            'facility_unit_id' => $unit->id,
+            'date' => $date,
+        ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('facility_unit_id');
+
+        $unit->update(['is_active' => false]);
+
+        $this->getJson(route('booking.slots', [
+            'facility_id' => $facility->id,
+            'facility_unit_id' => $unit->id,
+            'date' => $date,
+        ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('facility_unit_id');
+    }
+
     public function test_unit_booking_collision_does_not_block_sibling_unit(): void
     {
         [$facility, $unitOne] = $this->facilityWithUnit('Lapangan Tenis 1');
@@ -201,8 +257,11 @@ class FacilityUnitBookingTest extends TestCase
         ))->resolve();
 
         $this->assertArrayNotHasKey('units', $publicListingPayload);
+        $this->assertArrayHasKey('active_slots', $publicListingPayload);
         $this->assertArrayHasKey('units', $bookingPayload);
         $this->assertSame('Lapangan Tenis 1', $bookingPayload['units'][0]['name']);
+        $this->assertArrayHasKey('use_custom_schedule', $bookingPayload['units'][0]);
+        $this->assertArrayHasKey('active_slots', $bookingPayload['units'][0]);
     }
 
     public function test_unit_with_booking_history_cannot_be_deleted(): void
@@ -236,7 +295,7 @@ class FacilityUnitBookingTest extends TestCase
     }
 
     /**
-     * @param array<int, string> $permissions
+     * @param  array<int, string>  $permissions
      */
     private function staffUser(array $permissions): User
     {
@@ -315,7 +374,7 @@ class FacilityUnitBookingTest extends TestCase
     }
 
     /**
-     * @param array<int, array<string, mixed>> $slots
+     * @param  array<int, array<string, mixed>>  $slots
      */
     private function slotStatus(array $slots, string $label): ?string
     {

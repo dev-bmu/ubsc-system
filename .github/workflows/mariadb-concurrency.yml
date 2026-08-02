@@ -1,0 +1,105 @@
+name: Critical multi-process concurrency
+
+on:
+  pull_request:
+  push:
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mariadb-concurrency-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  required-concurrency:
+    # Keep this job name stable so it can be selected as a required status
+    # check in the repository ruleset/branch-protection settings.
+    name: Required multi-process concurrency (MariaDB/InnoDB)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      APP_ENV: testing
+      APP_DEBUG: "false"
+      APP_KEY: base64:MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: "3306"
+      DB_DATABASE: ubsc_race_ci_${{ github.run_id }}_${{ github.run_attempt }}
+      DB_USERNAME: root
+      DB_PASSWORD: concurrency_only
+      DB_STRICT_MODE: "true"
+
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_DATABASE: ubsc_race_ci_${{ github.run_id }}_${{ github.run_attempt }}
+          MARIADB_ROOT_PASSWORD: concurrency_only
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mariadb-admin ping --host=127.0.0.1 --user=root --password=concurrency_only --silent"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: bcmath, dom, fileinfo, gd, intl, mbstring, pdo_mysql
+          coverage: none
+          tools: composer:v2
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Refuse any non-isolated database
+        run: >-
+          php -r '$name = (string) getenv("DB_DATABASE");
+          if (preg_match("/\Aubsc_race_[a-z0-9_]+\z/", $name) !== 1) {
+              fwrite(STDERR, "Refusing concurrency CI database: {$name}\n");
+              exit(1);
+          }'
+
+      - name: Verify real MariaDB with InnoDB row locking
+        run: |
+          php -r '
+          $dsn = sprintf(
+              "mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4",
+              getenv("DB_HOST"),
+              getenv("DB_PORT"),
+              getenv("DB_DATABASE"),
+          );
+          $pdo = new PDO($dsn, getenv("DB_USERNAME"), getenv("DB_PASSWORD"), [
+              PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+          ]);
+          $version = (string) $pdo->query("SELECT VERSION()")?->fetchColumn();
+          $engine = (string) $pdo->query("SELECT @@default_storage_engine")?->fetchColumn();
+          if (stripos($version, "mariadb") === false || strcasecmp($engine, "InnoDB") !== 0) {
+              fwrite(STDERR, "Concurrency gate requires MariaDB/InnoDB; got {$version} / {$engine}.\n");
+              exit(1);
+          }
+          fwrite(STDOUT, "Concurrency database verified: MariaDB / InnoDB.\n");
+          '
+
+      - name: Migrate isolated race database
+        run: php artisan migrate --force --no-interaction
+
+      - name: Run small multi-process concurrency suite
+        run: >-
+          vendor/bin/phpunit
+          --configuration phpunit.mariadb.xml
+          tests/Integration/MariaDbBookingConcurrencyTest.php
+          --stop-on-failure

@@ -2,17 +2,20 @@
 
 namespace App\Services;
 
-use App\Models\Booking;
-use App\Models\BookingSchedule;
 use App\Models\Facility;
 use App\Models\FacilityUnit;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class BookingCartValidator
 {
+    public function __construct(
+        private readonly BookingAvailabilityService $availabilityService,
+    ) {}
+
     /**
-     * @param array<int, array<string, mixed>> $items
+     * @param  array<int, array<string, mixed>>  $items
      * @return array<int, array<string, mixed>>
      */
     public function validate(array $items): array
@@ -35,7 +38,7 @@ class BookingCartValidator
     }
 
     /**
-     * @param array<string, mixed> $item
+     * @param  array<string, mixed>  $item
      * @return array<string, mixed>
      */
     private function validateItem(array $item, int $index): array
@@ -66,8 +69,15 @@ class BookingCartValidator
             ]);
         }
 
-        $facility = Facility::with(['units' => fn ($query) => $query->where('is_active', true)])
-            ->where('is_active', true)
+        $facility = Facility::with([
+            'category',
+            'media',
+            'prices',
+            'units' => fn ($query) => $query->where('is_active', true),
+            'units.media',
+            'units.prices',
+        ])
+            ->visibleInBookingDirectory()
             ->findOrFail((int) $item['facility_id']);
 
         $unitId = $item['facility_unit_id'] ?? null;
@@ -88,12 +98,25 @@ class BookingCartValidator
             }
         } elseif ($unitId) {
             $unit = FacilityUnit::where('facility_id', $facility->id)
+                ->with('media')
                 ->where('is_active', true)
                 ->findOrFail((int) $unitId);
         }
 
-        $this->ensureDateIsOpen($date, $index);
-        $this->ensureNoCollision($facility, $unit, $date->toDateString(), $startTime, $endTime, $index);
+        $inspection = $this->availabilityService->inspectSlot(
+            $facility,
+            $unit,
+            $date,
+            $startTime,
+            $endTime,
+        );
+
+        if (! $inspection['bookable']) {
+            $this->throwSlotValidationError(
+                (string) $inspection['reason'],
+                $index,
+            );
+        }
 
         return [
             'facility_id' => $facility->id,
@@ -102,57 +125,48 @@ class BookingCartValidator
             'start_time' => $startTime,
             'end_time' => $endTime,
             'facility_name' => $facility->name,
+            'image_url' => $unit?->getFirstMediaUrl('unit_image')
+                ?: $facility->getFirstMediaUrl('hero')
+                ?: $facility->getFirstMediaUrl('gallery')
+                ?: null,
             'facility_unit_name' => $unit?->name,
+            'category_name' => $facility->category?->name,
+            'category_slug' => $facility->category?->slug,
+            'location' => $facility->location,
+            'kind' => Str::contains(
+                Str::lower(implode(' ', array_filter([
+                    $facility->category?->slug,
+                    $facility->category?->name,
+                    $facility->class_code,
+                ]))),
+                ['kelas', 'class'],
+            ) ? 'class' : 'facility',
         ];
     }
 
-    private function ensureDateIsOpen(Carbon $date, int $index): void
+    private function throwSlotValidationError(string $reason, int $index): never
     {
-        $schedule = BookingSchedule::where('month', $date->month)
-            ->where('year', $date->year)
-            ->first();
-
-        if (! ($schedule?->is_open ?? false)) {
-            throw ValidationException::withMessages([
+        throw match ($reason) {
+            'month_closed' => ValidationException::withMessages([
                 "items.{$index}.booking_date" => 'Jadwal untuk bulan ini belum dibuka.',
-            ]);
-        }
-
-        $closedDates = BookingSchedule::cleanClosedDatesForMonth($schedule?->closed_dates, $date->month, $date->year);
-
-        if (in_array($date->toDateString(), $closedDates, true)) {
-            throw ValidationException::withMessages([
+            ]),
+            'date_closed' => ValidationException::withMessages([
                 "items.{$index}.booking_date" => 'Fasilitas tutup pada tanggal ini.',
-            ]);
-        }
-    }
-
-    private function ensureNoCollision(Facility $facility, ?FacilityUnit $unit, string $date, string $startTime, string $endTime, int $index): void
-    {
-        $capacity = $unit ? 1 : ($facility->capacity ?? 1);
-
-        $query = Booking::where('facility_id', $facility->id)
-            ->whereDate('booking_date', $date)
-            ->whereIn('status', ['pending', 'confirmed'])
-            ->where('start_time', '<', $endTime)
-            ->where('end_time', '>', $startTime);
-
-        if ($unit) {
-            $query->where(function ($inner) use ($unit) {
-                $inner->where('facility_unit_id', $unit->id)
-                    ->orWhereNull('facility_unit_id');
-            });
-        }
-
-        if ((int) $query->sum('pax') >= $capacity) {
-            throw ValidationException::withMessages([
+            ]),
+            'elapsed' => ValidationException::withMessages([
+                "items.{$index}.start_time" => 'Jadwal ini sudah berlalu. Pilih waktu lain.',
+            ]),
+            'full' => ValidationException::withMessages([
                 "items.{$index}.start_time" => 'Jadwal ini baru saja terisi. Pilih waktu lain.',
-            ]);
-        }
+            ]),
+            default => ValidationException::withMessages([
+                "items.{$index}.start_time" => 'Jadwal tidak tersedia atau berada di luar jam operasional.',
+            ]),
+        };
     }
 
     /**
-     * @param array<int, array<string, mixed>> $items
+     * @param  array<int, array<string, mixed>>  $items
      */
     private function ensureNoDuplicateOrOverlappingCartSlots(array $items): void
     {

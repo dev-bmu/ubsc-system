@@ -23,7 +23,7 @@ class BookingSeeder extends Seeder
             return;
         }
 
-        $facilities = Facility::where('is_active', true)->take(4)->get();
+        $facilities = Facility::visibleInBookingDirectory()->take(4)->get();
         if ($facilities->isEmpty()) {
             $this->command->warn('No active facilities found. Skipping BookingSeeder.');
             return;

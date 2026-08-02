@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
+use App\Models\BookingOrder;
 use App\Models\Membership;
 use App\Models\Transaction;
 use Illuminate\Database\Eloquent\Builder;
@@ -52,7 +53,7 @@ class FinanceReportController extends Controller
 
         $totalRevenue = (int) $paidTransactions->sum('amount');
         $bookingRevenue = (int) $paidTransactions
-            ->where('transactionable_type', Booking::class)
+            ->whereIn('transactionable_type', [Booking::class, BookingOrder::class])
             ->sum('amount');
         $membershipRevenue = (int) $paidTransactions
             ->where('transactionable_type', Membership::class)
@@ -86,7 +87,7 @@ class FinanceReportController extends Controller
                 'totalBookings' => Booking::whereMonth('booking_date', $month)
                     ->whereYear('booking_date', $year)
                     ->count(),
-                'activeMemberships' => Membership::where('status', 'active')->count(),
+                'activeMemberships' => Membership::effectiveAt()->count(),
             ],
             'revenueTrend' => $revenueTrend,
             'dailyRevenue' => $this->dailyRevenue($month, $year),
@@ -103,7 +104,7 @@ class FinanceReportController extends Controller
                     'amount' => $transaction->amount,
                     'user_name' => $this->customerName($transaction),
                     'paid_at' => $transaction->paid_at?->diffForHumans() ?? '-',
-                    'type' => class_basename($transaction->transactionable_type ?? ''),
+                    'type' => $this->transactionType($transaction),
                 ])
                 ->values()
                 ->all(),
@@ -130,19 +131,20 @@ class FinanceReportController extends Controller
     {
         $transactions->loadMorph('transactionable', [
             Booking::class => ['facility', 'facilityUnit'],
+            BookingOrder::class => ['bookings.facility', 'bookings.facilityUnit'],
             Membership::class => ['plan'],
         ]);
     }
 
     private function dailyRevenue(int $month, int $year): array
     {
-        $dailyRaw = DB::table('transactions')
+        $dailyRaw = Transaction::query()
             ->where('payment_status', 'PAID')
             ->whereMonth('paid_at', $month)
             ->whereYear('paid_at', $year)
-            ->selectRaw('DAY(paid_at) as day, SUM(amount) as total')
-            ->groupBy('day')
-            ->pluck('total', 'day');
+            ->get(['amount', 'paid_at'])
+            ->groupBy(fn (Transaction $transaction) => $transaction->paid_at?->day)
+            ->map(fn (EloquentCollection $transactions) => (int) $transactions->sum('amount'));
 
         $daysInMonth = Carbon::createFromDate($year, $month, 1)->daysInMonth;
 
@@ -154,12 +156,12 @@ class FinanceReportController extends Controller
 
     private function monthlyRevenue(int $year): array
     {
-        $monthlyRaw = DB::table('transactions')
+        $monthlyRaw = Transaction::query()
             ->where('payment_status', 'PAID')
             ->whereYear('paid_at', $year)
-            ->selectRaw('MONTH(paid_at) as month, SUM(amount) as total')
-            ->groupBy('month')
-            ->pluck('total', 'month');
+            ->get(['amount', 'paid_at'])
+            ->groupBy(fn (Transaction $transaction) => $transaction->paid_at?->month)
+            ->map(fn (EloquentCollection $transactions) => (int) $transactions->sum('amount'));
 
         return collect(range(1, 12))
             ->map(fn (int $month) => (int) ($monthlyRaw->get($month, 0)))
@@ -169,7 +171,7 @@ class FinanceReportController extends Controller
 
     private function facilityRevenue(int $month, int $year): array
     {
-        $rows = DB::table('transactions')
+        $directRows = DB::table('transactions')
             ->join('bookings', function ($join) {
                 $join->on('transactions.transactionable_id', '=', 'bookings.id')
                     ->where('transactions.transactionable_type', '=', Booking::class);
@@ -183,7 +185,79 @@ class FinanceReportController extends Controller
             ->orderByDesc('revenue')
             ->get();
 
+        $aggregates = $directRows
+            ->mapWithKeys(fn ($row) => [(string) $row->name => [
+                'revenue' => (int) $row->revenue,
+                'count' => (int) $row->count,
+            ]])
+            ->all();
+
+        $orderTransactions = $this->transactionsForPeriod($month, $year)
+            ->where('payment_status', 'PAID')
+            ->where('transactionable_type', BookingOrder::class)
+            ->with('transactionable')
+            ->get();
+
+        $orderTransactions->loadMorph('transactionable', [
+            BookingOrder::class => ['bookings.facility'],
+        ]);
+
+        foreach ($orderTransactions as $transaction) {
+            $bookings = $transaction->transactionable?->bookings;
+
+            if (! $bookings instanceof EloquentCollection || $bookings->isEmpty()) {
+                $this->addFacilityRevenue($aggregates, 'Tanpa fasilitas', (int) $transaction->amount);
+
+                continue;
+            }
+
+            $weights = $bookings->map(
+                fn (Booking $booking): int => max((int) $booking->subtotal_price, 0),
+            );
+            $totalWeight = (int) $weights->sum();
+
+            if ($totalWeight === 0) {
+                $weights = $bookings->map(fn (): int => 1);
+                $totalWeight = $bookings->count();
+            }
+
+            $remainingAmount = (int) $transaction->amount;
+            $lastIndex = $bookings->count() - 1;
+
+            foreach ($bookings->values() as $index => $booking) {
+                $allocatedAmount = $index === $lastIndex
+                    ? $remainingAmount
+                    : (int) floor(((int) $transaction->amount * (int) $weights->values()->get($index)) / $totalWeight);
+                $remainingAmount -= $allocatedAmount;
+
+                $this->addFacilityRevenue(
+                    $aggregates,
+                    $booking->facility?->name ?? 'Tanpa fasilitas',
+                    $allocatedAmount,
+                );
+            }
+        }
+
+        $rows = collect($aggregates)
+            ->map(fn (array $values, string $name) => (object) [
+                'name' => $name,
+                'revenue' => $values['revenue'],
+                'count' => $values['count'],
+            ])
+            ->sortByDesc('revenue')
+            ->values();
+
         return $this->mapBreakdownRows($rows);
+    }
+
+    /**
+     * @param  array<string, array{revenue: int, count: int}>  $aggregates
+     */
+    private function addFacilityRevenue(array &$aggregates, string $name, int $amount): void
+    {
+        $aggregates[$name] ??= ['revenue' => 0, 'count' => 0];
+        $aggregates[$name]['revenue'] += $amount;
+        $aggregates[$name]['count']++;
     }
 
     private function membershipPlanRevenue(int $month, int $year): array
@@ -267,7 +341,7 @@ class FinanceReportController extends Controller
     private function transactionType(Transaction $transaction): string
     {
         return match ($transaction->transactionable_type) {
-            Booking::class => 'booking',
+            Booking::class, BookingOrder::class => 'booking',
             Membership::class => 'membership',
             default => 'other',
         };
@@ -282,6 +356,29 @@ class FinanceReportController extends Controller
             $unit = $subject->facilityUnit?->name;
 
             return $unit ? "{$facility} - {$unit}" : $facility;
+        }
+
+        if ($subject instanceof BookingOrder) {
+            $bookings = $subject->bookings;
+
+            if ($bookings->isEmpty()) {
+                return 'Order reservasi';
+            }
+
+            $facilities = $bookings
+                ->map(fn (Booking $booking) => $booking->facility?->name)
+                ->filter()
+                ->unique()
+                ->values();
+            $label = $facilities->take(2)->implode(', ');
+
+            if ($facilities->count() > 2) {
+                $label .= ' +'.($facilities->count() - 2);
+            }
+
+            return $label !== ''
+                ? $bookings->count().' jadwal - '.$label
+                : $bookings->count().' jadwal reservasi';
         }
 
         if ($subject instanceof Membership) {

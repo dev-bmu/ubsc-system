@@ -5,15 +5,14 @@ namespace App\Services;
 use App\Models\Facility;
 use App\Models\FacilityUnit;
 use App\Support\FacilityPriceResolver;
+use Illuminate\Validation\ValidationException;
 
 class BookingPriceCalculator
 {
-    public function __construct(private readonly FacilityPriceResolver $priceResolver)
-    {
-    }
+    public function __construct(private readonly FacilityPriceResolver $priceResolver) {}
 
     /**
-     * @param array<int, array<string, mixed>> $mergedSlots
+     * @param  array<int, array<string, mixed>>  $mergedSlots
      * @return array{
      *     slots: array<int, array<string, mixed>>,
      *     subtotal_amount: int,
@@ -34,13 +33,46 @@ class BookingPriceCalculator
         foreach ($mergedSlots as $slot) {
             $facility = Facility::with('prices')->findOrFail((int) $slot['facility_id']);
             $unit = ! empty($slot['facility_unit_id'])
-                ? FacilityUnit::with('prices')->findOrFail((int) $slot['facility_unit_id'])
+                ? FacilityUnit::with('prices')
+                    ->where('facility_id', $facility->id)
+                    ->findOrFail((int) $slot['facility_unit_id'])
                 : null;
 
-            $amount = $this->calculateSlotAmount($facility, $unit, $priceCategory, $slot);
-            $standardAmount = $priceCategory === $fallbackCategory
-                ? $amount
-                : $this->calculateSlotAmount($facility, $unit, $fallbackCategory, $slot);
+            $sourceSlots = isset($slot['source_slots']) && is_array($slot['source_slots'])
+                ? array_values($slot['source_slots'])
+                : [$slot];
+            $amount = 0;
+            $standardAmount = 0;
+            $sourcePricing = [];
+
+            foreach ($sourceSlots as $sourceSlot) {
+                $sourceAmount = $this->calculateSlotAmount(
+                    $facility,
+                    $unit,
+                    $priceCategory,
+                    $sourceSlot,
+                );
+                $sourceStandardAmount = $priceCategory === $fallbackCategory
+                    ? $sourceAmount
+                    : $this->calculateSlotAmount(
+                        $facility,
+                        $unit,
+                        $fallbackCategory,
+                        $sourceSlot,
+                    );
+
+                $amount += $sourceAmount['amount'];
+                $standardAmount += $sourceStandardAmount['amount'];
+                $sourcePricing[] = [
+                    'start_time' => substr((string) $sourceSlot['start_time'], 0, 5),
+                    'end_time' => substr((string) $sourceSlot['end_time'], 0, 5),
+                    'price_rule_id' => $sourceAmount['price_rule_id'],
+                    'price_rule_type' => $sourceAmount['price_rule_type'],
+                    'amount' => $sourceAmount['amount'],
+                    'standard_amount' => $sourceStandardAmount['amount'],
+                    'components' => $sourceAmount['components'],
+                ];
+            }
 
             $subtotal += $amount;
             $standardSubtotal += $standardAmount;
@@ -49,6 +81,7 @@ class BookingPriceCalculator
                 ...$slot,
                 'subtotal_price' => $amount,
                 'standard_price' => $standardAmount,
+                'source_pricing' => $sourcePricing,
             ];
         }
 
@@ -73,27 +106,119 @@ class BookingPriceCalculator
     }
 
     /**
-     * @param array<string, mixed> $slot
+     * @param  array<string, mixed>  $slot
      */
-    private function calculateSlotAmount(Facility $facility, ?FacilityUnit $unit, string $priceCategory, array $slot): int
+    private function calculateSlotAmount(Facility $facility, ?FacilityUnit $unit, string $priceCategory, array $slot): array
     {
-        $price = $this->priceResolver->resolveForUnit(
-            $facility,
-            $unit,
-            $priceCategory,
-            (string) $slot['booking_date'],
-            (string) $slot['start_time'],
-            (string) $slot['end_time'],
-        );
-
-        if (! $price) {
-            return 0;
+        $startMinutes = $this->minutes((string) $slot['start_time']);
+        $endMinutes = $this->minutes((string) $slot['end_time']);
+        $durationMinutes = $endMinutes - $startMinutes;
+        if ($durationMinutes <= 0) {
+            throw ValidationException::withMessages([
+                'items' => 'Rentang waktu reservasi tidak valid.',
+            ]);
         }
 
-        $durationMinutes = $this->minutes((string) $slot['end_time']) - $this->minutes((string) $slot['start_time']);
-        $baseDuration = (int) ($price->duration_minutes ?: 60);
+        $boundaries = $this->pricingBoundaries($facility, $unit, $startMinutes, $endMinutes);
+        $amount = 0;
+        $components = [];
 
-        return (int) round(($durationMinutes / $baseDuration) * (int) $price->price);
+        for ($index = 0; $index < count($boundaries) - 1; $index++) {
+            $componentStart = $boundaries[$index];
+            $componentEnd = $boundaries[$index + 1];
+            $componentStartTime = $this->formatMinutes($componentStart);
+            $componentEndTime = $this->formatMinutes($componentEnd);
+            $price = $this->priceResolver->resolveForUnit(
+                $facility,
+                $unit,
+                $priceCategory,
+                (string) $slot['booking_date'],
+                $componentStartTime,
+                $componentEndTime,
+            );
+
+            if (! $price) {
+                throw ValidationException::withMessages([
+                    'items' => "Harga {$priceCategory} untuk {$facility->name} belum dikonfigurasi. Reservasi tidak dibuat.",
+                ]);
+            }
+
+            $baseDuration = max(1, (int) ($price->duration_minutes ?: 60));
+            $componentAmount = (int) round(
+                (($componentEnd - $componentStart) / $baseDuration) * (int) $price->price,
+            );
+            $amount += $componentAmount;
+            $components[] = [
+                'start_time' => $componentStartTime,
+                'end_time' => $componentEndTime,
+                'price_rule_id' => (int) $price->id,
+                'price_rule_type' => $price instanceof \App\Models\FacilityUnitPrice
+                    ? 'facility_unit_price'
+                    : 'facility_price',
+                'amount' => $componentAmount,
+            ];
+        }
+
+        $firstComponent = $components[0];
+
+        return [
+            'amount' => $amount,
+            'price_rule_id' => count($components) === 1 ? $firstComponent['price_rule_id'] : null,
+            'price_rule_type' => count($components) === 1 ? $firstComponent['price_rule_type'] : 'composite',
+            'components' => $components,
+        ];
+    }
+
+    public function calculateResourceAmount(
+        Facility $facility,
+        ?FacilityUnit $unit,
+        string $priceCategory,
+        string $bookingDate,
+        string $startTime,
+        string $endTime,
+    ): int {
+        return $this->calculateSlotAmount($facility, $unit, $priceCategory, [
+            'booking_date' => $bookingDate,
+            'start_time' => $startTime,
+            'end_time' => $endTime,
+        ])['amount'];
+    }
+
+    /**
+     * Pricing rules may begin or end inside one configured source slot. Split
+     * at those edges before resolving so a long slot cannot silently inherit
+     * the first or regular tariff for its full duration.
+     *
+     * @return array<int, int>
+     */
+    private function pricingBoundaries(
+        Facility $facility,
+        ?FacilityUnit $unit,
+        int $startMinutes,
+        int $endMinutes,
+    ): array {
+        $prices = collect($facility->relationLoaded('prices')
+            ? $facility->prices
+            : $facility->prices()->get());
+
+        if ($unit) {
+            $prices = $prices->concat(
+                $unit->relationLoaded('prices')
+                    ? $unit->prices
+                    : $unit->prices()->get(),
+            );
+        }
+
+        return $prices
+            ->flatMap(fn ($price): array => [$price->starts_at, $price->ends_at])
+            ->filter()
+            ->map(fn ($time): int => $this->minutes((string) $time))
+            ->filter(fn (int $minute): bool => $minute > $startMinutes && $minute < $endMinutes)
+            ->push($startMinutes, $endMinutes)
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
     }
 
     private function minutes(string $time): int
@@ -101,5 +226,10 @@ class BookingPriceCalculator
         [$hours, $minutes] = array_map('intval', explode(':', substr($time, 0, 5)));
 
         return ($hours * 60) + $minutes;
+    }
+
+    private function formatMinutes(int $minutes): string
+    {
+        return sprintf('%02d:%02d', intdiv($minutes, 60), $minutes % 60);
     }
 }
