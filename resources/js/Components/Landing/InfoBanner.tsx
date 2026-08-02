@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePage } from "@inertiajs/react";
 import type { PageProps } from "@/types";
@@ -6,10 +6,16 @@ import type { PageProps } from "@/types";
 const ANNOUNCEMENTS_FALLBACK = [
     "Jadwal Zumba 10.00-12.00 ✦ Jadwal Aerobik Saat ini Sedang Tutup",
     "Dapatkan Diskon 20% untuk Pendaftaran Member Tahunan Bulan Ini",
-    "UB Sport Center Buka Setiap Hari: 06.00 - 21.00 WIB",
+    "UB Sport Center Buka Setiap Hari: 06.00 - 22.00 WIB",
 ];
 
-export default function InfoBanner() {
+type InfoBannerProps = {
+    deferLoopAnimations?: boolean;
+};
+
+export default function InfoBanner({
+    deferLoopAnimations = false,
+}: InfoBannerProps) {
     const { announcements } = usePage<PageProps>().props;
     const messages =
         announcements && announcements.length > 0
@@ -17,20 +23,57 @@ export default function InfoBanner() {
             : ANNOUNCEMENTS_FALLBACK;
 
     const [index, setIndex] = useState(0);
+    const [loopActive, setLoopActive] = useState(!deferLoopAnimations);
+    const bannerRef = useRef<HTMLDivElement | null>(null);
 
     useEffect(() => {
         setIndex(0);
     }, [messages.length]);
 
     useEffect(() => {
+        if (!deferLoopAnimations) {
+            setLoopActive(true);
+            return;
+        }
+
+        const banner = bannerRef.current;
+        if (!banner) return;
+
+        const handleLoopActivity = (event: Event) => {
+            const detail = (event as CustomEvent<{ mode?: string }>).detail;
+            setLoopActive(detail?.mode === "running");
+        };
+
+        banner.addEventListener(
+            "pricing-loop-activity",
+            handleLoopActivity,
+        );
+
+        return () => {
+            banner.removeEventListener(
+                "pricing-loop-activity",
+                handleLoopActivity,
+            );
+        };
+    }, [deferLoopAnimations]);
+
+    useEffect(() => {
+        if (!loopActive || messages.length <= 1) return;
+
         const timer = setInterval(() => {
             setIndex((prev) => (prev + 1) % messages.length);
         }, 4000);
         return () => clearInterval(timer);
-    }, [messages.length]);
+    }, [loopActive, messages.length]);
 
     return (
-        <div className="fixed top-0 left-0 right-0 z-[55] h-8 w-full bg-[#252525] border-b border-white/10 flex items-center justify-center overflow-hidden px-4">
+        <div
+            ref={bannerRef}
+            data-pricing-loop-region={
+                deferLoopAnimations ? "true" : undefined
+            }
+            className="fixed top-0 left-0 right-0 z-[70] h-8 w-full bg-[#252525] border-b border-white/10 flex items-center justify-center overflow-hidden px-4"
+        >
             <AnimatePresence mode="wait">
                 <motion.p
                     key={index}

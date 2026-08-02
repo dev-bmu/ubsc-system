@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useHomepageEntranceReady } from "@/Components/Landing/HomepageEntranceContext";
 import SectionDivider from "@/Components/Landing/SectionDivider";
 import ReservasiButton from "@/Components/Landing/ReservasiButton";
 import PriceCard from "@/Components/Landing/PriceCard";
@@ -57,6 +58,10 @@ interface SectionSixProps {
 }
 
 export default function SectionSix({ facilities = [] }: SectionSixProps) {
+    const entranceReady = useHomepageEntranceReady();
+    const sectionRef = useRef<HTMLElement>(null);
+    const [isVisible, setIsVisible] = useState(false);
+    const [isComplete, setIsComplete] = useState(false);
     const prices: PriceItem[] = facilitiesToPriceItems(facilities);
     const totalPages = Math.ceil(prices.length / PAGE_SIZE);
     const [page, setPage] = useState(0);
@@ -71,30 +76,71 @@ export default function SectionSix({ facilities = [] }: SectionSixProps) {
     const prevDisabled = page === 0;
     const nextDisabled = page >= totalPages - 1;
 
+    useEffect(() => {
+        const section = sectionRef.current;
+        if (!section || !entranceReady || isVisible) return;
+
+        const reveal = () => setIsVisible(true);
+
+        if (
+            !("IntersectionObserver" in window) ||
+            window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ) {
+            reveal();
+            return;
+        }
+
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (!entry?.isIntersecting) return;
+                reveal();
+                observer.disconnect();
+            },
+            {
+                threshold: 0.08,
+                rootMargin: "0px 0px -8% 0px",
+            },
+        );
+
+        observer.observe(section);
+        return () => observer.disconnect();
+    }, [entranceReady, isVisible]);
+
+    useEffect(() => {
+        if (!isVisible) return;
+
+        const timer = window.setTimeout(() => setIsComplete(true), 1200);
+        return () => window.clearTimeout(timer);
+    }, [isVisible]);
+
     return (
-        <section id="pricing" className="w-full bg-white pb-12 pt-12 xl:pb-12">
+        <section
+            ref={sectionRef}
+            id="pricing"
+            className={`section-six-entrance w-full bg-white pb-12 pt-12 xl:pb-12 ${isVisible ? "is-visible" : ""} ${isComplete ? "is-complete" : ""}`}
+        >
             <div className="mx-auto w-full px-6 sm:px-10 xl:px-[55px]">
                 <SectionDivider
                     number="06"
                     title="Daftar harga"
                     subtitle="01 homepage"
                     theme="light"
-                    outerClassName="-mx-[clamp(0rem,1.65vw,2rem)]"
+                    outerClassName="section-six-reveal section-six-reveal--divider -mx-[clamp(0rem,1.65vw,2rem)]"
                     contentClassName="px-3"
                 />
 
                 <div className="mt-10 grid grid-cols-1 gap-12 md:mt-16 xl:grid-cols-[minmax(0,555px)_minmax(0,1fr)] xl:gap-[80px] xl:px-8">
                     <div className="flex min-w-0 flex-col">
-                        <div className="flex items-center gap-4 xl:gap-3">
+                        <div className="section-six-reveal section-six-reveal--eyebrow flex items-center gap-4 xl:gap-3">
                             <span className="section-label-diamond" />
-                            <span className="font-bdo text-[clamp(1.16rem,1.32vw,1.6rem)] font-medium tracking-[-0.025em] text-black">
+                            <span className="home-section-anchor font-bdo text-[clamp(1.16rem,1.32vw,1.6rem)] font-medium tracking-[-0.025em] text-black">
                                 Tarif Lapangan
                             </span>
                         </div>
 
                         <h2
                             aria-label="Raih Performa Terbaik Dengan Paket Fasilitas Unggulan"
-                            className="mt-7 max-w-[555px] font-bdo text-[clamp(2.05rem,8.15vw,2.82rem)] font-medium leading-[1.01] tracking-[-0.058em] text-gray-950 md:text-[clamp(2.08rem,4.5vw,2.6rem)] lg:text-[clamp(2.2rem,3.8vw,2.7rem)] xl:text-[clamp(2.65rem,2.92vw,3.5rem)]"
+                            className="home-section-heading home-section-six-headline section-six-reveal section-six-reveal--headline section-two-headline-weight mt-7 max-w-[555px] font-bdo text-[clamp(2.05rem,8.15vw,2.82rem)] font-medium leading-[1.01] tracking-[-0.058em] text-gray-950 md:text-[clamp(2.08rem,4.5vw,2.6rem)] lg:text-[clamp(2.2rem,3.8vw,2.7rem)] xl:text-[clamp(2.05rem,2.38vw,2.36rem)] min-[1440px]:text-[clamp(2.45rem,2.82vw,2.7rem)] 2xl:text-[clamp(2.7rem,2.55vw,3.15rem)]"
                         >
                             {[
                                 "Raih Performa",
@@ -116,22 +162,22 @@ export default function SectionSix({ facilities = [] }: SectionSixProps) {
                             ))}
                         </h2>
 
-                        <p className="mt-7 max-w-[550px] font-bdo text-base font-regular leading-[1.3] text-black/65 xl:text-[clamp(1rem,1.15vw,1.38rem)]">
+                        <p className="section-six-reveal section-six-reveal--copy mt-7 max-w-[550px] font-bdo text-base font-regular leading-[1.3] tracking-[-0.005em] text-black/65 xl:text-[clamp(0.95rem,1.0925vw,1.311rem)]">
                             Penyewaan arena olahraga standar profesional untuk
                             kebutuhan tim dan komunitas Anda.
                         </p>
 
-                        <div className="mb-9 mt-6 w-full border-t border-black/20" />
+                        <div className="section-six-reveal section-six-reveal--rule mb-9 mt-6 w-full border-t border-black/20" />
 
-                        <div className="flex flex-col gap-6">
+                        <div className="section-six-reveal section-six-reveal--features flex flex-col gap-6">
                             <FeatureItem label="Cabang Olahraga Lengkap" />
                             <FeatureItem label="Fasilitas Standar Atlet" />
                         </div>
 
-                        <div className="mt-12 flex items-center justify-between gap-6 xl:mt-auto">
+                        <div className="section-six-reveal section-six-reveal--actions mt-12 flex items-center justify-between gap-6 xl:mt-auto">
                             <ReservasiButton label="Mulai Reservasi" />
 
-                            <div className="flex flex-shrink-0 items-center gap-5">
+                            <div className="flex flex-shrink-0 items-center gap-[0.65rem] lg:gap-3">
                                 <button
                                     type="button"
                                     onClick={scrollPrev}
@@ -154,9 +200,19 @@ export default function SectionSix({ facilities = [] }: SectionSixProps) {
                         </div>
                     </div>
 
-                    <div className="grid min-w-0 grid-cols-1 content-start items-start gap-4 md:grid-cols-2 xl:grid-cols-1">
-                        {visiblePrices.map((item) => (
-                            <PriceCard key={item.id} item={item} />
+                    <div className="grid min-w-0 grid-cols-1 content-start items-start gap-4 md:grid-cols-2 xl:min-h-[528px] xl:grid-cols-1">
+                        {visiblePrices.map((item, index) => (
+                            <div
+                                key={item.id}
+                                className="section-six-reveal section-six-reveal--card"
+                                style={
+                                    {
+                                        "--section-six-reveal-delay": `${150 + index * 70}ms`,
+                                    } as CSSProperties
+                                }
+                            >
+                                <PriceCard item={item} />
+                            </div>
                         ))}
                     </div>
                 </div>

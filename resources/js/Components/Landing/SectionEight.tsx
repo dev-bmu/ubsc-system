@@ -10,6 +10,7 @@ import {
 import { BadgeCheck, Clock, Minus, Plus, Star } from "lucide-react";
 import {
     useEffect,
+    useLayoutEffect,
     useRef,
     useState,
     type MouseEvent,
@@ -18,6 +19,7 @@ import {
 } from "react";
 import bg from "@/../assets/images/bg-about.avif";
 import person from "@/../assets/images/person map.avif";
+import { useHomepageEntranceReady } from "@/Components/Landing/HomepageEntranceContext";
 
 const places = [
     {
@@ -114,7 +116,6 @@ function PlacePopupCard({
                     alt={place.name}
                     loading="lazy"
                     decoding="async"
-                    fetchPriority="low"
                     width={320}
                     height={190}
                     className="h-full w-full object-cover"
@@ -228,12 +229,18 @@ function ParkedMapView() {
     return null;
 }
 
-export default function SectionEight() {
+export default function SectionEight({
+    deferLoopAnimations = false,
+}: {
+    deferLoopAnimations?: boolean;
+}) {
+    const entranceReady = useHomepageEntranceReady();
     const sectionRef = useRef<HTMLElement>(null);
     const backgroundRef = useRef<HTMLImageElement>(null);
     const portraitRef = useRef<HTMLImageElement>(null);
     const mapRef = useRef<MapRef>(null);
     const [shouldRenderMap, setShouldRenderMap] = useState(false);
+    const [isMapPaintReady, setIsMapPaintReady] = useState(false);
     const [popupZoomLevel, setPopupZoomLevel] = useState(0);
 
     const preservePageScroll = (action: () => void) => {
@@ -282,13 +289,17 @@ export default function SectionEight() {
 
         let frame = 0;
         let parallaxActive = false;
+        const coarsePointer = window.matchMedia(
+            "(hover: none) and (pointer: coarse)",
+        ).matches;
+        let viewportWidth = window.innerWidth;
+        let viewportHeight = window.innerHeight;
 
         const updateParallax = () => {
             if (!parallaxActive) return;
             cancelAnimationFrame(frame);
             frame = requestAnimationFrame(() => {
                 const rect = section.getBoundingClientRect();
-                const viewportHeight = window.innerHeight;
                 const progress = Math.max(
                     -1,
                     Math.min(
@@ -299,7 +310,6 @@ export default function SectionEight() {
                 );
 
                 background.style.transform = `translate3d(0, ${progress * 48}px, 0) scale(1.14)`;
-                const viewportWidth = window.innerWidth;
                 const portraitDistance =
                     viewportWidth < 640
                         ? -42
@@ -317,8 +327,20 @@ export default function SectionEight() {
             });
         };
 
+        const handleResize = () => {
+            const nextViewportWidth = window.innerWidth;
+            const widthChanged =
+                Math.abs(nextViewportWidth - viewportWidth) >= 1;
+
+            if (coarsePointer && !widthChanged) return;
+
+            viewportWidth = nextViewportWidth;
+            viewportHeight = window.innerHeight;
+            updateParallax();
+        };
+
         window.addEventListener("scroll", updateParallax, { passive: true });
-        window.addEventListener("resize", updateParallax);
+        window.addEventListener("resize", handleResize);
 
         if (!("IntersectionObserver" in window)) {
             parallaxActive = true;
@@ -329,7 +351,7 @@ export default function SectionEight() {
                 cancelAnimationFrame(frame);
                 section.classList.remove("is-parallax-active");
                 window.removeEventListener("scroll", updateParallax);
-                window.removeEventListener("resize", updateParallax);
+                window.removeEventListener("resize", handleResize);
             };
         }
 
@@ -349,11 +371,13 @@ export default function SectionEight() {
             parallaxObserver.disconnect();
             section.classList.remove("is-parallax-active");
             window.removeEventListener("scroll", updateParallax);
-            window.removeEventListener("resize", updateParallax);
+            window.removeEventListener("resize", handleResize);
         };
     }, []);
 
     useEffect(() => {
+        if (!entranceReady) return;
+
         const section = sectionRef.current;
         if (!section) return;
 
@@ -388,23 +412,29 @@ export default function SectionEight() {
             observer.disconnect();
             window.clearTimeout(completeTimer);
         };
-    }, []);
+    }, [entranceReady]);
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         const section = sectionRef.current;
         if (!section || shouldRenderMap) return;
 
-        let renderTimer = 0;
         const prepareMap = () => {
-            window.clearTimeout(renderTimer);
-            renderTimer = window.setTimeout(() => {
-                setShouldRenderMap(true);
-            }, 180);
+            setShouldRenderMap(true);
         };
 
         if (!("IntersectionObserver" in window)) {
             prepareMap();
-            return () => window.clearTimeout(renderTimer);
+            return;
+        }
+
+        const rect = section.getBoundingClientRect();
+        const viewportHeight = Math.max(
+            document.documentElement.clientHeight,
+            window.innerHeight || 0,
+        );
+        if (rect.bottom >= -1100 && rect.top <= viewportHeight + 1100) {
+            prepareMap();
+            return;
         }
 
         const observer = new IntersectionObserver(
@@ -423,7 +453,6 @@ export default function SectionEight() {
 
         return () => {
             observer.disconnect();
-            window.clearTimeout(renderTimer);
         };
     }, [shouldRenderMap]);
 
@@ -431,6 +460,9 @@ export default function SectionEight() {
         <section
             ref={sectionRef}
             id="about-map"
+            data-pricing-loop-region={
+                deferLoopAnimations ? "true" : undefined
+            }
             className="section-eight-entrance-stage relative isolate flex w-full items-center overflow-hidden bg-[#252525] px-0 pb-10 pt-5 sm:pb-14 sm:pt-12 lg:pb-16 xl:min-h-[606px] xl:py-[56px]"
         >
             <div className="section-eight-background pointer-events-none absolute inset-0 -z-10">
@@ -442,7 +474,6 @@ export default function SectionEight() {
                     className="section-eight-parallax-media h-full w-full scale-[1.14] object-cover object-center"
                     loading="lazy"
                     decoding="async"
-                    fetchPriority="low"
                 />
                 <div className="absolute inset-0 bg-black/35 xl:bg-black/45" />
             </div>
@@ -455,7 +486,7 @@ export default function SectionEight() {
             <div className="relative z-[2] mx-auto w-full px-[14px] sm:px-8 lg:px-12 xl:px-[clamp(3.5rem,6.35vw,7.6rem)]">
                 <div className="relative grid grid-cols-1 xl:grid-cols-[341px_minmax(0,1fr)] xl:items-start xl:gap-[50px]">
                     <div className="relative z-10 flex flex-col xl:pt-[23px]">
-                        <p className="section-eight-entrance-reveal section-eight-entrance-reveal--title location-title-shimmer mb-0 text-center font-bdo text-[16px] font-medium leading-none sm:text-xl lg:text-2xl xl:mb-[29px] xl:pl-[40px] xl:text-left xl:text-[24px]">
+                        <p className="home-section-anchor section-eight-entrance-reveal section-eight-entrance-reveal--title location-title-shimmer mb-0 text-center font-bdo text-[16px] font-medium leading-none sm:text-xl lg:text-2xl xl:mb-[29px] xl:pl-[40px] xl:text-left xl:text-[24px]">
                             Temukan Lokasi Kami
                         </p>
 
@@ -468,7 +499,6 @@ export default function SectionEight() {
                                 draggable={false}
                                 loading="lazy"
                                 decoding="async"
-                                fetchPriority="low"
                             />
                             <div className="pointer-events-none absolute inset-0 bg-black/10" />
                         </div>
@@ -484,6 +514,12 @@ export default function SectionEight() {
                                     theme="light"
                                     cooperativeGestures
                                     scrollZoom
+                                    onReady={() => setIsMapPaintReady(true)}
+                                    containerStyle={{
+                                        opacity: isMapPaintReady ? 1 : 0,
+                                        transition:
+                                            "opacity 700ms cubic-bezier(0.16, 1, 0.3, 1)",
+                                    }}
                                 >
                                     <ParkedMapView />
                                     {places.map((place) => (
@@ -568,12 +604,19 @@ export default function SectionEight() {
                                         </MapMarker>
                                     ))}
                                 </Map>
-                            ) : (
-                                <div
-                                    aria-hidden="true"
-                                    className="section-eight-map-skeleton absolute inset-0"
-                                />
-                            )}
+                            ) : null}
+                            <div
+                                aria-hidden="true"
+                                className="section-eight-map-skeleton pointer-events-none absolute inset-0"
+                                style={{
+                                    opacity:
+                                        shouldRenderMap && isMapPaintReady
+                                            ? 0
+                                            : 1,
+                                    transition:
+                                        "opacity 700ms cubic-bezier(0.16, 1, 0.3, 1)",
+                                }}
+                            />
                         </div>
                     </div>
                 </div>

@@ -1,9 +1,9 @@
 import { useState } from "react";
+import "./HeroContent.css";
 
-const Arrow: React.FC<{ size?: number }> = ({ size = 56 }) => (
+const Arrow = () => (
     <svg
-        width={size}
-        height={size}
+        className="ubsc-hero-cta-arrow"
         viewBox="0 0 72 72"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
@@ -41,7 +41,8 @@ export default function HeroContent() {
             <div className="ubsc-hero-star mt-6 flex h-20 w-20 items-center justify-center self-end lg:mt-0 lg:h-24 lg:w-20">
                 <img
                     src="/assets/hero/star.png"
-                    alt="Decorative mesh"
+                    alt=""
+                    aria-hidden="true"
                     className="h-full w-full object-contain opacity-90"
                 />
             </div>
@@ -71,7 +72,7 @@ export default function HeroContent() {
                 </div>
 
                 <a
-                    href="/coming-soon"
+                    href="/booking"
                     className="ubsc-hero-cta relative cursor-pointer select-none overflow-hidden border-b border-white/35 py-1 lg:w-full"
                     onMouseEnter={() => setHovered(true)}
                     onMouseLeave={() => setHovered(false)}
@@ -110,7 +111,7 @@ export default function HeroContent() {
                                     "transform 0.55s cubic-bezier(0.76, 0, 0.24, 1)",
                             }}
                         >
-                            <Arrow size={32} />
+                            <Arrow />
                         </span>
                     </span>
                 </a>

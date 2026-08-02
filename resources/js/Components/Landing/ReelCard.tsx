@@ -583,7 +583,9 @@ export default function ReelCard({
                     alt={item.title}
                     loading={priority ? "eager" : "lazy"}
                     decoding="async"
-                    fetchPriority={priority ? "high" : "low"}
+                    {...{
+                        fetchpriority: priority ? "high" : "low",
+                    }}
                     width={720}
                     height={1280}
                     draggable={false}

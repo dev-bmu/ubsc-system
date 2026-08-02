@@ -1,7 +1,7 @@
+import { useHomepageEntranceReady } from "@/Components/Landing/HomepageEntranceContext";
 import SectionDivider from "@/Components/Landing/SectionDivider";
 import ScrollStack, { ScrollStackItem } from "@/Components/Landing/ScrollStack";
 import ScrollTextReveal from "@/Components/Landing/ScrollTextReveal";
-import { Link } from "@inertiajs/react";
 import {
     type CSSProperties,
     useEffect,
@@ -12,10 +12,9 @@ import {
 export interface Location {
     id: string;
     name: string;
-    slug: string;
     category: string;
     image: string;
-    mapLink?: string;
+    mapLink: string;
     hidden?: boolean;
 }
 
@@ -23,18 +22,18 @@ const DUMMY_LOCATIONS: Location[] = [
     {
         id: "1",
         name: "UB Sport Center Veteran",
-        slug: "ubsc-veteran",
         category: "Pusat Kebugaran Utama",
         image: "/assets/images/ub-sport-center-kantor-pusat-malang.avif",
-        mapLink: "https://maps.app.goo.gl/JLc41TfD5TuLfu8h9",
+        mapLink:
+            "https://www.google.com/maps/place/UB+Sport+Center/@-7.9562538,112.6187071,17z/data=!4m6!3m5!1s0x2e7882788af472d9:0x12f8cee690772ec5!8m2!3d-7.955132!4d112.618489!16s%2Fg%2F11ckv5zn2f!5m1!1e4?entry=ttu&g_ep=EgoyMDI2MDcyOC4wIKXMDSoASAFQAw%3D%3D",
     },
     {
         id: "2",
         name: "UB Sport Center Dieng",
-        slug: "ubsc-dieng",
         category: "Cabang Arena Terbuka",
         image: "/assets/images/fasilitas-arena-terbuka-dieng-ub-sport-center-malang.avif",
-        mapLink: "https://maps.app.goo.gl/RNPXp5pW2TqcE2YGA",
+        mapLink:
+            "https://www.google.com/maps/place/Lapangan+Sepak+Bola+Universitas+Brawijaya/@-7.969492,112.591967,19z/data=!4m12!1m5!3m4!2zN8KwNTgnMDkuMSJTIDExMsKwMzUnMjkuNCJF!8m2!3d-7.9691905!4d112.591511!3m5!1s0x2e7882f3e36b08a7:0x4b7c912caaba1ca0!8m2!3d-7.9692283!4d112.5915689!16s%2Fg%2F11gbfm0jsj!5m1!1e4?entry=ttu&g_ep=EgoyMDI2MDcyOC4wIKXMDSoASAFQAw%3D%3D",
     },
     // {
     //     id: "3",
@@ -57,7 +56,7 @@ function BranchIcon() {
             decoding="async"
             width={24}
             height={24}
-            className="relative z-10 h-6 w-6 object-contain [image-rendering:-webkit-optimize-contrast]"
+            className="relative z-10 h-6 w-6 object-contain"
         />
     );
 }
@@ -132,8 +131,10 @@ function LocationCard({
     priority?: boolean;
 }) {
     return (
-        <Link
-            href={route("branches.show", location.slug)}
+        <a
+            href={location.mapLink}
+            target="_blank"
+            rel="noopener noreferrer"
             className="group flex w-full cursor-pointer flex-col gap-6"
         >
             {/* IMAGE CONTAINER (The Blurred Backdrop + Sharp Foreground) */}
@@ -145,13 +146,26 @@ function LocationCard({
                         alt=""
                         loading={priority ? "eager" : "lazy"}
                         decoding="async"
-                        fetchPriority={priority ? "high" : "low"}
+                        {...{
+                            fetchpriority: priority ? "high" : "low",
+                        }}
                         width={1600}
                         height={1067}
                         sizes="(min-width: 1280px) 70vw, (min-width: 768px) 92vw, 100vw"
                         className="section-three-card-backdrop absolute inset-0 h-full w-full scale-110 object-cover opacity-90"
                     />
-                    <div className="absolute inset-0 bg-black/25" />
+                    <div
+                        aria-hidden="true"
+                        className="absolute inset-0 z-[1] bg-black/30"
+                    />
+                    <div
+                        aria-hidden="true"
+                        className="section-three-card-glass"
+                    >
+                        <div className="section-three-card-glass__effect" />
+                        <div className="section-three-card-glass__tint" />
+                        <div className="section-three-card-glass__shine" />
+                    </div>
                 </div>
 
                 {/* Layer 2 — sharp foreground image with Padding */}
@@ -164,7 +178,9 @@ function LocationCard({
                             alt={location.name}
                             loading={priority ? "eager" : "lazy"}
                             decoding="async"
-                            fetchPriority={priority ? "high" : "low"}
+                            {...{
+                                fetchpriority: priority ? "high" : "low",
+                            }}
                             width={1600}
                             height={1100}
                             sizes="(min-width: 1280px) 58vw, (min-width: 768px) 78vw, 86vw"
@@ -203,12 +219,13 @@ function LocationCard({
                     <CornerArrow />
                 </div>
             </div>
-        </Link>
+        </a>
     );
 }
 
 export default function SectionThree() {
     const sectionRef = useRef<HTMLElement>(null);
+    const entranceReady = useHomepageEntranceReady();
     const [activeLocationIndex, setActiveLocationIndex] = useState(0);
     const [shouldPrioritizeMedia, setShouldPrioritizeMedia] = useState(false);
 
@@ -239,7 +256,7 @@ export default function SectionThree() {
 
     useEffect(() => {
         const section = sectionRef.current;
-        if (!section) return;
+        if (!section || !entranceReady) return;
 
         let completeTimer = 0;
         const reveal = () => {
@@ -272,7 +289,7 @@ export default function SectionThree() {
             observer.disconnect();
             window.clearTimeout(completeTimer);
         };
-    }, []);
+    }, [entranceReady]);
 
     return (
         <section
@@ -280,6 +297,44 @@ export default function SectionThree() {
             id="locations"
             className="section-three-performance section-three-stage w-full bg-[#F5F7F9] pb-16 pt-12 sm:pb-20 md:pt-14 lg:pt-16 xl:pb-16 xl:pt-14"
         >
+            <svg
+                aria-hidden="true"
+                width="0"
+                height="0"
+                style={{ position: "absolute", width: 0, height: 0 }}
+            >
+                <defs>
+                    <filter
+                        id="section-three-glass-distortion"
+                        x="-20%"
+                        y="-20%"
+                        width="140%"
+                        height="140%"
+                        filterUnits="objectBoundingBox"
+                    >
+                        <feTurbulence
+                            type="fractalNoise"
+                            baseFrequency="0.010 0.014"
+                            numOctaves={2}
+                            seed={42}
+                            result="noise"
+                        />
+                        <feGaussianBlur
+                            in="noise"
+                            stdDeviation="2.4"
+                            result="blurred"
+                        />
+                        <feDisplacementMap
+                            in="SourceGraphic"
+                            in2="blurred"
+                            scale={58}
+                            xChannelSelector="R"
+                            yChannelSelector="G"
+                        />
+                    </filter>
+                </defs>
+            </svg>
+
             <div className="section-three-reveal section-three-reveal--divider mx-auto px-[clamp(1.5rem,4.5vw,5.5rem)]">
                 <SectionDivider
                     number="02"
@@ -297,7 +352,7 @@ export default function SectionThree() {
                     delay={70}
                     stagger={18}
                     amount={0.15}
-                    className="font-bdo text-[1.25rem] font-medium tracking-[-0.025em] text-black"
+                    className="home-section-anchor font-bdo text-[1.25rem] font-medium tracking-[-0.025em] text-black"
                 >
                     Eksplorasi Cabang Kami
                 </ScrollTextReveal>
@@ -312,7 +367,7 @@ export default function SectionThree() {
                             delay={70}
                             stagger={18}
                             amount={0.15}
-                            className="font-bdo text-[clamp(1.16rem,1.32vw,1.45rem)] font-medium tracking-[-0.025em] text-black xl:text-[1.25rem]"
+                            className="home-section-anchor font-bdo text-[clamp(1.16rem,1.32vw,1.45rem)] font-medium tracking-[-0.025em] text-black xl:text-[1.25rem]"
                         >
                             Eksplorasi Cabang Kami
                         </ScrollTextReveal>
@@ -372,7 +427,7 @@ export default function SectionThree() {
                     </div>
                 </div>
 
-                <div className="section-three-reveal section-three-reveal--aside mt-9 font-bdo text-[clamp(1.24rem,4vw,1.5rem)] font-medium leading-tight text-black sm:mt-0 xl:hidden">
+                <div className="home-section-heading section-three-reveal section-three-reveal--aside mt-9 font-bdo text-[clamp(1.24rem,4vw,1.5rem)] font-medium leading-tight text-black sm:mt-0 xl:hidden">
                     <ScrollTextReveal
                         as="h2"
                         split="words"

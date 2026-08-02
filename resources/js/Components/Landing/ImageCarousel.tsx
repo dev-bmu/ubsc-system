@@ -159,7 +159,7 @@ function ProgramImage({
                     draggable={false}
                     loading={eager ? "eager" : "lazy"}
                     decoding="async"
-                    fetchPriority="low"
+                    {...{ fetchpriority: "low" }}
                     width={1600}
                     height={748}
                 />

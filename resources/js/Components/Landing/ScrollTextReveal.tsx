@@ -1,3 +1,4 @@
+import { useHomepageEntranceReady } from "@/Components/Landing/HomepageEntranceContext";
 import {
     type CSSProperties,
     type ReactNode,
@@ -22,6 +23,7 @@ interface ScrollTextRevealProps {
     rootMargin?: string;
     style?: CSSProperties;
     triggerOnMount?: boolean;
+    staticReveal?: boolean;
     trackingEm?: number;
 }
 
@@ -44,11 +46,13 @@ export default function ScrollTextReveal({
     rootMargin = "0px 0px -14% 0px",
     style: customStyle,
     triggerOnMount = false,
+    staticReveal = false,
     trackingEm,
 }: ScrollTextRevealProps) {
+    const entranceReady = useHomepageEntranceReady();
     const rootRef = useRef<HTMLElement | null>(null);
     const measureRef = useRef<HTMLSpanElement | null>(null);
-    const [hasEntered, setHasEntered] = useState(false);
+    const [hasEntered, setHasEntered] = useState(staticReveal);
     const [lines, setLines] = useState<MeasuredLine[]>([]);
     const tokens = useMemo(() => children.split(/(\s+)/), [children]);
     const revealStyle = {
@@ -156,7 +160,15 @@ export default function ScrollTextReveal({
 
     useEffect(() => {
         const node = rootRef.current;
-        if (!node || hasEntered || triggerOnMount) return;
+        if (
+            !node ||
+            !entranceReady ||
+            hasEntered ||
+            triggerOnMount ||
+            staticReveal
+        ) {
+            return;
+        }
 
         if (!("IntersectionObserver" in window)) {
             setHasEntered(true);
@@ -175,19 +187,57 @@ export default function ScrollTextReveal({
         observer.observe(node);
 
         return () => observer.disconnect();
-    }, [amount, hasEntered, rootMargin, triggerOnMount]);
+    }, [
+        amount,
+        entranceReady,
+        hasEntered,
+        rootMargin,
+        staticReveal,
+        triggerOnMount,
+    ]);
+
+    useEffect(() => {
+        if (!staticReveal || hasEntered) return;
+        setHasEntered(true);
+    }, [hasEntered, staticReveal]);
 
     useEffect(() => {
         if (split !== "lines") return;
 
         measureLines();
 
-        const onResize = () => measureLines();
+        let measureFrame = 0;
+        let viewportWidth = document.documentElement.clientWidth;
+        let rootWidth =
+            rootRef.current?.getBoundingClientRect().width ?? 0;
+
+        const scheduleMeasure = () => {
+            window.cancelAnimationFrame(measureFrame);
+            measureFrame = window.requestAnimationFrame(measureLines);
+        };
+
+        const onResize = () => {
+            const nextViewportWidth = document.documentElement.clientWidth;
+            if (Math.abs(nextViewportWidth - viewportWidth) < 1) return;
+
+            viewportWidth = nextViewportWidth;
+            scheduleMeasure();
+        };
         window.addEventListener("resize", onResize);
 
         const observer =
             "ResizeObserver" in window
-                ? new ResizeObserver(() => measureLines())
+                ? new ResizeObserver(([entry]) => {
+                      const nextRootWidth =
+                          entry?.contentRect.width ??
+                          rootRef.current?.getBoundingClientRect().width ??
+                          0;
+
+                      if (Math.abs(nextRootWidth - rootWidth) < 0.5) return;
+
+                      rootWidth = nextRootWidth;
+                      scheduleMeasure();
+                  })
                 : null;
 
         if (rootRef.current) observer?.observe(rootRef.current);
@@ -195,13 +245,14 @@ export default function ScrollTextReveal({
         document.fonts?.ready.then(measureLines).catch(() => {});
 
         return () => {
+            window.cancelAnimationFrame(measureFrame);
             window.removeEventListener("resize", onResize);
             observer?.disconnect();
         };
     }, [measureLines, split]);
 
     useEffect(() => {
-        if (!triggerOnMount || hasEntered) return;
+        if (!entranceReady || !triggerOnMount || hasEntered) return;
 
         let secondFrame = 0;
         const firstFrame = window.requestAnimationFrame(() => {
@@ -214,7 +265,7 @@ export default function ScrollTextReveal({
             window.cancelAnimationFrame(firstFrame);
             if (secondFrame) window.cancelAnimationFrame(secondFrame);
         };
-    }, [hasEntered, triggerOnMount]);
+    }, [entranceReady, hasEntered, triggerOnMount]);
 
     const content = (() => {
         if (split === "lines") {

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import SectionDivider from "@/Components/Landing/SectionDivider";
+import { useHomepageEntranceReady } from "@/Components/Landing/HomepageEntranceContext";
 import ReservasiButton from "@/Components/Landing/ReservasiButton";
 import ScrollTextReveal from "@/Components/Landing/ScrollTextReveal";
 import { Plus } from "lucide-react";
@@ -31,22 +32,25 @@ interface AboutSectionContactProps {
     sectionNumber?: string;
     sectionTitle?: string;
     sectionSubtitle?: string;
+    dividerLineWeight?: "default" | "hairline";
 }
 
 export default function AboutSectionContact({
     sectionNumber = "07",
     sectionTitle = "Informasi",
     sectionSubtitle = "02 aboutpage",
+    dividerLineWeight = "default",
 }: AboutSectionContactProps = {}) {
     const sectionRef = useRef<HTMLElement>(null);
     const imageRef = useRef<HTMLImageElement>(null);
     const [isVisible, setIsVisible] = useState(false);
     const [isSettled, setIsSettled] = useState(false);
+    const entranceReady = useHomepageEntranceReady();
 
     useEffect(() => {
         const section = sectionRef.current;
         const image = imageRef.current;
-        if (!section || !image) return;
+        if (!entranceReady || !section || !image) return;
 
         if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
             return;
@@ -54,6 +58,11 @@ export default function AboutSectionContact({
 
         let frame = 0;
         let parallaxActive = false;
+        const coarsePointer = window.matchMedia(
+            "(hover: none) and (pointer: coarse)",
+        ).matches;
+        let viewportWidth = window.innerWidth;
+        let viewportHeight = window.innerHeight;
 
         const updateParallax = () => {
             if (!parallaxActive) return;
@@ -62,7 +71,6 @@ export default function AboutSectionContact({
                 const rect = section.getBoundingClientRect();
                 const imageRect =
                     image.parentElement?.getBoundingClientRect() ?? rect;
-                const viewportHeight = window.innerHeight;
                 const progress = Math.max(
                     -1,
                     Math.min(
@@ -73,8 +81,7 @@ export default function AboutSectionContact({
                     ),
                 );
 
-                const parallaxDistance =
-                    window.innerWidth >= 1280 ? -58 : -34;
+                const parallaxDistance = viewportWidth >= 1280 ? -58 : -34;
 
                 image.style.setProperty(
                     "--about-contact-image-y",
@@ -83,8 +90,20 @@ export default function AboutSectionContact({
             });
         };
 
+        const handleResize = () => {
+            const nextViewportWidth = window.innerWidth;
+            const widthChanged =
+                Math.abs(nextViewportWidth - viewportWidth) >= 1;
+
+            if (coarsePointer && !widthChanged) return;
+
+            viewportWidth = nextViewportWidth;
+            viewportHeight = window.innerHeight;
+            updateParallax();
+        };
+
         window.addEventListener("scroll", updateParallax, { passive: true });
-        window.addEventListener("resize", updateParallax);
+        window.addEventListener("resize", handleResize);
 
         if (!("IntersectionObserver" in window)) {
             parallaxActive = true;
@@ -95,7 +114,7 @@ export default function AboutSectionContact({
                 cancelAnimationFrame(frame);
                 section.classList.remove("is-parallax-active");
                 window.removeEventListener("scroll", updateParallax);
-                window.removeEventListener("resize", updateParallax);
+                window.removeEventListener("resize", handleResize);
             };
         }
 
@@ -114,13 +133,13 @@ export default function AboutSectionContact({
             observer.disconnect();
             section.classList.remove("is-parallax-active");
             window.removeEventListener("scroll", updateParallax);
-            window.removeEventListener("resize", updateParallax);
+            window.removeEventListener("resize", handleResize);
         };
-    }, []);
+    }, [entranceReady]);
 
     useEffect(() => {
         const section = sectionRef.current;
-        if (!section || isVisible) return;
+        if (!entranceReady || !section || isVisible) return;
 
         if (
             !("IntersectionObserver" in window) ||
@@ -145,7 +164,7 @@ export default function AboutSectionContact({
 
         observer.observe(section);
         return () => observer.disconnect();
-    }, [isVisible]);
+    }, [entranceReady, isVisible]);
 
     useEffect(() => {
         if (!isVisible) return;
@@ -171,6 +190,7 @@ export default function AboutSectionContact({
                         theme="light"
                         outerClassName="-mx-[clamp(0rem,1.65vw,2rem)]"
                         contentClassName="px-3"
+                        lineWeight={dividerLineWeight}
                     />
                 </div>
 
@@ -180,7 +200,7 @@ export default function AboutSectionContact({
                             <span className="section-label-diamond" />
                             <ScrollTextReveal
                                 delay={80}
-                                className="font-bdo text-[clamp(1.16rem,1.32vw,1.45rem)] font-medium tracking-[-0.025em] text-black xl:text-[1.25rem]"
+                                className="home-section-anchor font-bdo text-[clamp(1.16rem,1.32vw,1.45rem)] font-medium tracking-[-0.025em] text-black xl:text-[1.25rem]"
                             >
                                 Pusat Bantuan
                             </ScrollTextReveal>
@@ -192,7 +212,7 @@ export default function AboutSectionContact({
                             delay={130}
                             stagger={34}
                             amount={0.12}
-                            className="section-two-headline-weight mb-8 max-w-lg font-bdo text-[clamp(2.05rem,8.15vw,2.82rem)] font-medium leading-[1.01] tracking-[-0.058em] text-black md:text-[clamp(2.08rem,4.5vw,2.6rem)] lg:text-[clamp(2.2rem,3.8vw,2.7rem)] xl:max-w-none xl:text-[clamp(2.05rem,2.38vw,2.36rem)] min-[1440px]:text-[clamp(2.45rem,2.82vw,2.7rem)] 2xl:text-[clamp(2.7rem,2.55vw,3.15rem)]"
+                            className="home-section-heading section-two-headline-weight mb-8 max-w-lg font-bdo text-[clamp(2.05rem,8.15vw,2.82rem)] font-medium leading-[1.01] tracking-[-0.058em] text-black md:text-[clamp(2.08rem,4.5vw,2.6rem)] lg:text-[clamp(2.2rem,3.8vw,2.7rem)] xl:max-w-none xl:text-[clamp(2.05rem,2.38vw,2.36rem)] min-[1440px]:text-[clamp(2.45rem,2.82vw,2.7rem)] 2xl:text-[clamp(2.7rem,2.55vw,3.15rem)]"
                         >
                             Hubungi Kami!
                         </ScrollTextReveal>
@@ -241,7 +261,9 @@ export default function AboutSectionContact({
                                     className="about-contact-media-image absolute inset-0 h-full w-full object-cover"
                                     loading="lazy"
                                     decoding="async"
-                                    fetchPriority="low"
+                                    {...({
+                                        fetchpriority: "low",
+                                    } as Record<string, string>)}
                                 />
                             </div>
 
@@ -301,7 +323,7 @@ export default function AboutSectionContact({
                                             amount={0.12}
                                             className="contact-panel-shimmer contact-panel-shimmer--body font-bdo text-[clamp(0.875rem,0.94vw,18px)] font-normal text-white"
                                         >
-                                            (0341) 579955
+                                            (0341) 5799155
                                         </ScrollTextReveal>
                                         <ScrollTextReveal
                                             as="p"

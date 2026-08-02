@@ -1,4 +1,9 @@
 import Hero from "@/Components/Landing/Hero";
+import {
+    HomepageEntranceProvider,
+    useHomepageEntranceSignal,
+} from "@/Components/Landing/HomepageEntranceContext";
+import HomepageMediaPrimer from "@/Components/Landing/HomepageMediaPrimer";
 import Navbar from "@/Components/Landing/Navbar";
 import SectionTwo from "@/Components/Landing/SectionTwo";
 import SectionThree from "@/Components/Landing/SectionThree";
@@ -8,11 +13,12 @@ import SectionSix from "@/Components/Landing/SectionSix";
 import SectionSeven from "@/Components/Landing/SectionSeven";
 import SectionEight from "@/Components/Landing/SectionEight";
 import Footer from "@/Components/Landing/Footer";
-import FadeIn from "@/Components/Landing/FadeIn";
-import { Head, usePage } from "@inertiajs/react";
+import SeoHead from "@/Components/SeoHead";
+import { usePage } from "@inertiajs/react";
 import { useEffect, useState } from "react";
 import { AlertCircle, CheckCircle2, X } from "lucide-react";
 import type { MembershipPlanItem, PageProps } from "@/types";
+import type { PublicFacilityReservation } from "@/lib/facilityReservation";
 import type { CarouselImage } from "@/Components/Landing/ImageCarousel";
 import type { SponsorItem } from "@/Components/Landing/LogoMarquee";
 import type { NewsItem } from "@/Components/Landing/NewsCard";
@@ -32,9 +38,11 @@ interface HomeFacility {
     class_code?: string | null;
     rating?: number | null;
     price_range?: string | null;
+    reservation?: PublicFacilityReservation | null;
 }
 
 type HomeProps = PageProps<{
+    heroImageUrl: string;
     membershipPlans?: MembershipPlanItem[];
     promos?: CarouselImage[];
     sponsors?: SponsorItem[];
@@ -84,8 +92,20 @@ function FlashToast() {
     );
 }
 
+function HomepageHero({ heroImageUrl }: { heroImageUrl: string }) {
+    const signalEntranceReady = useHomepageEntranceSignal();
+
+    return (
+        <Hero
+            heroImageSource={heroImageUrl}
+            onEntranceReady={signalEntranceReady}
+        />
+    );
+}
+
 export default function HomePage() {
     const {
+        heroImageUrl,
         membershipPlans,
         promos,
         sponsors,
@@ -95,44 +115,15 @@ export default function HomePage() {
         reviews,
         facilities = [],
     } = usePage<HomeProps>().props;
+
     return (
-        <>
-            <Head>
-                <title>UB Sport Center | Pusat Olahraga Modern Malang</title>
-                <meta
-                    name="description"
-                    content="UB Sport Center: pusat fasilitas olahraga modern, gym, lapangan, dan kelas kebugaran di Malang. Booking online mudah & cepat."
-                />
-                <meta
-                    property="og:title"
-                    content="UB Sport Center | Pusat Olahraga Modern Malang"
-                />
-                <meta
-                    property="og:description"
-                    content="UB Sport Center: pusat fasilitas olahraga modern, gym, lapangan, dan kelas kebugaran di Malang. Booking online mudah & cepat."
-                />
-                <meta property="og:image" content="/assets/hero/Hero.avif" />
-                <meta property="og:type" content="website" />
-                {/* <meta
-                    property="og:url"
-                    content="https://ubsportcenter.co.id/"
-                /> */}
-                <meta name="twitter:card" content="summary_large_image" />
-                <meta
-                    name="twitter:title"
-                    content="UB Sport Center | Pusat Olahraga Modern Malang"
-                />
-                <meta
-                    name="twitter:description"
-                    content="UB Sport Center: pusat fasilitas olahraga modern, gym, lapangan, dan kelas kebugaran di Malang. Booking online mudah & cepat."
-                />
-                <meta name="twitter:image" content="/assets/hero/Hero.avif" />
-                {/* <link rel="canonical" href="https://ubsportcenter.co.id/" /> */}
-            </Head>
+        <HomepageEntranceProvider>
+            <SeoHead />
+            <HomepageMediaPrimer />
             <main className="landing-page-canvas relative">
                 <Navbar activeSection="Home" />
                 <div className="home-hero-section-reveal">
-                    <Hero />
+                    <HomepageHero heroImageUrl={heroImageUrl} />
                     <div className="home-section-two-curtain">
                         <SectionTwo
                             membershipPlans={membershipPlans}
@@ -146,9 +137,7 @@ export default function HomePage() {
                     <SectionFour facilities={facilities} />
                     <div className="home-post-section-four-flow">
                         <SectionFive news={news} reels={reels} />
-                        <FadeIn>
-                            <SectionSix facilities={facilities} />
-                        </FadeIn>
+                        <SectionSix facilities={facilities} />
                         <SectionSeven
                             testimonials={testimonials}
                             reviews={reviews}
@@ -156,7 +145,7 @@ export default function HomePage() {
                     </div>
                 </div>
             </main>
-            <div className="home-footer-reveal-root">
+            <div className="home-footer-reveal-root homepage-footer-reveal-root">
                 <div className="home-footer-reveal-stage">
                     <SectionEight />
                 </div>
@@ -165,6 +154,6 @@ export default function HomePage() {
                 </div>
             </div>
             <FlashToast />
-        </>
+        </HomepageEntranceProvider>
     );
 }

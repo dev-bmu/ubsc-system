@@ -1,5 +1,6 @@
 import { Link } from "@inertiajs/react";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useHomepageEntranceReady } from "@/Components/Landing/HomepageEntranceContext";
 
 interface ServiceCardProps {
     index: number;
@@ -19,10 +20,11 @@ export default function ServiceCard({
     const isTall = index % 2 === 0;
     const cardRef = useRef<HTMLAnchorElement>(null);
     const [isVisible, setIsVisible] = useState(false);
+    const entranceReady = useHomepageEntranceReady();
 
     useEffect(() => {
         const card = cardRef.current;
-        if (!card || isVisible) return;
+        if (!entranceReady || !card || isVisible) return;
 
         if (!("IntersectionObserver" in window)) {
             setIsVisible(true);
@@ -43,7 +45,7 @@ export default function ServiceCard({
 
         observer.observe(card);
         return () => observer.disconnect();
-    }, [isVisible]);
+    }, [entranceReady, isVisible]);
 
     return (
         <Link
@@ -69,7 +71,8 @@ export default function ServiceCard({
                     className="about-service-card-image h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
                     loading="lazy"
                     decoding="async"
-                    fetchPriority="low"
+                    data-page-media-reveal="1"
+                    {...{ fetchpriority: "low" }}
                     width={640}
                     height={853}
                     sizes="(min-width: 1280px) 22vw, (min-width: 640px) 45vw, 88vw"

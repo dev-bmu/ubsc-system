@@ -2,6 +2,7 @@ import { type PointerEvent, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, X } from "lucide-react";
 import SectionDivider from "@/Components/Landing/SectionDivider";
+import { useHomepageEntranceReady } from "@/Components/Landing/HomepageEntranceContext";
 import ScrollTextReveal from "@/Components/Landing/ScrollTextReveal";
 import visionImage from "@/../assets/images/vission.avif";
 
@@ -111,11 +112,12 @@ export default function AboutVisionMission() {
     const [hasEntered, setHasEntered] = useState(false);
     const [activeId, setActiveId] = useState<number | null>(null);
     const toggleLockRef = useRef<number | null>(null);
+    const entranceReady = useHomepageEntranceReady();
 
     useEffect(() => {
         const node = sectionRef.current;
 
-        if (!node || hasEntered) return;
+        if (!entranceReady || !node || hasEntered) return;
 
         if (!("IntersectionObserver" in window)) {
             setHasEntered(true);
@@ -137,7 +139,7 @@ export default function AboutVisionMission() {
         observer.observe(node);
 
         return () => observer.disconnect();
-    }, [hasEntered]);
+    }, [entranceReady, hasEntered]);
 
     useEffect(() => {
         return () => {
@@ -153,7 +155,9 @@ export default function AboutVisionMission() {
         setActiveId((current) => {
             if (current !== id) return id;
 
-            const currentIndex = VISION_ITEMS.findIndex((item) => item.id === id);
+            const currentIndex = VISION_ITEMS.findIndex(
+                (item) => item.id === id,
+            );
             const nextIndex = (currentIndex + 1) % VISION_ITEMS.length;
 
             return VISION_ITEMS[nextIndex]?.id ?? VISION_ITEMS[0].id;
@@ -207,7 +211,7 @@ function AboutVisionHeading() {
                     <span className="section-label-diamond" />
                     <ScrollTextReveal
                         delay={80}
-                        className="font-bdo text-[clamp(1.16rem,1.32vw,1.45rem)] font-medium tracking-[-0.025em] text-black xl:text-[1.25rem]"
+                        className="home-section-anchor font-bdo text-[clamp(1.16rem,1.32vw,1.45rem)] font-medium tracking-[-0.025em] text-black xl:text-[1.25rem]"
                     >
                         Visi &amp; Misi
                     </ScrollTextReveal>
@@ -215,7 +219,7 @@ function AboutVisionHeading() {
             </div>
 
             <div className="xl:col-span-6">
-                <h2 className="max-w-[700px] font-bdo text-[clamp(1.85rem,5.6vw,3.25rem)] font-semibold leading-[1.12] tracking-[-0.025em] text-black md:text-[clamp(2.35rem,4.45vw,3.25rem)] xl:text-[clamp(2.7rem,2.58vw,3rem)] xl:leading-[1.15]">
+                <h2 className="home-section-heading max-w-[700px] font-bdo text-[clamp(1.85rem,5.6vw,3.25rem)] font-semibold leading-[1.12] tracking-[-0.025em] text-black md:text-[clamp(2.35rem,4.45vw,3.25rem)] xl:text-[clamp(2.7rem,2.58vw,3rem)] xl:leading-[1.15]">
                     <ScrollTextReveal
                         delay={120}
                         split="words"
@@ -225,20 +229,20 @@ function AboutVisionHeading() {
                         Menetapkan Arah dan Tujuan Perjalanan Perusahaan
                     </ScrollTextReveal>
                     <span className="hidden md:block">
-                    <ScrollTextReveal
-                        delay={120}
-                        split="block"
-                        className="about-vision-heading-line about-vision-heading-line-first about-vision-text-safe"
-                    >
-                        Menetapkan Arah dan Tujuan
-                    </ScrollTextReveal>
-                    <ScrollTextReveal
-                        delay={210}
-                        split="block"
-                        className="about-vision-heading-line about-vision-text-safe"
-                    >
-                        Perjalanan Perusahaan
-                    </ScrollTextReveal>
+                        <ScrollTextReveal
+                            delay={120}
+                            split="block"
+                            className="about-vision-heading-line about-vision-heading-line-first about-vision-text-safe"
+                        >
+                            Menetapkan Arah dan Tujuan
+                        </ScrollTextReveal>
+                        <ScrollTextReveal
+                            delay={210}
+                            split="block"
+                            className="about-vision-heading-line about-vision-text-safe"
+                        >
+                            Perjalanan Perusahaan
+                        </ScrollTextReveal>
                     </span>
                 </h2>
             </div>
@@ -548,11 +552,12 @@ function VisionAccordionItem({
 function VisionPanelImage({ item }: { item: VisionItem }) {
     const imageRef = useRef<HTMLDivElement | null>(null);
     const [hasImageEntered, setHasImageEntered] = useState(false);
+    const entranceReady = useHomepageEntranceReady();
 
     useEffect(() => {
         const node = imageRef.current;
 
-        if (!node || hasImageEntered) return;
+        if (!entranceReady || !node || hasImageEntered) return;
 
         if (!("IntersectionObserver" in window)) {
             setHasImageEntered(true);
@@ -572,7 +577,7 @@ function VisionPanelImage({ item }: { item: VisionItem }) {
         observer.observe(node);
 
         return () => observer.disconnect();
-    }, [hasImageEntered]);
+    }, [entranceReady, hasImageEntered]);
 
     return (
         <motion.div

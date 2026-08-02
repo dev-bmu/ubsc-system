@@ -74,7 +74,7 @@ export default function GymTrafficBadge({
     );
 
     const statusContent = (
-        <span className={`relative whitespace-nowrap font-clash ${labelTextSize} font-bold text-white`}>
+        <span className={`gym-traffic-status__text relative whitespace-nowrap font-clash ${labelTextSize} font-bold text-white`}>
             {status}
         </span>
     );
@@ -109,7 +109,7 @@ export default function GymTrafficBadge({
 
     const darkLabel = (
         <div
-            className={`flex items-center bg-black ${
+            className={`gym-traffic-label flex items-center bg-black ${
                 isCompact
                     ? "gap-1.5 px-4 py-2.5 md:px-6 md:py-4 xl:px-8 xl:py-4"
                     : "gap-2 px-5 py-3 md:px-8 md:py-5 xl:px-10 xl:py-5"
@@ -118,11 +118,11 @@ export default function GymTrafficBadge({
             <img
                 src={gym}
                 alt="Gym Traffic"
-                className={`gym-traffic-spin text-white/70 ${
+                className={`gym-traffic-label__icon gym-traffic-spin text-white/70 ${
                     isCompact ? "h-3.5 w-3.5 xl:h-[13px] xl:w-[13px]" : "h-4 w-4"
                 }`}
             />
-            <span className={`whitespace-nowrap font-bdo ${labelTextSize} font-medium text-white/90`}>
+            <span className={`gym-traffic-label__text whitespace-nowrap font-bdo ${labelTextSize} font-medium text-white/90`}>
                 Gym Traffic
             </span>
         </div>
@@ -130,7 +130,7 @@ export default function GymTrafficBadge({
 
     const lightLabel = (
         <div
-            className={`flex items-center bg-gray-200 ${
+            className={`gym-traffic-label flex items-center bg-gray-200 ${
                 isCompact
                     ? "gap-1.5 px-4 py-3 md:px-6 md:py-4 xl:px-9 xl:py-2.5"
                     : "gap-2 px-5 py-4 md:px-8 md:py-5 xl:px-12 xl:py-3"
@@ -139,11 +139,11 @@ export default function GymTrafficBadge({
             <img
                 src={gym}
                 alt="Gym Traffic"
-                className={`gym-traffic-spin opacity-70 ${
+                className={`gym-traffic-label__icon gym-traffic-spin opacity-70 ${
                     isCompact ? "h-3.5 w-3.5 xl:h-[13px] xl:w-[13px]" : "h-4 w-4"
                 }`}
             />
-            <span className={`whitespace-nowrap font-clash ${labelTextSize} font-medium text-black`}>
+            <span className={`gym-traffic-label__text whitespace-nowrap font-clash ${labelTextSize} font-medium text-black`}>
                 Gym Traffic
             </span>
         </div>

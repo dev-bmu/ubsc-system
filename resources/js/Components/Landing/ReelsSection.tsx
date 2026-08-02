@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEmblaNav } from "@/hooks/useEmblaNav";
 import ReelCard from "@/Components/Landing/ReelCard";
 import type { ReelItem } from "@/Components/Landing/ReelCard";
+import { useHomepageEntranceReady } from "@/Components/Landing/HomepageEntranceContext";
 
 /* ─────────────────────────────────────────────────────────────────
    Relative time helper
@@ -121,6 +122,7 @@ export default function ReelsSection({ reels = DUMMY_REELS }: ReelsSectionProps)
     const [isVisible, setIsVisible]   = useState(false);
     const [isComplete, setIsComplete] = useState(false);
     const [activeIndex, setActiveIndex] = useState(0);
+    const entranceReady = useHomepageEntranceReady();
 
     const [emblaRef, emblaApi] = useEmblaCarousel({
         align: "start",
@@ -168,6 +170,8 @@ export default function ReelsSection({ reels = DUMMY_REELS }: ReelsSectionProps)
 
     /* Section entrance */
     useEffect(() => {
+        if (!entranceReady) return;
+
         const section = sectionRef.current;
         if (!section) return;
         if (!("IntersectionObserver" in window)) { setIsVisible(true); return; }
@@ -177,7 +181,7 @@ export default function ReelsSection({ reels = DUMMY_REELS }: ReelsSectionProps)
         );
         observer.observe(section);
         return () => observer.disconnect();
-    }, []);
+    }, [entranceReady]);
 
     useEffect(() => {
         if (!isVisible) return;
@@ -249,7 +253,7 @@ export default function ReelsSection({ reels = DUMMY_REELS }: ReelsSectionProps)
                                         item={reel}
                                         featured={isActive}
                                         active={isActive}
-                                        priority={isActive || index === activeIndex + 1}
+                                        priority={false}
                                         entranceIndex={index}
                                         dateLabel={label}
                                         dateYear={year}
@@ -264,7 +268,7 @@ export default function ReelsSection({ reels = DUMMY_REELS }: ReelsSectionProps)
 
             {/* ── Controls row ── */}
             <div className="px-[clamp(1.5rem,4.5vw,5.5rem)] pb-[46px] pt-[17px] sm:pb-16 sm:pt-[20px] xl:pb-[clamp(4rem,7vh,5.2rem)] xl:pt-[clamp(2.8rem,5vh,3.6rem)]">
-                <div className="reels-reveal reels-reveal--controls grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-7 gap-y-6 xl:grid-cols-[auto_minmax(0,1fr)_410px] xl:gap-8">
+                <div className="reels-reveal reels-reveal--controls grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-7 gap-y-6 xl:grid-cols-[auto_minmax(0,1fr)_328px] xl:gap-8">
                     <div className="flex items-center gap-2 sm:gap-3">
                         <ReelsNavButton direction="prev" onClick={scrollPrev} />
                         <ReelsNavButton direction="next" onClick={scrollNext} />
@@ -272,7 +276,7 @@ export default function ReelsSection({ reels = DUMMY_REELS }: ReelsSectionProps)
                     <p className="hidden justify-self-center font-bdo text-[clamp(1.05rem,1.25vw,1.5rem)] font-semibold leading-none tracking-[-0.025em] text-white xl:block">
                         Mari Bergabung Dengan Kami.
                     </p>
-                    <div className="w-[182px] min-w-0 max-w-full justify-self-end xl:w-[410px]">
+                    <div className="w-[182px] min-w-0 max-w-full justify-self-end xl:w-[328px]">
                         <ReelsCta />
                     </div>
                 </div>

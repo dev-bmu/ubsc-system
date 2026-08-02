@@ -3,6 +3,7 @@ import NewsSection from "@/Components/Landing/NewsSection";
 import ReelsSection from "@/Components/Landing/ReelsSection";
 import SectionDivider from "@/Components/Landing/SectionDivider";
 import ScrollTextReveal from "@/Components/Landing/ScrollTextReveal";
+import { useHomepageEntranceReady } from "@/Components/Landing/HomepageEntranceContext";
 import type { NewsItem } from "@/Components/Landing/NewsCard";
 import type { ReelItem } from "@/Components/Landing/ReelCard";
 
@@ -148,68 +149,36 @@ function CountUpValue({
     );
 }
 
+function ReelArrow({ className = "" }: { className?: string }) {
+    return (
+        <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true">
+            <path d="M12 32H52M52 32L34 14M52 32L34 50" stroke="currentColor" strokeWidth="4.8" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+    );
+}
+
 function ImpactLink() {
     const [hovered, setHovered] = useState(false);
 
     return (
         <a
             href="/coming-soon"
-            className="group relative block cursor-pointer select-none overflow-hidden border-b border-white/35 py-1"
+            className="group relative block min-w-0 overflow-hidden border-b border-white/75 pb-[7px] pt-1 text-white"
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
         >
             <span
                 aria-hidden
-                className="pointer-events-none absolute bg-accent-red"
+                className="pointer-events-none absolute -inset-x-3 -inset-y-8 bg-[#ff0000]"
                 style={{
-                    top: "-50%",
-                    left: "-5%",
-                    right: "-5%",
-                    bottom: "-50%",
-                    transform: hovered
-                        ? "skewY(-5deg) translateY(0%)"
-                        : "skewY(-5deg) translateY(130%)",
-                    transition:
-                        "transform 0.55s cubic-bezier(0.76, 0, 0.24, 1)",
-                    zIndex: 0,
+                    transform: hovered ? "skewY(-4deg) translateY(0)" : "skewY(-4deg) translateY(125%)",
+                    transition: "transform 0.5s cubic-bezier(0.76, 0, 0.24, 1)",
                 }}
             />
 
-            <span className="pointer-events-none relative z-10 flex w-full items-center justify-between gap-4">
-                <span className="font-bdo text-[13px] font-medium leading-tight text-white sm:text-[15px] xl:text-[clamp(1.25rem,1.55vw,1.875rem)]">
-                    Mulai Reservasi Sekarang
-                </span>
-                <svg
-                    width="24"
-                    height="24"
-                    viewBox="0 0 72 72"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="shrink-0 xl:h-[30px] xl:w-[30px]"
-                >
-                    <path
-                        d="M24 36H53"
-                        stroke="white"
-                        strokeWidth="3.8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                    />
-                    <path
-                        d="M42 22L56 36L42 50"
-                        stroke="white"
-                        strokeWidth="3.8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                    />
-                    <path
-                        d="M29 32.8C32.6 34.9 36 35.8 40 36"
-                        stroke="white"
-                        strokeWidth="1.7"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        opacity="0.48"
-                    />
-                </svg>
+            <span className="relative z-10 flex w-full items-center justify-between gap-4 font-bdo text-[12px] font-normal leading-none tracking-[-0.02em] sm:text-[14px] xl:text-[20px]">
+                Mulai Reservasi Sekarang
+                <ReelArrow className={`h-[14px] w-[14px] shrink-0 transition-transform duration-500 ease-out sm:h-[18px] sm:w-[18px] xl:h-[22px] xl:w-[22px] ${hovered ? "rotate-0" : "-rotate-45"}`} />
             </span>
         </a>
     );
@@ -241,22 +210,28 @@ function ImpactStats({ active }: { active: boolean }) {
 
 function ImpactHero() {
     const heroRef = useRef<HTMLDivElement>(null);
+    const mediaRef = useRef<HTMLImageElement>(null);
+    const [hasEnteredViewport, setHasEnteredViewport] = useState(false);
+    const [isMediaReady, setIsMediaReady] = useState(false);
     const [isVisible, setIsVisible] = useState(false);
     const [isComplete, setIsComplete] = useState(false);
+    const entranceReady = useHomepageEntranceReady();
 
     useEffect(() => {
+        if (!entranceReady) return;
+
         const hero = heroRef.current;
         if (!hero) return;
 
         if (!("IntersectionObserver" in window)) {
-            setIsVisible(true);
+            setHasEnteredViewport(true);
             return;
         }
 
         const observer = new IntersectionObserver(
             ([entry]) => {
                 if (!entry?.isIntersecting) return;
-                setIsVisible(true);
+                setHasEnteredViewport(true);
                 observer.disconnect();
             },
             {
@@ -267,11 +242,71 @@ function ImpactHero() {
 
         observer.observe(hero);
         return () => observer.disconnect();
+    }, [entranceReady]);
+
+    useEffect(() => {
+        const image = mediaRef.current;
+        if (!image) return;
+
+        let cancelled = false;
+        let resolving = false;
+
+        const releaseImage = () => {
+            if (!cancelled) setIsMediaReady(true);
+        };
+
+        const resolveImage = () => {
+            if (resolving) return;
+            resolving = true;
+
+            if (typeof image.decode !== "function") {
+                releaseImage();
+                return;
+            }
+
+            void image.decode().catch(() => undefined).then(releaseImage);
+        };
+
+        const handleLoad = () => resolveImage();
+        const handleError = () => releaseImage();
+
+        image.addEventListener("load", handleLoad, { once: true });
+        image.addEventListener("error", handleError, { once: true });
+
+        if (image.complete) {
+            if (image.naturalWidth > 0) {
+                resolveImage();
+            } else {
+                handleError();
+            }
+        }
+
+        return () => {
+            cancelled = true;
+            image.removeEventListener("load", handleLoad);
+            image.removeEventListener("error", handleError);
+        };
     }, []);
 
     useEffect(() => {
+        if (!hasEnteredViewport || !isMediaReady || isVisible) return;
+
+        let settleFrame = 0;
+        const paintFrame = window.requestAnimationFrame(() => {
+            settleFrame = window.requestAnimationFrame(() => {
+                setIsVisible(true);
+            });
+        });
+
+        return () => {
+            window.cancelAnimationFrame(paintFrame);
+            window.cancelAnimationFrame(settleFrame);
+        };
+    }, [hasEnteredViewport, isMediaReady, isVisible]);
+
+    useEffect(() => {
         if (!isVisible) return;
-        const timer = window.setTimeout(() => setIsComplete(true), 2100);
+        const timer = window.setTimeout(() => setIsComplete(true), 2400);
         return () => window.clearTimeout(timer);
     }, [isVisible]);
 
@@ -280,17 +315,21 @@ function ImpactHero() {
             ref={heroRef}
             className={`impact-hero relative isolate h-[689px] overflow-hidden bg-black text-white sm:h-[780px] xl:h-auto xl:min-h-[720px] xl:aspect-[1920/955] ${isVisible ? "is-visible" : ""} ${isComplete ? "is-complete" : ""}`}
         >
-            <img
-                src="/assets/images/ub-sport-statistic-data.png"
-                alt=""
-                aria-hidden="true"
-                className="impact-hero-media absolute inset-0 h-full w-full object-cover object-[50%_center] sm:object-[45%_center] xl:object-center"
-            />
-            <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,8,12,.24)_0%,rgba(0,8,12,.04)_48%,rgba(0,8,12,.08)_100%)] xl:bg-[linear-gradient(90deg,rgba(0,8,12,.14)_0%,rgba(0,8,12,.02)_48%,rgba(0,8,12,.05)_100%)]" />
-            <div
-                className="impact-cinematic-sweep pointer-events-none absolute inset-0 z-[1]"
-                aria-hidden="true"
-            />
+            <div className="impact-hero-media-track absolute inset-0 z-0">
+                <img
+                    ref={mediaRef}
+                    src="/assets/images/ub-sport-statistic-data.avif"
+                    alt=""
+                    aria-hidden="true"
+                    className="impact-hero-media absolute inset-0 h-full w-full object-cover object-[50%_center] sm:object-[45%_center] xl:object-center"
+                    loading="lazy"
+                    decoding="async"
+                />
+                <div
+                    className="impact-hero-focus-matte pointer-events-none absolute inset-y-0 left-0 z-[1]"
+                    aria-hidden="true"
+                />
+            </div>
 
             <div className="relative z-10 flex h-full flex-col px-[clamp(1.5rem,4.5vw,5.5rem)] pb-[25px] pt-[48px] sm:pt-12 xl:pb-[clamp(5.7rem,10.5vh,6.4rem)] xl:pt-[clamp(2rem,5.7vh,3.65rem)]">
                 <div>
@@ -307,7 +346,7 @@ function ImpactHero() {
                 <div className="mt-[31px] grid gap-0 xl:mt-[clamp(3.4rem,7.5vh,5.2rem)] xl:grid-cols-[minmax(0,1.7fr)_minmax(340px,.82fr)] xl:gap-[clamp(3rem,6vw,7rem)]">
                     <h2
                         aria-label="Standar baru berolahraga hanya di UB Sport Center."
-                        className="max-w-[325px] font-clash text-[clamp(2.05rem,8.15vw,2.82rem)] font-medium leading-[1.01] tracking-[-0.058em] text-white sm:max-w-[430px] md:text-[clamp(2.08rem,4.5vw,2.6rem)] lg:text-[clamp(2.2rem,3.8vw,2.7rem)] xl:max-w-none xl:text-[clamp(2.05rem,2.38vw,2.36rem)] min-[1440px]:text-[clamp(2.45rem,2.82vw,2.7rem)] 2xl:text-[clamp(2.7rem,2.55vw,3.15rem)]"
+                        className="max-w-[325px] font-clash text-[clamp(2.05rem,8.15vw,2.82rem)] font-medium leading-[1.01] tracking-[-0.058em] text-white sm:max-w-[430px] md:text-[clamp(2.08rem,4.5vw,2.6rem)] lg:text-[clamp(2.2rem,3.8vw,2.7rem)] xl:max-w-none xl:text-[clamp(3.30rem,3.83vw,3.80rem)] min-[1440px]:text-[clamp(3.94rem,4.54vw,4.35rem)] 2xl:text-[clamp(4.35rem,4.11vw,5.07rem)]"
                     >
                         <span aria-hidden className="block xl:hidden">
                             <span className="block overflow-visible">
@@ -347,7 +386,7 @@ function ImpactHero() {
                     </h2>
 
                     <div className="impact-reveal impact-reveal--copy mt-[20px] xl:mt-0 xl:pl-4 xl:pt-0">
-                        <p className="max-w-[300px] font-bdo text-[11px] font-light leading-[1.45] text-white sm:max-w-[420px] sm:text-sm xl:max-w-[520px] xl:text-[clamp(1.25rem,1.55vw,1.875rem)] xl:leading-[1.28]">
+                        <p className="max-w-[300px] font-bdo text-[11px] font-light leading-[1.45] text-white sm:max-w-[420px] sm:text-sm xl:max-w-[520px] xl:text-[clamp(1.125rem,1.39vw,1.68rem)] xl:leading-[1.28]">
                             Komitmen kami adalah menghadirkan
                             <br />{" "}
                             <strong className="font-medium">

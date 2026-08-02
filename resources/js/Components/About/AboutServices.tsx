@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import SectionDivider from "@/Components/Landing/SectionDivider";
+import { useHomepageEntranceReady } from "@/Components/Landing/HomepageEntranceContext";
 import ServiceCard from "@/Components/About/ServiceCard";
 import aboutcard1 from "../../../assets/images/aboutcard1.avif";
 import aboutcard2 from "../../../assets/images/aboutcard2.avif";
@@ -49,10 +50,11 @@ export default function AboutServices() {
     const sectionRef = useRef<HTMLElement>(null);
     const [isVisible, setIsVisible] = useState(false);
     const [isSettled, setIsSettled] = useState(false);
+    const entranceReady = useHomepageEntranceReady();
 
     useEffect(() => {
         const section = sectionRef.current;
-        if (!section || isVisible) return;
+        if (!entranceReady || !section || isVisible) return;
 
         if (!("IntersectionObserver" in window)) {
             setIsVisible(true);
@@ -73,7 +75,7 @@ export default function AboutServices() {
 
         observer.observe(section);
         return () => observer.disconnect();
-    }, [isVisible]);
+    }, [entranceReady, isVisible]);
 
     useEffect(() => {
         if (!isVisible) return;
@@ -105,10 +107,14 @@ export default function AboutServices() {
                 <div className="mt-12 grid grid-cols-1 items-start gap-8 md:mt-14 lg:mt-16 xl:relative xl:mt-14 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,2fr)_minmax(0,1fr)] xl:gap-6">
                     <div
                         className="about-services-text-reveal about-services-text-reveal--kicker flex items-center gap-4 xl:gap-3"
-                        style={{ "--about-services-delay": "80ms" } as CSSProperties}
+                        style={
+                            {
+                                "--about-services-delay": "80ms",
+                            } as CSSProperties
+                        }
                     >
                         <span className="section-label-diamond" />
-                        <span className="font-bdo text-[clamp(1.16rem,1.32vw,1.45rem)] font-medium tracking-[-0.025em] text-black xl:text-[1.25rem]">
+                        <span className="home-section-anchor font-bdo text-[clamp(1.16rem,1.32vw,1.45rem)] font-medium tracking-[-0.025em] text-black xl:text-[1.25rem]">
                             Layanan Unggulan
                         </span>
                     </div>
@@ -116,37 +122,42 @@ export default function AboutServices() {
                     <div className="xl:justify-self-center">
                         <h2
                             aria-label="Mendukung Kebutuhan Aktivitas Olahraga Anda"
-                            className="section-two-headline-weight max-w-lg font-bdo text-[clamp(2.05rem,8.15vw,2.82rem)] font-medium leading-[1.01] tracking-[-0.058em] text-black md:text-[clamp(2.08rem,4.5vw,2.6rem)] lg:text-[clamp(2.2rem,3.8vw,2.7rem)] xl:max-w-none xl:text-center xl:text-[clamp(2.05rem,2.38vw,2.36rem)] min-[1440px]:text-[clamp(2.45rem,2.82vw,2.7rem)] 2xl:text-[clamp(2.7rem,2.55vw,3.15rem)]"
+                            className="home-section-heading section-two-headline-weight max-w-lg font-bdo text-[clamp(2.05rem,8.15vw,2.82rem)] font-medium leading-[1.01] tracking-[-0.058em] text-black md:text-[clamp(2.08rem,4.5vw,2.6rem)] lg:text-[clamp(2.2rem,3.8vw,2.7rem)] xl:max-w-none xl:text-center xl:text-[clamp(2.05rem,2.38vw,2.36rem)] min-[1440px]:text-[clamp(2.45rem,2.82vw,2.7rem)] 2xl:text-[clamp(2.7rem,2.55vw,3.15rem)]"
                         >
-                            {["Mendukung Kebutuhan", "Aktivitas Olahraga Anda"].map(
-                                (line, index) => (
+                            {[
+                                "Mendukung Kebutuhan",
+                                "Aktivitas Olahraga Anda",
+                            ].map((line, index) => (
+                                <span
+                                    key={line}
+                                    className="about-services-title-line block overflow-hidden pb-[0.14em]"
+                                >
                                     <span
-                                        key={line}
-                                        className="about-services-title-line block overflow-hidden pb-[0.14em]"
+                                        className="about-services-title-inner -mb-[0.14em] block whitespace-nowrap pr-[0.08em]"
+                                        style={
+                                            {
+                                                "--about-services-delay": `${150 + index * 115}ms`,
+                                            } as CSSProperties
+                                        }
                                     >
-                                        <span
-                                            className="about-services-title-inner -mb-[0.14em] block whitespace-nowrap pr-[0.08em]"
-                                            style={
-                                                {
-                                                    "--about-services-delay": `${150 + index * 115}ms`,
-                                                } as CSSProperties
-                                            }
-                                        >
-                                            {line}
-                                        </span>
+                                        {line}
                                     </span>
-                                ),
-                            )}
+                                </span>
+                            ))}
                         </h2>
                     </div>
 
                     <div className="xl:justify-self-end">
                         <p
                             className="about-services-copy font-bdo text-[clamp(0.875rem,1.04vw,20px)] font-normal leading-relaxed text-black/70 xl:hidden"
-                            style={{ "--about-services-delay": "320ms" } as CSSProperties}
+                            style={
+                                {
+                                    "--about-services-delay": "320ms",
+                                } as CSSProperties
+                            }
                         >
-                            Beragam layanan pendukung kami hadir untuk memberikan
-                            kenyamanan terbaik bagi pengguna.
+                            Beragam layanan pendukung kami hadir untuk
+                            memberikan kenyamanan terbaik bagi pengguna.
                         </p>
                         <p className="hidden w-max text-left font-bdo text-[clamp(0.875rem,1.04vw,20px)] font-normal leading-[1.55] text-black xl:block">
                             {[

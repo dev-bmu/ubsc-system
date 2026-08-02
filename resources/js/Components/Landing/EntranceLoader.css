@@ -1,0 +1,274 @@
+.ubsc-pixel-loader {
+    --loader-edge: clamp(1rem, 2.35vw, 2.75rem);
+    --loader-banner-offset: 2rem;
+    position: fixed;
+    inset: var(--loader-banner-offset) 0 0;
+    z-index: 10000;
+    min-height: calc(100svh - var(--loader-banner-offset));
+    overflow: hidden;
+    isolation: isolate;
+    color: #fff;
+    background: #03070d;
+    cursor: default;
+    font-family: "BDO Grotesk", sans-serif;
+    contain: strict;
+    /*
+     * Keep the loader itself as the gesture target. This blocks accidental
+     * clicks on the page underneath while native wheel/touch panning can
+     * still move the document and trigger the accelerated exit path.
+     */
+    pointer-events: auto;
+    touch-action: pan-y pinch-zoom;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.ubsc-pixel-loader__canvas {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.ubsc-pixel-loader__rail {
+    position: absolute;
+    z-index: 2;
+    left: var(--loader-edge);
+    right: var(--loader-edge);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: clamp(0.62rem, 0.62vw, 0.72rem);
+    font-weight: 500;
+    letter-spacing: -0.015em;
+    line-height: 1;
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+    animation: ubsc-loader-rail-in 560ms cubic-bezier(0.16, 1, 0.3, 1) 120ms
+        both;
+    will-change: opacity, transform;
+}
+
+.ubsc-pixel-loader__rail--bottom {
+    bottom: calc(var(--loader-edge) + 0.55rem);
+    color: rgba(255, 255, 255, 0.48);
+    font-variant-numeric: tabular-nums;
+}
+
+.ubsc-pixel-loader__stage {
+    position: absolute;
+    z-index: 2;
+    top: 50%;
+    left: 50%;
+    display: grid;
+    width: min(72vw, 34rem);
+    place-items: center;
+    transform: translate3d(-50%, -50%, 0);
+    text-align: center;
+    will-change: opacity, transform, filter;
+}
+
+.ubsc-pixel-loader__stage::before,
+.ubsc-pixel-loader__stage::after {
+    position: absolute;
+    top: 50%;
+    width: min(19vw, 9rem);
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22));
+    content: "";
+    opacity: 0;
+    transform: scaleX(0);
+    animation: ubsc-loader-axis-in 680ms cubic-bezier(0.16, 1, 0.3, 1) 360ms
+        both;
+}
+
+.ubsc-pixel-loader__stage::before {
+    right: calc(100% + clamp(1.4rem, 4vw, 3.5rem));
+    transform-origin: right;
+}
+
+.ubsc-pixel-loader__stage::after {
+    left: calc(100% + clamp(1.4rem, 4vw, 3.5rem));
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.22), transparent);
+    transform-origin: left;
+}
+
+.ubsc-pixel-loader__stage-index {
+    margin-bottom: clamp(1rem, 2vw, 1.5rem);
+    color: rgba(255, 255, 255, 0.46);
+    font-size: clamp(0.56rem, 0.58vw, 0.68rem);
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    line-height: 1;
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+    animation: ubsc-loader-copy-in 560ms cubic-bezier(0.16, 1, 0.3, 1) 180ms
+        both;
+}
+
+.ubsc-pixel-loader__logo {
+    display: block;
+    width: clamp(5.5rem, 9vw, 8.5rem);
+    height: auto;
+    opacity: 0;
+    filter: brightness(0) invert(1) drop-shadow(0 18px 40px rgba(0, 0, 0, 0.28));
+    transform: scale(0.88);
+    animation: ubsc-loader-logo-in 760ms cubic-bezier(0.16, 1, 0.3, 1) 100ms
+        both;
+    will-change: opacity, transform;
+}
+
+.ubsc-pixel-loader__stage-copy {
+    margin-top: clamp(0.8rem, 1.8vw, 1.2rem);
+    color: rgba(255, 255, 255, 0.7);
+    font-size: clamp(0.72rem, 0.78vw, 0.88rem);
+    font-weight: 400;
+    letter-spacing: -0.018em;
+    line-height: 1.2;
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+    animation: ubsc-loader-copy-in 560ms cubic-bezier(0.16, 1, 0.3, 1) 280ms
+        both;
+}
+
+.ubsc-pixel-loader__progress {
+    position: absolute;
+    z-index: 2;
+    right: var(--loader-edge);
+    bottom: var(--loader-edge);
+    left: var(--loader-edge);
+    height: 1px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.ubsc-pixel-loader__progress > span {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: #ff3b00;
+    transform: scaleX(0);
+    transform-origin: left;
+    animation: ubsc-loader-prime-progress 900ms cubic-bezier(0.16, 1, 0.3, 1)
+        80ms forwards;
+    will-change: transform;
+}
+
+.ubsc-pixel-loader--cascade {
+    background: transparent;
+}
+
+.ubsc-pixel-loader--cascade .ubsc-pixel-loader__stage {
+    opacity: 0;
+    filter: blur(3px);
+    transform: translate3d(-50%, calc(-50% - 14px), 0) scale(0.975);
+    transition:
+        opacity 260ms cubic-bezier(0.55, 0, 1, 0.45),
+        filter 300ms ease,
+        transform 320ms cubic-bezier(0.55, 0, 1, 0.45);
+}
+
+.ubsc-pixel-loader--cascade .ubsc-pixel-loader__rail,
+.ubsc-pixel-loader--cascade .ubsc-pixel-loader__progress {
+    opacity: 0;
+    transition: opacity 190ms ease;
+}
+
+.ubsc-pixel-loader--cascade .ubsc-pixel-loader__progress > span {
+    animation: none;
+}
+
+.ubsc-pixel-loader--fade {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 220ms ease;
+}
+
+@keyframes ubsc-loader-rail-in {
+    to {
+        opacity: 1;
+        transform: translate3d(0, 0, 0);
+    }
+}
+
+@keyframes ubsc-loader-axis-in {
+    0% {
+        opacity: 0;
+        transform: scaleX(0);
+    }
+    100% {
+        opacity: 1;
+        transform: scaleX(1);
+    }
+}
+
+@keyframes ubsc-loader-logo-in {
+    0% {
+        opacity: 0;
+        transform: scale(0.88);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes ubsc-loader-copy-in {
+    to {
+        opacity: 1;
+        transform: translate3d(0, 0, 0);
+    }
+}
+
+@keyframes ubsc-loader-prime-progress {
+    to {
+        transform: scaleX(0.32);
+    }
+}
+
+@media (max-width: 640px) {
+    .ubsc-pixel-loader {
+        --loader-edge: 1rem;
+    }
+
+    .ubsc-pixel-loader__rail {
+        font-size: 0.58rem;
+    }
+
+    .ubsc-pixel-loader__stage {
+        width: min(74vw, 19rem);
+    }
+
+    .ubsc-pixel-loader__stage::before,
+    .ubsc-pixel-loader__stage::after {
+        width: 12vw;
+    }
+
+    .ubsc-pixel-loader__logo {
+        width: clamp(5rem, 27vw, 7rem);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ubsc-pixel-loader__rail,
+    .ubsc-pixel-loader__stage-index,
+    .ubsc-pixel-loader__logo,
+    .ubsc-pixel-loader__stage-copy,
+    .ubsc-pixel-loader__stage::before,
+    .ubsc-pixel-loader__stage::after,
+    .ubsc-pixel-loader__progress > span {
+        animation: none !important;
+        opacity: 1;
+        transform: none;
+    }
+
+    .ubsc-pixel-loader__progress > span {
+        transform: scaleX(1);
+    }
+}

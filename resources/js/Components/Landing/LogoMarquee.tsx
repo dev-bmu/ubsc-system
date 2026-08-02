@@ -45,6 +45,7 @@ export default function LogoMarquee({
     const groupRef = useRef<HTMLDivElement>(null);
     const targetSpeedRef = useRef(baseSpeed);
     const positionRef = useRef(0);
+    const loopWidthRef = useRef(0);
     const isDraggingRef = useRef(false);
     const didDragRef = useRef(false);
     const lastPointerXRef = useRef(0);
@@ -64,10 +65,11 @@ export default function LogoMarquee({
         let animationFrame = 0;
         let lastTime = performance.now();
         let currentSpeed = baseSpeed;
+        let isNearViewport = true;
+        let isPageVisible = document.visibilityState !== "hidden";
 
-        const loopWidth = () => group.scrollWidth;
         const normalizePosition = () => {
-            const width = loopWidth();
+            const width = loopWidthRef.current;
 
             if (width <= 0) return;
 
@@ -82,12 +84,23 @@ export default function LogoMarquee({
         const renderPosition = () => {
             track.style.transform = `translate3d(${-positionRef.current}px, 0, 0)`;
         };
+        const shouldAnimate = () =>
+            isNearViewport && isPageVisible && !prefersReduced.matches;
+        const stopAnimation = () => {
+            if (!animationFrame) return;
+
+            window.cancelAnimationFrame(animationFrame);
+            animationFrame = 0;
+        };
         const tick = (time: number) => {
+            animationFrame = 0;
+            if (!shouldAnimate()) return;
+
             const delta = Math.min(0.04, (time - lastTime) / 1000);
             lastTime = time;
             currentSpeed += (targetSpeedRef.current - currentSpeed) * Math.min(1, delta * 5);
 
-            if (!prefersReduced.matches && !isDraggingRef.current) {
+            if (!isDraggingRef.current) {
                 positionRef.current += currentSpeed * delta;
                 normalizePosition();
                 renderPosition();
@@ -95,27 +108,73 @@ export default function LogoMarquee({
 
             animationFrame = window.requestAnimationFrame(tick);
         };
+        const syncAnimation = () => {
+            if (!shouldAnimate()) {
+                stopAnimation();
+                return;
+            }
+
+            if (animationFrame) return;
+
+            // Reset the clock so time spent offscreen never becomes one large jump.
+            lastTime = performance.now();
+            animationFrame = window.requestAnimationFrame(tick);
+        };
         const handleResize = () => {
+            loopWidthRef.current = group.scrollWidth;
             normalizePosition();
             renderPosition();
         };
+        const handleVisibilityChange = () => {
+            isPageVisible = document.visibilityState !== "hidden";
+            syncAnimation();
+        };
+        const handleMotionPreferenceChange = () => {
+            syncAnimation();
+        };
         const initialFrame = window.requestAnimationFrame(handleResize);
         const resizeObserver = new ResizeObserver(handleResize);
+        const intersectionObserver =
+            "IntersectionObserver" in window
+                ? new IntersectionObserver(
+                      ([entry]) => {
+                          isNearViewport = entry?.isIntersecting ?? true;
+                          syncAnimation();
+                      },
+                      {
+                          // Warm up shortly before the rail becomes visible.
+                          rootMargin: "400px 0px",
+                          threshold: 0,
+                      },
+                  )
+                : null;
 
         resizeObserver.observe(group);
-        animationFrame = window.requestAnimationFrame(tick);
+        intersectionObserver?.observe(rail);
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+        prefersReduced.addEventListener("change", handleMotionPreferenceChange);
+        syncAnimation();
 
         return () => {
             window.cancelAnimationFrame(initialFrame);
-            window.cancelAnimationFrame(animationFrame);
+            stopAnimation();
             resizeObserver.disconnect();
+            intersectionObserver?.disconnect();
+            document.removeEventListener(
+                "visibilitychange",
+                handleVisibilityChange,
+            );
+            prefersReduced.removeEventListener(
+                "change",
+                handleMotionPreferenceChange,
+            );
         };
     }, [baseSpeed, marqueeLogos.length]);
 
     const moveTrackBy = (deltaX: number) => {
         const track = trackRef.current;
         const group = groupRef.current;
-        const width = group?.scrollWidth ?? 0;
+        const width = loopWidthRef.current || group?.scrollWidth || 0;
 
         if (!track || width <= 0) return;
 

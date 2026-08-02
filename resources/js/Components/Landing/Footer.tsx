@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { usePage } from "@inertiajs/react";
 import ig from "../../../assets/icons/ig.svg";
@@ -149,7 +149,13 @@ function handleFooterAnchorTap(
     );
 }
 
-export default function Footer({ className = "" }: { className?: string }) {
+export default function Footer({
+    className = "",
+    deferLoopAnimations = false,
+}: {
+    className?: string;
+    deferLoopAnimations?: boolean;
+}) {
     const { url } = usePage();
     const currentPath = normalizePath(url);
     const activeLink =
@@ -157,15 +163,90 @@ export default function Footer({ className = "" }: { className?: string }) {
         NAV_LINKS[0];
     const scrollToTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
     const [ctaHovered, setCtaHovered] = useState(false);
+    const [footerVideoActive, setFooterVideoActive] = useState(false);
+    const [footerVideoReady, setFooterVideoReady] = useState(false);
+    const footerVideoStageRef = useRef<HTMLDivElement>(null);
+    const footerVideoRef = useRef<HTMLVideoElement>(null);
+
+    useEffect(() => {
+        const stage = footerVideoStageRef.current;
+        if (!stage || footerVideoActive) return;
+
+        if (!("IntersectionObserver" in window)) {
+            setFooterVideoActive(true);
+            return;
+        }
+
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (!entry?.isIntersecting) return;
+                setFooterVideoActive(true);
+                observer.disconnect();
+            },
+            {
+                // Percentage root margins are resolved from viewport width.
+                // Use viewport height so a tall phone gets the same lead time
+                // as desktop during a fast scroll or restored scroll position.
+                rootMargin: `${Math.round(
+                    Math.max(
+                        document.documentElement.clientHeight,
+                        window.innerHeight || 0,
+                    ) * 1.15,
+                )}px 0px`,
+                threshold: 0,
+            },
+        );
+        observer.observe(stage);
+        return () => observer.disconnect();
+    }, [footerVideoActive]);
+
+    useEffect(() => {
+        const video = footerVideoRef.current;
+        if (!video || !footerVideoActive) return;
+
+        const markReady = () => {
+            if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+                setFooterVideoReady(true);
+            }
+        };
+        const markWaitingForFrame = () => {
+            if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+                setFooterVideoReady(false);
+            }
+        };
+
+        markReady();
+        video.preload = "auto";
+        if (video.networkState === HTMLMediaElement.NETWORK_EMPTY) {
+            video.load();
+        }
+        video.play().catch(() => {
+            // The decoded first frame remains visible if autoplay is deferred.
+        });
+        video.addEventListener("loadstart", markWaitingForFrame);
+        video.addEventListener("emptied", markWaitingForFrame);
+        video.addEventListener("loadeddata", markReady);
+        video.addEventListener("canplay", markReady);
+
+        return () => {
+            video.removeEventListener("loadstart", markWaitingForFrame);
+            video.removeEventListener("emptied", markWaitingForFrame);
+            video.removeEventListener("loadeddata", markReady);
+            video.removeEventListener("canplay", markReady);
+        };
+    }, [footerVideoActive]);
 
     return (
         <footer
-            className={`relative w-full overflow-hidden pt-10 md:pt-12 lg:pt-16 text-white ${className}`}
+            data-pricing-loop-region={
+                deferLoopAnimations ? "true" : undefined
+            }
+            className={`site-footer relative w-full overflow-hidden pt-10 md:pt-12 lg:pt-16 text-white ${className}`}
             style={{
                 background: "#252525",
             }}
         >
-            <div className="mx-auto w-full px-6 sm:px-10 xl:px-16">
+            <div className="site-footer__shell mx-auto w-full">
                 <div className="mb-16 grid grid-cols-1 gap-12 xl:grid-cols-12 xl:gap-8">
                     <div className="xl:col-span-7">
                         <h2 className="font-semibold mb-12 text-[clamp(1.35rem,2.43vw,46.8px)] leading-[1.12] tracking-[-0.021em]">
@@ -174,7 +255,7 @@ export default function Footer({ className = "" }: { className?: string }) {
                             </span>
                             <span className="mt-2 block">
                                 Mari Terhubung dengan Kami
-                                <span className="inline-block h-3 w-3 translate-y-[-0.15em] rounded-sm bg-blue-500 ml-2 align-bottom" />
+                                <span className="site-footer__heading-accent inline-block h-3 w-3 translate-y-[-0.15em] rounded-sm bg-blue-500 ml-2 align-bottom" />
                             </span>
                         </h2>
 
@@ -255,7 +336,7 @@ export default function Footer({ className = "" }: { className?: string }) {
                                     className="footer-text-link font-bdo w-max text-sm font-light"
                                     onClick={handleFooterAnchorTap}
                                 >
-                                    (0341) 579955
+                                    (0341) 5799155
                                 </a>
                                 <a
                                     href="https://api.whatsapp.com/send/?phone=6285280809080&"
@@ -405,16 +486,24 @@ export default function Footer({ className = "" }: { className?: string }) {
                     </div>
                 </div>
 
-                <div className="footer-video-stage mt-auto w-full relative">
+                <div
+                    ref={footerVideoStageRef}
+                    className="footer-video-stage mt-auto w-full relative"
+                >
                     <div className="w-full relative overflow-hidden pb-3 xl:pb-12">
                         {/* Video Layer */}
                         <video
-                            autoPlay
+                            ref={footerVideoRef}
+                            autoPlay={footerVideoActive}
                             loop
                             muted
                             playsInline
-                            preload="none"
-                            className="footer-video-media w-full h-full select-none object-cover object-center"
+                            preload={footerVideoActive ? "auto" : "none"}
+                            onLoadedData={() => setFooterVideoReady(true)}
+                            onCanPlay={() => setFooterVideoReady(true)}
+                            className={`footer-video-media h-full w-full select-none object-cover object-center transition-opacity duration-500 ease-out ${
+                                footerVideoReady ? "opacity-100" : "opacity-0"
+                            }`}
                         >
                             <source
                                 src="/assets/reels/Footer.mp4"

@@ -13,6 +13,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import useEmblaCarousel from "embla-carousel-react";
 import SectionDivider from "@/Components/Landing/SectionDivider";
 import ScrollTextReveal from "@/Components/Landing/ScrollTextReveal";
+import { useHomepageEntranceReady } from "@/Components/Landing/HomepageEntranceContext";
 
 export interface PublicTestimonial {
     id: string | number;
@@ -87,6 +88,7 @@ interface SectionSevenProps {
     sectionNumber?: string;
     sectionTitle?: string;
     sectionSubtitle?: string;
+    dividerLineWeight?: "default" | "hairline";
 }
 
 type NormalizedTestimonial = PublicTestimonial & {
@@ -108,13 +110,14 @@ function useTestimonialEntrance<T extends HTMLElement>({
     rootMargin = "0px 0px -12% 0px",
     completeDelay = 1380,
 }: TestimonialEntranceOptions = {}) {
+    const entranceReady = useHomepageEntranceReady();
     const ref = useRef<T>(null);
     const [isVisible, setIsVisible] = useState(false);
     const [isComplete, setIsComplete] = useState(false);
 
     useEffect(() => {
         const node = ref.current;
-        if (!node || isVisible || !enabled) return;
+        if (!entranceReady || !node || isVisible || !enabled) return;
 
         const reducedMotion = window.matchMedia(
             "(prefers-reduced-motion: reduce)",
@@ -140,7 +143,7 @@ function useTestimonialEntrance<T extends HTMLElement>({
         observer.observe(node);
 
         return () => observer.disconnect();
-    }, [enabled, isVisible, rootMargin, threshold]);
+    }, [enabled, entranceReady, isVisible, rootMargin, threshold]);
 
     useEffect(() => {
         if (!isVisible || isComplete) return;
@@ -236,9 +239,9 @@ function AuthorLogoMark({
             <img
                 src={source}
                 alt={authorName}
-                loading="eager"
+                loading="lazy"
                 decoding="async"
-                fetchPriority="high"
+                {...({ fetchpriority: "low" } as Record<string, string>)}
                 className="h-full w-full object-cover"
                 onError={() => setHasError(true)}
             />
@@ -382,12 +385,38 @@ function TestimonialQuoteReveal({
     useEffect(() => {
         measureLines();
 
-        const handleResize = () => measureLines();
+        let measureFrame = 0;
+        let viewportWidth = document.documentElement.clientWidth;
+        let rootWidth =
+            rootRef.current?.getBoundingClientRect().width ?? 0;
+
+        const scheduleMeasure = () => {
+            window.cancelAnimationFrame(measureFrame);
+            measureFrame = window.requestAnimationFrame(measureLines);
+        };
+
+        const handleResize = () => {
+            const nextViewportWidth = document.documentElement.clientWidth;
+            if (Math.abs(nextViewportWidth - viewportWidth) < 1) return;
+
+            viewportWidth = nextViewportWidth;
+            scheduleMeasure();
+        };
         window.addEventListener("resize", handleResize);
 
         const observer =
             "ResizeObserver" in window
-                ? new ResizeObserver(() => measureLines())
+                ? new ResizeObserver(([entry]) => {
+                      const nextRootWidth =
+                          entry?.contentRect.width ??
+                          rootRef.current?.getBoundingClientRect().width ??
+                          0;
+
+                      if (Math.abs(nextRootWidth - rootWidth) < 0.5) return;
+
+                      rootWidth = nextRootWidth;
+                      scheduleMeasure();
+                  })
                 : null;
 
         if (rootRef.current) observer?.observe(rootRef.current);
@@ -395,6 +424,7 @@ function TestimonialQuoteReveal({
         document.fonts?.ready.then(measureLines).catch(() => {});
 
         return () => {
+            window.cancelAnimationFrame(measureFrame);
             window.removeEventListener("resize", handleResize);
             observer?.disconnect();
         };
@@ -759,9 +789,11 @@ function TestimonialSlidePanel({
                             alt={item.authorName}
                             className="h-full w-full object-cover"
                             draggable={false}
-                            loading={index === 0 ? "eager" : "lazy"}
+                            loading="lazy"
                             decoding="async"
-                            fetchPriority={index === 0 ? "high" : "low"}
+                            {...({
+                                fetchpriority: "low",
+                            } as Record<string, string>)}
                             onError={(event) => {
                                 event.currentTarget.src = fallbackMedia(
                                     item.authorName,
@@ -834,9 +866,11 @@ function TestimonialSlidePanel({
                             alt={item.authorName}
                             className="h-full w-full object-cover"
                             draggable={false}
-                            loading={index === 0 ? "eager" : "lazy"}
+                            loading="lazy"
                             decoding="async"
-                            fetchPriority={index === 0 ? "high" : "low"}
+                            {...({
+                                fetchpriority: "low",
+                            } as Record<string, string>)}
                             onError={(event) => {
                                 event.currentTarget.src = fallbackMedia(
                                     item.authorName,
@@ -864,7 +898,7 @@ function TestimonialSlidePanel({
                             active={isActive && quoteEntrance.isVisible}
                             delay={650}
                             stagger={92}
-                            className="testimonial-quote-text section-two-headline-weight indent-[2rem] sm:indent-[3.5rem] lg:indent-[8rem] xl:indent-[8rem] font-bdo text-[clamp(1.9rem,7.2vw,2.55rem)] font-medium leading-[1.01] tracking-[-0.058em] text-gray-900 md:text-[clamp(2.12rem,4.35vw,2.82rem)] lg:text-[clamp(2.2rem,3.8vw,2.7rem)] xl:text-[clamp(2.05rem,2.38vw,2.36rem)] min-[1440px]:text-[clamp(2.45rem,2.82vw,2.7rem)] 2xl:text-[clamp(3.5rem,3.3vw,4.1rem)]"
+                            className="home-section-heading testimonial-quote-text section-two-headline-weight indent-[2rem] sm:indent-[3.5rem] lg:indent-[8rem] xl:indent-[8rem] font-bdo text-[clamp(1.9rem,7.2vw,2.55rem)] font-medium leading-[1.01] tracking-[-0.058em] text-gray-900 md:text-[clamp(2.12rem,4.35vw,2.82rem)] lg:text-[clamp(2.2rem,3.8vw,2.7rem)] xl:text-[clamp(2.05rem,2.38vw,2.36rem)] min-[1440px]:text-[clamp(2.45rem,2.82vw,2.7rem)] 2xl:text-[clamp(3.5rem,3.3vw,4.1rem)]"
                         />
                     </blockquote>
                 </div>
@@ -878,7 +912,9 @@ export default function SectionSeven({
     sectionNumber = "07",
     sectionTitle = "Testimoni",
     sectionSubtitle = "01 homepage",
+    dividerLineWeight = "default",
 }: SectionSevenProps) {
+    const entranceReady = useHomepageEntranceReady();
     const sectionRef = useRef<HTMLElement>(null);
     const normalizedTestimonials = useMemo<NormalizedTestimonial[]>(() => {
         const source =
@@ -1044,27 +1080,8 @@ export default function SectionSeven({
     }, [emblaApi]);
 
     useEffect(() => {
-        const sources = normalizedTestimonials
-            .flatMap((item) => [item.image, item.authorLogo])
-            .filter((source): source is string => Boolean(source));
-        const images: HTMLImageElement[] = [];
-        const timer = window.setTimeout(() => {
-            sources.forEach((source) => {
-                const image = new Image();
-                image.decoding = "async";
-                image.src = source;
-                images.push(image);
-                void decodeTestimonialMedia(source).catch(() => {});
-            });
-        }, 220);
+        if (!entranceReady) return;
 
-        return () => {
-            window.clearTimeout(timer);
-            images.length = 0;
-        };
-    }, [normalizedTestimonials]);
-
-    useEffect(() => {
         const section = sectionRef.current;
         if (!section) return;
 
@@ -1100,7 +1117,7 @@ export default function SectionSeven({
             observer.disconnect();
             window.clearTimeout(completeTimer);
         };
-    }, []);
+    }, [entranceReady]);
 
     useEffect(() => {
         if (
@@ -1170,6 +1187,7 @@ export default function SectionSeven({
                     theme="light"
                     outerClassName="-mx-[clamp(0rem,1.65vw,2rem)]"
                     contentClassName="px-3"
+                    lineWeight={dividerLineWeight}
                 />
             </div>
 
@@ -1178,7 +1196,7 @@ export default function SectionSeven({
                 className={`testimonial-entrance-reveal testimonial-entrance-reveal--label mt-10 mb-8 flex items-center gap-4 lg:relative lg:z-20 lg:mb-[-1.8rem] ${labelEntrance.className}`}
             >
                 <span className="section-label-diamond" />
-                <span className="font-bdo text-[clamp(1.16rem,1.32vw,1.45rem)] font-medium tracking-[-0.025em] text-gray-900 lg:text-[1.25rem]">
+                <span className="home-section-anchor font-bdo text-[clamp(1.16rem,1.32vw,1.45rem)] font-medium tracking-[-0.025em] text-gray-900 lg:text-[1.25rem]">
                     Apa Kata Mereka?
                 </span>
             </div>

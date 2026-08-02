@@ -1,7 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import {
+    useCallback,
+    useEffect,
+    useRef,
+    useState,
+    type SyntheticEvent,
+} from "react";
 import TopBg from "@/../assets/hero/Top.png";
 import RightBg from "@/../assets/images/bg-heroabout.avif";
 import HeroBottomBar from "@/Components/Landing/HeroBottomBar";
+import { useHomepageEntranceReady } from "@/Components/Landing/HomepageEntranceContext";
 import ScrollTextReveal from "@/Components/Landing/ScrollTextReveal";
 
 // ─────────────────────────────────────────────
@@ -24,13 +31,80 @@ import ScrollTextReveal from "@/Components/Landing/ScrollTextReveal";
 // Total: ~2.2s | GPU layers: 8 | No reflows.
 // ─────────────────────────────────────────────
 
-export default function AboutHero() {
+type CriticalMediaKey = "top" | "bottom";
+
+export default function AboutHero({
+    onMediaReady,
+}: {
+    onMediaReady?: () => void;
+}) {
     const sectionRef = useRef<HTMLDivElement>(null);
+    const topImageRef = useRef<HTMLImageElement>(null);
+    const bottomImageRef = useRef<HTMLImageElement>(null);
+    const resolvedMediaRef = useRef(new Set<CriticalMediaKey>());
+    const mediaReadySentRef = useRef(false);
     const [phase, setPhase] = useState<"idle" | "prep" | "enter" | "settled">(
         "idle",
     );
+    const entranceReady = useHomepageEntranceReady();
+
+    const resolveCriticalMedia = useCallback(
+        (key: CriticalMediaKey, image?: HTMLImageElement | null) => {
+            if (resolvedMediaRef.current.has(key)) return;
+
+            const commit = () => {
+                if (resolvedMediaRef.current.has(key)) return;
+
+                resolvedMediaRef.current.add(key);
+                if (
+                    resolvedMediaRef.current.size === 2 &&
+                    !mediaReadySentRef.current
+                ) {
+                    mediaReadySentRef.current = true;
+                    onMediaReady?.();
+                }
+            };
+
+            if (
+                image &&
+                image.naturalWidth > 0 &&
+                typeof image.decode === "function"
+            ) {
+                void image
+                    .decode()
+                    .catch(() => undefined)
+                    .finally(commit);
+                return;
+            }
+
+            commit();
+        },
+        [onMediaReady],
+    );
+
+    const handleCriticalMediaLoad = useCallback(
+        (key: CriticalMediaKey, event: SyntheticEvent<HTMLImageElement>) => {
+            resolveCriticalMedia(key, event.currentTarget);
+        },
+        [resolveCriticalMedia],
+    );
 
     useEffect(() => {
+        const media = [
+            ["top", topImageRef.current],
+            ["bottom", bottomImageRef.current],
+        ] as const;
+
+        media.forEach(([key, image]) => {
+            if (image?.complete) {
+                resolveCriticalMedia(key, image);
+            }
+        });
+    }, [resolveCriticalMedia]);
+
+    useEffect(() => {
+        if (!entranceReady) return;
+
         // Phase 1: prep (will-change hints)
         const t1 = setTimeout(() => setPhase("prep"), 30);
         // Phase 2+: enter (trigger all CSS animations)
@@ -43,7 +117,7 @@ export default function AboutHero() {
             clearTimeout(t2);
             clearTimeout(t3);
         };
-    }, []);
+    }, [entranceReady]);
 
     const cls = `ah-hero ah-hero--${phase}`;
 
@@ -56,10 +130,16 @@ export default function AboutHero() {
             {/* ── TOP PANEL (blue gradient / aerial photo) ─── */}
             <div className="ah-panel ah-panel--top pointer-events-none absolute inset-x-0 top-0 h-[61.5%] overflow-hidden bg-[#103755] sm:h-[54%] lg:h-[56%] xl:h-[59.5%]">
                 <img
+                    ref={topImageRef}
                     src={TopBg}
                     alt=""
                     aria-hidden
                     className="ah-panel-img absolute inset-0 h-full w-full object-cover object-top"
+                    loading="eager"
+                    decoding="async"
+                    onLoad={(event) => handleCriticalMediaLoad("top", event)}
+                    onError={() => resolveCriticalMedia("top")}
+                    {...{ fetchpriority: "high" }}
                 />
                 {/* Subtle vignette overlay on top panel */}
                 <div
@@ -75,10 +155,16 @@ export default function AboutHero() {
             {/* ── BOTTOM PANEL (gym photo + overlays) ──────── */}
             <div className="ah-panel ah-panel--bottom pointer-events-none absolute inset-x-0 bottom-0 top-[61.5%] bg-black sm:top-[54%] lg:top-[56%] xl:top-[59.5%]">
                 <img
+                    ref={bottomImageRef}
                     src={RightBg}
                     alt=""
                     aria-hidden
                     className="ah-panel-img absolute inset-0 h-full w-full object-cover object-center opacity-80 md:opacity-80 xl:left-[29.2%] xl:w-[70.8%] xl:opacity-100"
+                    loading="eager"
+                    decoding="async"
+                    onLoad={(event) => handleCriticalMediaLoad("bottom", event)}
+                    onError={() => resolveCriticalMedia("bottom")}
+                    {...{ fetchpriority: "high" }}
                 />
                 <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,.92)_0%,rgba(0,0,0,.72)_44%,rgba(0,0,0,.22)_100%)] xl:left-[29.2%] xl:bg-[linear-gradient(90deg,rgba(0,0,0,.24)_0%,rgba(0,0,0,.04)_44%,rgba(0,0,0,.08)_100%)]" />
                 <div className="absolute inset-y-0 left-0 hidden w-[29.2%] bg-black xl:block" />

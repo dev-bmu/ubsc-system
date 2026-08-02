@@ -19,8 +19,12 @@ const ArrowIcon: React.FC = () => (
 interface ReservasiButtonProps {
     label?: string;
     href?: string;
-    size?: "default" | "compact";
+    size?: "default" | "compact" | "review";
     onClick?: () => void;
+    ariaLabel?: string;
+    ariaExpanded?: boolean;
+    ariaControls?: string;
+    buttonRef?: React.Ref<HTMLButtonElement>;
 }
 
 export default function ReservasiButton({
@@ -28,10 +32,18 @@ export default function ReservasiButton({
     href = "/coming-soon",
     size = "default",
     onClick,
+    ariaLabel,
+    ariaExpanded,
+    ariaControls,
+    buttonRef,
 }: ReservasiButtonProps) {
-    const className = `reservasi-btn ${
-        size === "compact" ? "reservasi-btn--compact" : ""
-    }`;
+    const className = [
+        "reservasi-btn",
+        size === "compact" ? "reservasi-btn--compact" : "",
+        size === "review" ? "reservasi-btn--review" : "",
+    ]
+        .filter(Boolean)
+        .join(" ");
     const content = (
         <>
             <div className="reservasi-btn-fill" />
@@ -213,16 +225,61 @@ export default function ReservasiButton({
                         height: 17px;
                     }
                 }
+                .reservasi-btn--review {
+                    width: fit-content;
+                    max-width: none;
+                    height: 50px;
+                    padding: 5px 18px 5px 5px;
+                }
+                .reservasi-btn--review .reservasi-btn-fill {
+                    left: 5px; top: 5px; bottom: 5px; width: 40px;
+                }
+                .reservasi-btn--review:hover .reservasi-btn-fill {
+                    width: calc(100% - 10px);
+                }
+                .reservasi-btn--review .reservasi-icon-wrap {
+                    width: 40px;
+                    height: 40px;
+                }
+                .reservasi-btn--review .reservasi-arrow-track {
+                    width: 80px;
+                    transform: translateX(-40px);
+                }
+                .reservasi-btn--review:hover .reservasi-arrow-track {
+                    transform: translateX(0);
+                }
+                .reservasi-btn--review .reservasi-arrow-slot {
+                    width: 40px;
+                }
+                .reservasi-btn--review .reservasi-text-wrap {
+                    height: 40px;
+                    padding-left: 11px;
+                    padding-right: 0;
+                }
+                .reservasi-btn--review:hover .reservasi-text-track {
+                    transform: translateY(-40px);
+                }
+                .reservasi-btn--review .reservasi-text-slot {
+                    height: 40px;
+                    font-size: 10px;
+                }
+                .reservasi-btn--review svg {
+                    width: 16px;
+                    height: 16px;
+                }
                 .reservasi-text-1 { color: #111111; }
                 .reservasi-text-2 { color: #FFFFFF; }
             `}</style>
 
             {onClick ? (
                 <button
+                    ref={buttonRef}
                     type="button"
                     onClick={onClick}
                     className={className}
-                    aria-label={label}
+                    aria-label={ariaLabel ?? label}
+                    aria-expanded={ariaExpanded}
+                    aria-controls={ariaControls}
                 >
                     {content}
                 </button>
@@ -234,7 +291,7 @@ export default function ReservasiButton({
                         href.startsWith("http") ? "noopener noreferrer" : undefined
                     }
                     className={className}
-                    aria-label={label}
+                    aria-label={ariaLabel ?? label}
                 >
                     {content}
                 </a>

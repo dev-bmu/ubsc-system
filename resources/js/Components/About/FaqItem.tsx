@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { Plus } from "lucide-react";
+import { useHomepageEntranceReady } from "@/Components/Landing/HomepageEntranceContext";
 import ScrollTextReveal from "@/Components/Landing/ScrollTextReveal";
 
 interface FaqItemProps {
@@ -21,13 +22,21 @@ export default function FaqItem({
     onToggle,
     revealDelay = 120,
 }: FaqItemProps) {
+    const entranceReady = useHomepageEntranceReady();
+
     return (
         <motion.div
             className="border-b border-black/22"
             initial={{ opacity: 0, y: 18 }}
-            whileInView={{ opacity: 1, y: 0 }}
+            whileInView={
+                entranceReady ? { opacity: 1, y: 0 } : { opacity: 0, y: 18 }
+            }
             viewport={{ once: true, amount: 0.24 }}
-            transition={{ duration: 0.58, delay: revealDelay / 1000, ease: EASE }}
+            transition={{
+                duration: 0.58,
+                delay: revealDelay / 1000,
+                ease: EASE,
+            }}
         >
             <button
                 type="button"
@@ -64,7 +73,11 @@ export default function FaqItem({
                             opacity: 1,
                             transition: {
                                 height: { duration: 0.54, ease: EASE },
-                                opacity: { duration: 0.2, delay: 0.1, ease: EASE },
+                                opacity: {
+                                    duration: 0.2,
+                                    delay: 0.1,
+                                    ease: EASE,
+                                },
                             },
                         }}
                         exit={{

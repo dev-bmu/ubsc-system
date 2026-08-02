@@ -2,6 +2,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import FaqItem from "@/Components/About/FaqItem";
 import SectionDivider from "@/Components/Landing/SectionDivider";
+import { useHomepageEntranceReady } from "@/Components/Landing/HomepageEntranceContext";
 import ScrollTextReveal from "@/Components/Landing/ScrollTextReveal";
 import supportImage from "@/../assets/images/person map.avif";
 
@@ -16,7 +17,8 @@ const DUMMY_FAQS: FaqItemData[] = [
     {
         id: 1,
         number: "01",
-        question: "Siapa saja yang dapat menggunakan fasilitas UB Sport Center?",
+        question:
+            "Siapa saja yang dapat menggunakan fasilitas UB Sport Center?",
         answer: "UB Sport Center dapat digunakan oleh sivitas akademika Universitas Brawijaya maupun masyarakat umum. Setiap pengguna wajib mengikuti ketentuan penggunaan fasilitas serta melakukan pemesanan sesuai prosedur yang telah ditetapkan.",
     },
     {
@@ -53,6 +55,7 @@ const DUMMY_FAQS: FaqItemData[] = [
 
 export default function AboutSectionFaq() {
     const [activeId, setActiveId] = useState<number | null>(null);
+    const entranceReady = useHomepageEntranceReady();
 
     const handleToggle = (id: number) => {
         setActiveId((current) => (current === id ? null : id));
@@ -76,7 +79,7 @@ export default function AboutSectionFaq() {
                             as="h2"
                             split="block"
                             delay={80}
-                            className="about-vision-text-safe font-bdo text-[clamp(2.25rem,5.3vw,3.1rem)] font-semibold leading-[1.04] tracking-[-0.035em] text-black lg:text-[clamp(2.65rem,2.75vw,3.18rem)]"
+                            className="home-section-heading about-vision-text-safe font-bdo text-[clamp(2.25rem,5.3vw,3.1rem)] font-semibold leading-[1.04] tracking-[-0.035em] text-black lg:text-[clamp(2.65rem,2.75vw,3.18rem)]"
                         >
                             FAQ &amp; Bantuan
                         </ScrollTextReveal>
@@ -94,7 +97,11 @@ export default function AboutSectionFaq() {
                         <div className="mt-14 flex items-end gap-4 sm:mt-[4.5rem] lg:mt-[7.45rem]">
                             <motion.div
                                 initial={{ opacity: 0, y: 24 }}
-                                whileInView={{ opacity: 1, y: 0 }}
+                                whileInView={
+                                    entranceReady
+                                        ? { opacity: 1, y: 0 }
+                                        : { opacity: 0, y: 24 }
+                                }
                                 viewport={{ once: true, amount: 0.55 }}
                                 transition={{
                                     duration: 0.72,

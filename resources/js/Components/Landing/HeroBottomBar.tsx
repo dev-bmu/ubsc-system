@@ -1,3 +1,4 @@
+import { useHomepageEntranceReady } from "@/Components/Landing/HomepageEntranceContext";
 import {
     type CSSProperties,
     type ReactNode,
@@ -43,7 +44,9 @@ function getCleanDescription(description: string) {
 
     if (firstCode === 0x00e2 || firstCode === 0x00c3) {
         const firstSpace = withoutPrefix.indexOf(" ");
-        return firstSpace === -1 ? "" : withoutPrefix.slice(firstSpace + 1).trimStart();
+        return firstSpace === -1
+            ? ""
+            : withoutPrefix.slice(firstSpace + 1).trimStart();
     }
 
     return withoutPrefix;
@@ -102,10 +105,11 @@ export default function HeroBottomBar({
     sectionInset = false,
     cinematicCopyReveal = false,
 }: HeroBottomBarProps) {
-    const rootRef = useRef<HTMLDivElement>(null);
     const [rotated, setRotated] = useState(false);
-    const [hasEntered, setHasEntered] = useState(false);
-    const [hasUserScrolled, setHasUserScrolled] = useState(false);
+    const [isVideoReady, setIsVideoReady] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const entranceReady = useHomepageEntranceReady();
     const cleanDescription = getCleanDescription(description);
     const isHomepageDescription =
         cleanDescription ===
@@ -113,47 +117,135 @@ export default function HeroBottomBar({
     const topLineInsetClass = mobileWide
         ? "left-[0.95rem] right-[0.95rem] md:left-[clamp(2.75rem,3.25vw,4rem)] md:right-[clamp(2.75rem,3.25vw,4rem)]"
         : sectionInset
-        ? "left-[clamp(1.5rem,2.7vw,5.5rem)] right-[clamp(1.5rem,2.7vw,5.5rem)]"
-        : lineInset
-        ? "left-[0.95rem] right-[0.95rem] md:left-[clamp(1.5rem,4.6vw,3.5rem)] md:right-[clamp(1.5rem,4.6vw,3.5rem)] xl:left-[clamp(2rem,4.2vw,4.25rem)] xl:right-[clamp(2rem,4.2vw,4.25rem)]"
-        : insetLine
-        ? "left-[clamp(2.75rem,3.25vw,4rem)] right-[clamp(2.75rem,3.25vw,4rem)]"
-        : "left-0 right-0";
+          ? "left-[clamp(1.5rem,2.7vw,5.5rem)] right-[clamp(1.5rem,2.7vw,5.5rem)]"
+          : lineInset
+            ? "left-[0.95rem] right-[0.95rem] md:left-[clamp(1.5rem,4.6vw,3.5rem)] md:right-[clamp(1.5rem,4.6vw,3.5rem)] xl:left-[clamp(2rem,4.2vw,4.25rem)] xl:right-[clamp(2rem,4.2vw,4.25rem)]"
+            : insetLine
+              ? "left-[clamp(2.75rem,3.25vw,4rem)] right-[clamp(2.75rem,3.25vw,4rem)]"
+              : "left-0 right-0";
 
     useEffect(() => {
-        const onScroll = () => {
-            if (window.scrollY <= 8) return;
-            setHasUserScrolled(true);
-            window.removeEventListener("scroll", onScroll);
+        const container = containerRef.current;
+        const video = videoRef.current;
+        if (!container || !video) return;
+
+        const mobileQuery = window.matchMedia("(max-width: 47.999rem)");
+        let isNearViewport = true;
+        let isDisposed = false;
+        let frameReadyCommitted = false;
+
+        const markReady = () => {
+            if (
+                !frameReadyCommitted &&
+                video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
+            ) {
+                frameReadyCommitted = true;
+                setIsVideoReady(true);
+            }
         };
+        const markWaitingForFrame = () => {
+            if (
+                frameReadyCommitted &&
+                video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA
+            ) {
+                frameReadyCommitted = false;
+                setIsVideoReady(false);
+            }
+        };
+        const canUseVideo = () => !mobileVideoOnly || mobileQuery.matches;
+        const syncPlayback = () => {
+            if (isDisposed) return;
 
-        window.addEventListener("scroll", onScroll, { passive: true });
-        onScroll();
+            const shouldPlay =
+                canUseVideo() &&
+                isNearViewport &&
+                document.visibilityState === "visible";
 
-        return () => window.removeEventListener("scroll", onScroll);
-    }, []);
+            if (!shouldPlay) {
+                if (!video.paused) {
+                    video.pause();
+                }
+                return;
+            }
 
-    useEffect(() => {
-        const node = rootRef.current;
-        if (!node || hasEntered || !hasUserScrolled) return;
+            if (video.networkState === HTMLMediaElement.NETWORK_EMPTY) {
+                video.load();
+            }
 
-        if (!("IntersectionObserver" in window)) {
-            setHasEntered(true);
-            return;
-        }
-
-        const observer = new IntersectionObserver(
-            ([entry]) => {
-                if (!entry?.isIntersecting) return;
-                setHasEntered(true);
-                observer.disconnect();
-            },
-            { threshold: 0.35, rootMargin: "0px 0px -8% 0px" },
+            if (video.paused || video.ended) {
+                const playback = video.play();
+                playback?.catch(() => {
+                    // Muted autoplay remains browser-controlled; the decoded
+                    // frame is retained and playback is retried on the next
+                    // visibility or intersection transition.
+                });
+            }
+        };
+        const handlePageHide = () => {
+            if (!video.paused) {
+                video.pause();
+            }
+        };
+        const handlePageShow = () => syncPlayback();
+        const observer =
+            "IntersectionObserver" in window
+                ? new IntersectionObserver(
+                      ([entry]) => {
+                          isNearViewport = Boolean(entry?.isIntersecting);
+                          syncPlayback();
+                      },
+                      {
+                          root: null,
+                          rootMargin: "220px 0px",
+                          threshold: 0,
+                      },
+                  )
+                : null;
+        const viewportHeight = Math.max(
+            document.documentElement.clientHeight,
+            window.innerHeight || 0,
         );
+        const initialRect = container.getBoundingClientRect();
+        isNearViewport =
+            initialRect.bottom >= -220 &&
+            initialRect.top <= viewportHeight + 220;
 
-        observer.observe(node);
-        return () => observer.disconnect();
-    }, [hasEntered, hasUserScrolled]);
+        markReady();
+        video.addEventListener("loadstart", markWaitingForFrame);
+        video.addEventListener("emptied", markWaitingForFrame);
+        video.addEventListener("loadeddata", markReady);
+        video.addEventListener("canplay", markReady);
+        document.addEventListener("visibilitychange", syncPlayback);
+        window.addEventListener("pagehide", handlePageHide);
+        window.addEventListener("pageshow", handlePageShow);
+        if (typeof mobileQuery.addEventListener === "function") {
+            mobileQuery.addEventListener("change", syncPlayback);
+        } else {
+            mobileQuery.addListener(syncPlayback);
+        }
+        observer?.observe(container);
+        syncPlayback();
+
+        return () => {
+            isDisposed = true;
+            observer?.disconnect();
+            if (!video.paused) {
+                video.pause();
+            }
+            video.removeEventListener("loadstart", markWaitingForFrame);
+            video.removeEventListener("emptied", markWaitingForFrame);
+            video.removeEventListener("loadeddata", markReady);
+            video.removeEventListener("canplay", markReady);
+            document.removeEventListener("visibilitychange", syncPlayback);
+            window.removeEventListener("pagehide", handlePageHide);
+            window.removeEventListener("pageshow", handlePageShow);
+            if (typeof mobileQuery.removeEventListener === "function") {
+                mobileQuery.removeEventListener("change", syncPlayback);
+            } else {
+                mobileQuery.removeListener(syncPlayback);
+            }
+        };
+    }, [showVideo, variant, mobileVideoOnly]);
 
     const scrollToTarget = () => {
         const el = document.getElementById(targetId);
@@ -217,9 +309,7 @@ export default function HeroBottomBar({
                         mobileWide
                             ? "h-[0.78rem] w-[0.78rem]"
                             : "h-[18px] w-[18px]"
-                    } ${
-                        rotated ? "rotate-[88deg]" : "rotate-[45deg]"
-                    }`}
+                    } ${rotated ? "rotate-[88deg]" : "rotate-[45deg]"}`}
                 >
                     <HeroCtaArrow className="h-full w-full" />
                 </span>
@@ -229,30 +319,39 @@ export default function HeroBottomBar({
 
     return (
         <div
-            ref={rootRef}
+            ref={containerRef}
             className={`hero-bottom-bar hero-bottom-bar--${variant} ${
-                hasEntered ? "is-visible" : ""
+                entranceReady ? "is-visible" : ""
             } relative w-full overflow-hidden ${
-                variant === "solid" && !showVideo ? "bg-[#02050B]" : ""
+                variant === "solid" ? "bg-[#02050B]" : ""
             }`}
         >
             {showVideo && (variant === "solid" || mobileVideoOnly) && (
                 <video
-                    className={`pointer-events-none absolute inset-0 h-full w-full object-cover ${
-                        mobileVideoOnly ? "md:hidden" : ""
-                    }`}
-                    src="/assets/reels/Hero.mp4"
-                    autoPlay
+                    ref={videoRef}
+                    data-video-ready={isVideoReady ? "true" : "false"}
+                    className={`pointer-events-none absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ease-out ${
+                        isVideoReady ? "opacity-100" : "opacity-0"
+                    } ${mobileVideoOnly ? "md:hidden" : ""}`}
+                    src={mobileVideoOnly ? undefined : "/assets/reels/hero.mp4"}
                     loop
                     muted
                     playsInline
-                    preload="none"
-                />
+                    preload="auto"
+                >
+                    {mobileVideoOnly && (
+                        <source
+                            src="/assets/reels/hero.mp4"
+                            type="video/mp4"
+                            media="(max-width: 47.999rem)"
+                        />
+                    )}
+                </video>
             )}
 
             {!hideLine && (
                 <div
-                    className={`absolute top-0 border-t border-white/35 ${topLineInsetClass}`}
+                    className={`hero-bottom-line absolute top-0 border-t border-white/35 ${topLineInsetClass}`}
                 />
             )}
 
@@ -263,8 +362,8 @@ export default function HeroBottomBar({
                     sectionInset
                         ? "px-[clamp(1.5rem,2.7vw,5.5rem)]"
                         : insetLine
-                        ? "px-[clamp(2.75rem,3.25vw,4rem)]"
-                        : "px-[clamp(2rem,4.2vw,4.25rem)]"
+                          ? "px-[clamp(2.75rem,3.25vw,4rem)]"
+                          : "px-[clamp(2rem,4.2vw,4.25rem)]"
                 }`}
             >
                 <div className="hero-bottom-item hero-bottom-item--meta flex items-center gap-2">
@@ -284,21 +383,29 @@ export default function HeroBottomBar({
                     {cinematicCopyReveal ? (
                         renderCinematicCopyLines([
                             <>
-                                <span className="font-medium">UB Sport Center</span>
+                                <span className="font-medium">
+                                    UB Sport Center
+                                </span>
                                 <span> - </span>
                                 Temukan fasilitas olahraga modern
                             </>,
-                            <>untuk berlatih, berprestasi, dan berkembang bersama.</>,
+                            <>
+                                untuk berlatih, berprestasi, dan berkembang
+                                bersama.
+                            </>,
                         ])
                     ) : isHomepageDescription ? (
                         <>
                             <span className="block whitespace-nowrap">
-                                <span className="font-medium">UB Sport Center</span>
+                                <span className="font-medium">
+                                    UB Sport Center
+                                </span>
                                 <span> - </span>
                                 Temukan fasilitas olahraga modern
                             </span>
                             <span className="block whitespace-nowrap">
-                                untuk berlatih, berprestasi, dan berkembang bersama.
+                                untuk berlatih, berprestasi, dan berkembang
+                                bersama.
                             </span>
                         </>
                     ) : (
@@ -339,11 +446,16 @@ export default function HeroBottomBar({
                     {cinematicCopyReveal ? (
                         renderCinematicCopyLines([
                             <>
-                                <span className="font-medium">UB Sport Center</span>
+                                <span className="font-medium">
+                                    UB Sport Center
+                                </span>
                                 <span> - </span>
                                 Temukan fasilitas olahraga modern
                             </>,
-                            <>untuk berlatih, berprestasi, dan berkembang bersama.</>,
+                            <>
+                                untuk berlatih, berprestasi, dan berkembang
+                                bersama.
+                            </>,
                         ])
                     ) : (
                         <>
@@ -364,8 +476,8 @@ export default function HeroBottomBar({
                     sectionInset
                         ? "px-[clamp(1.5rem,2.7vw,5.5rem)] py-4"
                         : mobileWide
-                        ? "px-[0.95rem] py-[0.92rem]"
-                        : "px-[clamp(1rem,5vw,1.35rem)] py-4"
+                          ? "px-[0.95rem] py-[0.92rem]"
+                          : "px-[clamp(1rem,5vw,1.35rem)] py-4"
                 }`}
             >
                 <div
@@ -410,14 +522,16 @@ export default function HeroBottomBar({
                                     ? "text-[0.523rem] leading-[1.22]"
                                     : "text-[0.58rem] leading-[1.22]"
                                 : mobileCopySmaller
-                                ? "text-[10.83px] leading-[1.52] max-[380px]:max-w-[285px] max-[380px]:text-[10.36px] max-[380px]:leading-[1.46]"
-                                : "text-[12px] leading-[1.34] max-[380px]:max-w-[285px] max-[380px]:text-[11.5px] max-[380px]:leading-[1.32]"
+                                  ? "text-[10.83px] leading-[1.52] max-[380px]:max-w-[285px] max-[380px]:text-[10.36px] max-[380px]:leading-[1.46]"
+                                  : "text-[12px] leading-[1.34] max-[380px]:max-w-[285px] max-[380px]:text-[11.5px] max-[380px]:leading-[1.32]"
                         }`}
                     >
                         {cinematicCopyReveal ? (
                             renderCinematicCopyLines([
                                 <>
-                                    <span className="font-medium">UB Sport Center</span>
+                                    <span className="font-medium">
+                                        UB Sport Center
+                                    </span>
                                     <span> - </span>
                                     Temukan fasilitas
                                 </>,

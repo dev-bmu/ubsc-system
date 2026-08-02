@@ -15,6 +15,8 @@ interface CurvedLoopProps extends HTMLAttributes<HTMLDivElement> {
     direction?: "left" | "right";
     interactive?: boolean;
     fontSize?: number | string;
+    paused?: boolean;
+    settleAtCycleEnd?: boolean;
 }
 
 export default function CurvedLoop({
@@ -25,6 +27,8 @@ export default function CurvedLoop({
     direction = "left",
     interactive = true,
     fontSize = "4.5rem",
+    paused = false,
+    settleAtCycleEnd = false,
     style,
     ...rest
 }: CurvedLoopProps) {
@@ -34,6 +38,9 @@ export default function CurvedLoop({
     const rootRef = useRef<HTMLDivElement | null>(null);
     const offsetRef = useRef(0);
     const rafRef = useRef<number | null>(null);
+    const settleAtCycleEndRef = useRef(settleAtCycleEnd);
+    const canAnimateRef = useRef(false);
+    const animateFrameRef = useRef<(() => void) | null>(null);
     const isDraggingRef = useRef(false);
     const lastXRef = useRef(0);
     const dragVelocityRef = useRef(0);
@@ -99,42 +106,98 @@ export default function CurvedLoop({
     );
 
     useEffect(() => {
+        settleAtCycleEndRef.current = settleAtCycleEnd;
+
+        if (
+            !settleAtCycleEnd &&
+            canAnimateRef.current &&
+            rafRef.current === null &&
+            animateFrameRef.current
+        ) {
+            rafRef.current = requestAnimationFrame(
+                animateFrameRef.current,
+            );
+        }
+    }, [settleAtCycleEnd]);
+
+    useEffect(() => {
         const reducedMotion = window.matchMedia(
             "(prefers-reduced-motion: reduce)",
         ).matches;
 
-        if (!isInView || reducedMotion) return;
+        canAnimateRef.current = isInView && !reducedMotion && !paused;
+        if (!canAnimateRef.current) {
+            if (rafRef.current !== null) {
+                cancelAnimationFrame(rafRef.current);
+            }
+            rafRef.current = null;
+            animateFrameRef.current = null;
+            return;
+        }
 
         const step = direction === "left" ? -speed : speed;
+        let disposed = false;
 
         const animate = () => {
-            if (!isDraggingRef.current) {
-                offsetRef.current += step;
-            } else {
-                offsetRef.current += dragVelocityRef.current;
+            if (disposed || !canAnimateRef.current) {
+                rafRef.current = null;
+                return;
+            }
+
+            const previousOffset = offsetRef.current;
+            const delta = isDraggingRef.current
+                ? dragVelocityRef.current
+                : step;
+            const rawOffset = previousOffset + delta;
+
+            if (isDraggingRef.current) {
                 dragVelocityRef.current *= 0.95;
             }
 
             // Wrap by the measured phrase width so the repeated text never jumps mid-loop.
             const wrapAt = singleTextWidth;
+            let crossedCycleBoundary = false;
             if (wrapAt > 0) {
-                offsetRef.current = ((offsetRef.current % wrapAt) + wrapAt) % wrapAt;
+                crossedCycleBoundary =
+                    direction === "left"
+                        ? rawOffset < -wrapAt || rawOffset > 0
+                        : rawOffset >= wrapAt || rawOffset < 0;
+                offsetRef.current =
+                    ((rawOffset % wrapAt) + wrapAt) % wrapAt;
                 if (direction === "left") offsetRef.current -= wrapAt;
+            } else {
+                offsetRef.current = rawOffset;
             }
 
             textPathRef.current?.setAttribute(
                 "startOffset",
                 `${offsetRef.current}px`,
             );
+
+            if (
+                settleAtCycleEndRef.current &&
+                crossedCycleBoundary
+            ) {
+                rafRef.current = null;
+                return;
+            }
+
             rafRef.current = requestAnimationFrame(animate);
         };
 
-        rafRef.current = requestAnimationFrame(animate);
+        animateFrameRef.current = animate;
+        if (rafRef.current === null) {
+            rafRef.current = requestAnimationFrame(animate);
+        }
+
         return () => {
+            disposed = true;
+            canAnimateRef.current = false;
             if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
             rafRef.current = null;
+            animateFrameRef.current = null;
         };
-    }, [isInView, speed, direction, singleTextWidth]);
+    }, [isInView, speed, direction, singleTextWidth, paused]);
 
     const handleMouseDown = (e: React.MouseEvent) => {
         if (!interactive) return;

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import SectionDivider from "@/Components/Landing/SectionDivider";
 import CurvedLoop from "@/Components/Landing/CurvedLoop";
 import HeroCurtainEdge from "@/Components/Landing/HeroCurtainEdge";
+import { useHomepageEntranceReady } from "@/Components/Landing/HomepageEntranceContext";
 import ScrollTextReveal from "@/Components/Landing/ScrollTextReveal";
 import person from "@/../assets/images/person.avif";
 import bg from "@/../assets/images/bg-about.avif";
@@ -136,13 +137,14 @@ function useResponsiveCurve(mobile: number, desktop: number): number {
 function useInViewOnce<T extends HTMLElement>(
     rootMargin: string,
     threshold = 0.08,
+    enabled = true,
 ) {
     const elementRef = useRef<T>(null);
     const [isVisible, setIsVisible] = useState(false);
 
     useEffect(() => {
         const element = elementRef.current;
-        if (!element) return;
+        if (!enabled || !element) return;
 
         if (
             !("IntersectionObserver" in window) ||
@@ -163,23 +165,27 @@ function useInViewOnce<T extends HTMLElement>(
 
         observer.observe(element);
         return () => observer.disconnect();
-    }, [rootMargin, threshold]);
+    }, [enabled, rootMargin, threshold]);
 
     return [elementRef, isVisible] as const;
 }
 
 export default function AboutHistory() {
+    const entranceReady = useHomepageEntranceReady();
     const [introRef, isIntroVisible] = useInViewOnce<HTMLDivElement>(
         "0px 0px -14% 0px",
         0.06,
+        entranceReady,
     );
     const [statsRef, isStatsVisible] = useInViewOnce<HTMLDivElement>(
         "0px 0px -10% 0px",
         0.08,
+        entranceReady,
     );
     const [mediaRef, isMediaVisible] = useInViewOnce<HTMLDivElement>(
         "0px 0px -34% 0px",
         0.18,
+        entranceReady,
     );
     const [isComplete, setIsComplete] = useState(false);
     const curveAmount = useResponsiveCurve(128, 124);
@@ -225,7 +231,7 @@ export default function AboutHistory() {
                         <span className="section-label-diamond" />
                         <ScrollTextReveal
                             delay={80}
-                            className="font-bdo text-[clamp(1.16rem,1.32vw,1.45rem)] font-medium tracking-[-0.025em] xl:text-[1.25rem]"
+                            className="home-section-anchor font-bdo text-[clamp(1.16rem,1.32vw,1.45rem)] font-medium tracking-[-0.025em] xl:text-[1.25rem]"
                         >
                             Gabung Member Sekarang
                         </ScrollTextReveal>
@@ -238,7 +244,7 @@ export default function AboutHistory() {
                             delay={90}
                             stagger={34}
                             amount={0.16}
-                            className="about-history-heading font-bdo font-semibold text-black"
+                            className="home-section-heading about-history-heading font-bdo font-semibold text-black"
                         >
                             Sejarah dan Perkembangan
                         </ScrollTextReveal>
@@ -251,10 +257,10 @@ export default function AboutHistory() {
                             className="about-history-copy font-bdo font-normal text-black/70"
                         >
                             UB Sport Center merupakan pusat olahraga milik
-                            Universitas Brawijaya yang dikelola oleh PT Brawijaya
-                            Multi Usaha, dengan tujuan menyediakan fasilitas
-                            olahraga yang representatif bagi sivitas akademika
-                            dan masyarakat umum.
+                            Universitas Brawijaya yang dikelola oleh PT
+                            Brawijaya Multi Usaha, dengan tujuan menyediakan
+                            fasilitas olahraga yang representatif bagi sivitas
+                            akademika dan masyarakat umum.
                         </ScrollTextReveal>
                         <ScrollTextReveal
                             as="p"
@@ -272,10 +278,7 @@ export default function AboutHistory() {
                         </ScrollTextReveal>
                     </div>
 
-                    <div
-                        ref={statsRef}
-                        className="about-history-stats"
-                    >
+                    <div ref={statsRef} className="about-history-stats">
                         {STATS.map((stat, index) => (
                             <StatItem
                                 key={stat.label}

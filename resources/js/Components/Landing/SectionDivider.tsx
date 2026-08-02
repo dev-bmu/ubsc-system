@@ -1,4 +1,6 @@
+import { useHomepageEntranceReady } from "@/Components/Landing/HomepageEntranceContext";
 import { motion } from "framer-motion";
+import { useEffect, useRef, useState } from "react";
 
 const DIVIDER_EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -41,6 +43,7 @@ interface SectionDividerProps {
     titlePlacement?: "center" | "right";
     animated?: boolean;
     viewportReveal?: boolean;
+    lineWeight?: "default" | "hairline";
 }
 
 export default function SectionDivider({
@@ -54,7 +57,11 @@ export default function SectionDivider({
     titlePlacement = "right",
     animated = true,
     viewportReveal = true,
+    lineWeight = "default",
 }: SectionDividerProps) {
+    const entranceReady = useHomepageEntranceReady();
+    const rootRef = useRef<HTMLDivElement>(null);
+    const [hasEntered, setHasEntered] = useState(!viewportReveal);
     const isDark = theme === "dark";
     const isCompact = size === "compact";
     const [subtitleNumber, ...subtitleWords] = subtitle.split(" ");
@@ -67,29 +74,61 @@ export default function SectionDivider({
     const numberGap = isCompact ? "gap-2.5" : "gap-3";
     const isRightTitle = titlePlacement === "right";
 
+    useEffect(() => {
+        const node = rootRef.current;
+        if (
+            !viewportReveal ||
+            !entranceReady ||
+            hasEntered ||
+            !node
+        ) {
+            return;
+        }
+
+        if (!("IntersectionObserver" in window)) {
+            setHasEntered(true);
+            return;
+        }
+
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (!entry?.isIntersecting) return;
+                setHasEntered(true);
+                observer.disconnect();
+            },
+            {
+                threshold: 0.35,
+                rootMargin: "0px 0px -6% 0px",
+            },
+        );
+
+        observer.observe(node);
+        return () => observer.disconnect();
+    }, [entranceReady, hasEntered, viewportReveal]);
+
     return (
         <motion.div
-            className={`relative ${rootPadding} ${outerClassName}`}
+            ref={rootRef}
+            className={`section-divider-root relative ${rootPadding} ${outerClassName}`}
             variants={dividerContainerMotion}
             initial={viewportReveal ? "hidden" : false}
-            animate={viewportReveal ? undefined : "visible"}
-            whileInView={viewportReveal ? "visible" : undefined}
-            viewport={
-                viewportReveal
-                    ? { once: true, amount: 0.35, margin: "0px 0px -6% 0px" }
-                    : undefined
-            }
+            animate={hasEntered ? "visible" : "hidden"}
         >
             <motion.span
                 aria-hidden="true"
                 variants={dividerLineMotion}
-                className={`absolute inset-x-0 top-0 h-px origin-left ${
+                style={
+                    lineWeight === "hairline"
+                        ? { height: "0.5px" }
+                        : undefined
+                }
+                className={`section-divider-line absolute inset-x-0 top-0 h-px origin-left ${
                     isDark ? "bg-white/20" : "bg-black/55"
                 }`}
             />
 
             <motion.div
-                className={`grid ${
+                className={`section-divider-content grid ${
                     isRightTitle
                         ? "grid-cols-[auto_1fr] md:grid-cols-[1fr_auto_1fr]"
                         : "grid-cols-[1fr_auto_1fr]"

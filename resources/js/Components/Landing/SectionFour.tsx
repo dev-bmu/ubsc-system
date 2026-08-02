@@ -1,12 +1,11 @@
 import SectionDivider from "@/Components/Landing/SectionDivider";
 import ReservasiButton from "@/Components/Landing/ReservasiButton";
 import ScrollTextReveal from "@/Components/Landing/ScrollTextReveal";
+import { useHomepageEntranceReady } from "@/Components/Landing/HomepageEntranceContext";
 import FacilityListSection from "@/Components/Facility/FacilityListSection";
-import FacilityClassSection from "@/Components/Facility/FacilityClassSection";
-import FacilityOutdoorSection from "@/Components/Facility/FacilityOutdoorSection";
 import type { FacilityItem } from "@/Components/Facility/FacilityListItem";
-import type { ClassItem } from "@/Components/Facility/FacilityClassSection";
-import type { OutdoorFacility } from "@/Components/Facility/FacilityOutdoorSection";
+import { isOutdoorFacility } from "@/lib/facilityClassification";
+import type { PublicFacilityReservation } from "@/lib/facilityReservation";
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
 
 interface BackendFacility {
@@ -18,6 +17,7 @@ interface BackendFacility {
     venue_type?: string | null;
     class_code?: string | null;
     rating?: number | null;
+    reservation?: PublicFacilityReservation | null;
 }
 
 interface SectionFourProps {
@@ -36,10 +36,11 @@ function ScrollObjectReveal({
 }) {
     const rootRef = useRef<HTMLDivElement>(null);
     const [hasEntered, setHasEntered] = useState(false);
+    const entranceReady = useHomepageEntranceReady();
 
     useEffect(() => {
         const node = rootRef.current;
-        if (!node || hasEntered) return;
+        if (!entranceReady || !node || hasEntered) return;
 
         if (!("IntersectionObserver" in window)) {
             setHasEntered(true);
@@ -61,7 +62,7 @@ function ScrollObjectReveal({
         observer.observe(node);
 
         return () => observer.disconnect();
-    }, [hasEntered]);
+    }, [entranceReady, hasEntered]);
 
     return (
         <div
@@ -115,26 +116,17 @@ function SectionFourCurtainEdge() {
         let lastHeight = -1;
         let lastContentOffset = 1;
         let lastFollowOffset = 1;
+        let isNearViewport = true;
+        let isPageVisible = document.visibilityState !== "hidden";
+        let viewportHeight = 1;
+        let maxFollow = 0;
+        let contentMaxFollow = 0;
 
-        const update = () => {
-            frame = 0;
-
-            const rect = section.getBoundingClientRect();
-            const viewportHeight =
+        const measureViewport = () => {
+            viewportHeight =
                 window.innerHeight ||
                 document.documentElement.clientHeight ||
                 1;
-            const progress = Math.min(
-                1,
-                Math.max(0, (viewportHeight - rect.top) / viewportHeight),
-            );
-            const nextHeight = Math.round(progress * viewportHeight);
-
-            if (Math.abs(lastHeight - nextHeight) >= 1) {
-                lastHeight = nextHeight;
-                root.style.height = `${nextHeight}px`;
-            }
-
             const viewportWidth =
                 window.innerWidth ||
                 document.documentElement.clientWidth ||
@@ -162,9 +154,6 @@ function SectionFourCurtainEdge() {
                   : isTabletLandscape
                     ? 52
                     : 64;
-            const followEase = progress * progress * (3 - 2 * progress);
-            const maxFollow = Math.max(0, viewportHeight * followRatio - followInset);
-            const followOffset = Math.round(-maxFollow * followEase);
             const contentPaddingReserve = isMobile
                 ? 48
                 : isTabletPortrait
@@ -172,10 +161,34 @@ function SectionFourCurtainEdge() {
                   : isTabletLandscape
                     ? 64
                     : 56;
-            const contentMaxFollow = Math.max(
+
+            maxFollow = Math.max(
+                0,
+                viewportHeight * followRatio - followInset,
+            );
+            contentMaxFollow = Math.max(
                 0,
                 maxFollow - contentPaddingReserve,
             );
+        };
+
+        const update = () => {
+            frame = 0;
+
+            const rect = section.getBoundingClientRect();
+            const progress = Math.min(
+                1,
+                Math.max(0, (viewportHeight - rect.top) / viewportHeight),
+            );
+            const nextHeight = Math.round(progress * viewportHeight);
+
+            if (Math.abs(lastHeight - nextHeight) >= 1) {
+                lastHeight = nextHeight;
+                root.style.height = `${nextHeight}px`;
+            }
+
+            const followEase = progress * progress * (3 - 2 * progress);
+            const followOffset = Math.round(-maxFollow * followEase);
             const contentFollowOffset = Math.round(-contentMaxFollow * followEase);
 
             if (Math.abs(lastContentOffset - contentFollowOffset) >= 1) {
@@ -202,18 +215,58 @@ function SectionFourCurtainEdge() {
             }
         };
 
-        const requestUpdate = () => {
+        const requestUpdate = (force = false) => {
+            if (!isPageVisible || (!force && !isNearViewport)) return;
             if (frame) return;
             frame = window.requestAnimationFrame(update);
         };
+        const handleScroll = () => requestUpdate();
+        const handleResize = () => {
+            measureViewport();
+            requestUpdate();
+        };
+        const handleVisibilityChange = () => {
+            isPageVisible = document.visibilityState !== "hidden";
 
-        update();
-        window.addEventListener("scroll", requestUpdate, { passive: true });
-        window.addEventListener("resize", requestUpdate);
+            if (!isPageVisible) {
+                if (frame) window.cancelAnimationFrame(frame);
+                frame = 0;
+                return;
+            }
+
+            requestUpdate();
+        };
+        const intersectionObserver =
+            "IntersectionObserver" in window
+                ? new IntersectionObserver(
+                      ([entry]) => {
+                          isNearViewport = entry?.isIntersecting ?? true;
+                          // One exact update on both boundaries preserves the
+                          // resting state before pausing offscreen work.
+                          requestUpdate(true);
+                      },
+                      {
+                          rootMargin: "600px 0px 800px",
+                          threshold: 0,
+                      },
+                  )
+                : null;
+
+        measureViewport();
+        if (isPageVisible) update();
+        intersectionObserver?.observe(root);
+        window.addEventListener("scroll", handleScroll, { passive: true });
+        window.addEventListener("resize", handleResize);
+        document.addEventListener("visibilitychange", handleVisibilityChange);
 
         return () => {
-            window.removeEventListener("scroll", requestUpdate);
-            window.removeEventListener("resize", requestUpdate);
+            intersectionObserver?.disconnect();
+            window.removeEventListener("scroll", handleScroll);
+            window.removeEventListener("resize", handleResize);
+            document.removeEventListener(
+                "visibilitychange",
+                handleVisibilityChange,
+            );
             root.style.removeProperty("height");
             content.style.removeProperty("transform");
             content.style.removeProperty("will-change");
@@ -266,10 +319,13 @@ function FacilityCategoryBadge() {
 
 export default function SectionFour({
     facilities = [],
-    isLandingPage = true,
 }: SectionFourProps) {
     const arenaFacilities: FacilityItem[] = facilities
-        .filter((f) => f.category === "Lapangan & Arena")
+        .filter(
+            (f) =>
+                f.category === "Lapangan & Arena" &&
+                !isOutdoorFacility(f),
+        )
         .map((f, idx) => ({
             id: String(idx + 1).padStart(2, "0"),
             title: `/${f.name}.`,
@@ -278,31 +334,49 @@ export default function SectionFour({
                 `/Tertutup ${String(idx + 1).padStart(3, "0")}/`,
             image: f.image || "/assets/images/comingsoon.avif",
             badgeLocation: f.location || "Veteran",
-            badgeType: f.venue_type || "Indoor Facility",
+            badgeType: "Arena Dalam",
+            badgeVariant: "blue" as const,
+            reservation: f.reservation,
         }));
 
-    const classFacilities: ClassItem[] = facilities
+    const classFacilities: FacilityItem[] = facilities
         .filter((f) => f.category === "Kelas & Kebugaran")
         .map((f, idx) => ({
             id: String(idx + 1).padStart(2, "0"),
-            name: f.name,
-            code: String(idx + 1).padStart(3, "0"),
+            title: `/${f.name}.`,
+            code:
+                f.class_code ||
+                `/Class ${String(idx + 1).padStart(3, "0")}/`,
             image: f.image || "/assets/images/comingsoon.avif",
             badgeLocation: f.location || "Veteran",
-            badgeCategory: f.venue_type || "Kebugaran",
+            badgeType: "Kebugaran",
+            badgeVariant: "blue-red" as const,
+            reservation: f.reservation,
         }));
 
-    const outdoorFacilities: OutdoorFacility[] = facilities
-        .filter((f) => f.category === "Lapangan & Arena")
-        .map((f) => ({
-            id: String(f.id),
-            name: f.name,
-            category: f.venue_type || "Arena Luar",
+    const outdoorFacilities: FacilityItem[] = facilities
+        .filter(isOutdoorFacility)
+        .map((f, idx) => ({
+            id: String(idx + 1).padStart(2, "0"),
+            title: `/${f.name}.`,
+            code:
+                f.class_code ||
+                `/Terbuka ${String(idx + 1).padStart(3, "0")}/`,
             image: f.image || "/assets/images/comingsoon.avif",
-            location: f.location || "Dieng",
-            venueType: f.venue_type || "Outdoor Facility",
-            mapLink: null,
+            badgeLocation: f.location || "Dieng",
+            badgeType: f.venue_type || "Arena Luar",
+            badgeVariant: "red" as const,
+            reservation: f.reservation,
         }));
+
+    const featuredFacilities: FacilityItem[] = [
+        ...arenaFacilities.slice(0, 2),
+        ...classFacilities.slice(0, 2),
+        ...outdoorFacilities.slice(0, 2),
+    ].map((facility, index) => ({
+        ...facility,
+        id: String(index + 1).padStart(2, "0"),
+    }));
     return (
         <>
         <section
@@ -311,7 +385,7 @@ export default function SectionFour({
         >
             <SectionFourCurtainEdge />
             <div className="section-four-curtain-content">
-                <div className="mx-auto bg-[#FAFAFA] px-[clamp(1.5rem,4.5vw,5.5rem)]">
+                <div className="mx-auto bg-white px-[clamp(1.5rem,4.5vw,5.5rem)]">
                     <SectionDivider
                         number="03"
                         title="Fasilitas"
@@ -326,7 +400,7 @@ export default function SectionFour({
                             <span className="section-label-diamond" />
                             <ScrollTextReveal
                                 delay={80}
-                                className="font-bdo text-[clamp(1.16rem,1.32vw,1.45rem)] font-medium tracking-[-0.025em] text-black xl:text-[1.25rem]"
+                                className="home-section-anchor font-bdo text-[clamp(1.16rem,1.32vw,1.45rem)] font-medium tracking-[-0.025em] text-black xl:text-[1.25rem]"
                             >
                                 Fasilitas Kami
                             </ScrollTextReveal>
@@ -382,7 +456,10 @@ export default function SectionFour({
                             delay={360}
                             className="min-w-0 xl:-ml-1.5"
                         >
-                            <ReservasiButton label="Mulai Reservasi" />
+                            <ReservasiButton
+                                label="Mulai Reservasi"
+                                href="/booking"
+                            />
                         </ScrollObjectReveal>
                         <ScrollObjectReveal
                             delay={430}
@@ -394,41 +471,19 @@ export default function SectionFour({
                 </div>
 
                 <FacilityListSection
-                    sectionNumber="04"
-                    sectionTitle="Fasilitas Outdoor"
-                    sectionSubtitle="01 homepage"
                     facilities={
-                        arenaFacilities.length > 0 ? arenaFacilities : undefined
+                        featuredFacilities.length > 0
+                            ? featuredFacilities
+                            : undefined
                     }
-                    isLandingPage={isLandingPage}
+                    itemLimit={6}
+                    introVariant="overview"
+                    marqueeWords={["Fasilitas", "Kami"]}
+                    ctaHref="/booking"
+                    ctaLabel="Lihat & Reservasi Fasilitas"
                 />
-                <div className="bg-[#252525]">
-                    <FacilityClassSection
-                        sectionNumber="05"
-                        sectionTitle="Kelas Indoor"
-                        sectionSubtitle="01 homepage"
-                        classes={
-                            classFacilities.length > 0 ? classFacilities : undefined
-                        }
-                        isLandingPage={isLandingPage}
-                    />
-                </div>
             </div>
         </section>
-        <div className="relative z-10 bg-[#252525]">
-            <FacilityOutdoorSection
-                sectionNumber="06"
-                sectionTitle="Fasilitas Outdoor"
-                sectionSubtitle="01 homepage"
-                totalFacilitiesCount={facilities.length}
-                facilities={
-                    outdoorFacilities.length > 0
-                        ? outdoorFacilities
-                        : undefined
-                }
-                isLandingPage={isLandingPage}
-            />
-        </div>
         </>
     );
 }

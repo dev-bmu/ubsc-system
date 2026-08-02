@@ -13,6 +13,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
@@ -117,6 +118,8 @@ type MapProps = {
   children?: ReactNode;
   /** Additional CSS classes for the map container */
   className?: string;
+  /** Inline styles applied to the map's outer container. */
+  containerStyle?: CSSProperties;
   /**
    * Theme for the map. If not provided, automatically detects system preference.
    * Pass your theme value here.
@@ -140,6 +143,11 @@ type MapProps = {
    * to enable controlled mode where the map viewport is driven by your state.
    */
   onViewportChange?: (viewport: MapViewport) => void;
+  /**
+   * Fires after the initial style and visible tiles have produced a stable
+   * frame, so a placeholder can leave without exposing a blank canvas.
+   */
+  onReady?: () => void;
 } & Omit<MapLibreGL.MapOptions, "container" | "style">;
 
 function DefaultLoader() {
@@ -168,11 +176,13 @@ const Map = forwardRef<MapRef, MapProps>(function Map(
   {
     children,
     className,
+    containerStyle,
     theme: themeProp,
     styles,
     projection,
     viewport,
     onViewportChange,
+    onReady,
     ...props
   },
   ref
@@ -190,6 +200,8 @@ const Map = forwardRef<MapRef, MapProps>(function Map(
 
   const onViewportChangeRef = useRef(onViewportChange);
   onViewportChangeRef.current = onViewportChange;
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
 
   const mapStyles = useMemo(
     () => ({
@@ -310,6 +322,47 @@ const Map = forwardRef<MapRef, MapProps>(function Map(
     mapInstance.setStyle(newStyle, { diff: true });
   }, [mapInstance, resolvedTheme, mapStyles, clearStyleTimeout]);
 
+  useEffect(() => {
+    if (!mapInstance || !isLoaded || !isStyleLoaded) return;
+
+    let cancelled = false;
+    let notified = false;
+    let firstFrame = 0;
+    let stableFrame = 0;
+
+    const notifyReady = () => {
+      if (cancelled || notified) return;
+      notified = true;
+
+      firstFrame = window.requestAnimationFrame(() => {
+        stableFrame = window.requestAnimationFrame(() => {
+          if (!cancelled) onReadyRef.current?.();
+        });
+      });
+    };
+
+    const handleIdle = () => {
+      if (mapInstance.areTilesLoaded()) {
+        notifyReady();
+      } else if (!cancelled) {
+        mapInstance.once("idle", handleIdle);
+      }
+    };
+
+    if (mapInstance.areTilesLoaded()) {
+      notifyReady();
+    } else {
+      mapInstance.once("idle", handleIdle);
+    }
+
+    return () => {
+      cancelled = true;
+      mapInstance.off("idle", handleIdle);
+      window.cancelAnimationFrame(firstFrame);
+      window.cancelAnimationFrame(stableFrame);
+    };
+  }, [mapInstance, isLoaded, isStyleLoaded]);
+
   const contextValue = useMemo(
     () => ({
       map: mapInstance,
@@ -323,6 +376,7 @@ const Map = forwardRef<MapRef, MapProps>(function Map(
       <div
         ref={containerRef}
         className={cn("relative w-full h-full", className)}
+        style={containerStyle}
       >
         {!isLoaded && <DefaultLoader />}
         {/* SSR-safe: children render only when map is loaded on client */}
