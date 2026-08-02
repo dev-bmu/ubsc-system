@@ -1,53 +1,60 @@
 import { useEffect, useRef } from "react";
+import { Link } from "@inertiajs/react";
 import FacilityBadge from "@/Components/Landing/FacilityBadge";
 import FacilityTextMarquee from "./FacilityTextMarquee";
+import {
+    facilityReservationDestination,
+    type PublicFacilityReservation,
+} from "@/lib/facilityReservation";
 
 export interface OutdoorFacility {
     id: string | number;
     name: string;
     category: string;
     image: string;
+    classCode?: string | null;
     location?: string | null;
     venueType?: string | null;
     mapLink?: string | null;
+    reservation?: PublicFacilityReservation | null;
 }
 
-const DUMMY_OUTDOOR_FACILITIES: OutdoorFacility[] = [
+const OUTDOOR_FACILITY_FALLBACKS: OutdoorFacility[] = [
     {
         id: "1",
-        name: "Lapangan Sepak Bola Dieng",
-        category: "Arena Luar Terbuka",
-        image: "/assets/images/fasilitas-arena-terbuka-dieng-ub-sport-center-malang.avif",
+        name: "Lapangan Sepak Bola",
+        category: "Lapangan & Arena",
+        classCode: "Terbuka 001",
+        location: "Dieng",
+        venueType: "Arena Luar",
+        image: "/assets/images/fasilitas-sepak-bola-ub-sport-center.avif",
     },
     {
         id: "2",
-        name: "Lapangan Tenis Veteran",
-        category: "Fasilitas Outdoor Utama",
-        image: "/assets/images/fasilitas-bulutangkis-ub-sport-center.avif",
+        name: "Lapangan Basket",
+        category: "Lapangan & Arena",
+        classCode: "Terbuka 002",
+        location: "Dieng",
+        venueType: "Arena Luar",
+        image: "/assets/images/fasilitas-basket-akurasi-ub-sport-center.avif",
     },
     {
         id: "3",
-        name: "Lapangan Futsal Dieng",
-        category: "Arena Luar Terbuka",
-        image: "/assets/images/fasilitas-arena-terbuka-dieng-ub-sport-center-malang.avif",
+        name: "Lapangan Volly",
+        category: "Lapangan & Arena",
+        classCode: "Terbuka 003",
+        location: "Dieng",
+        venueType: "Arena Luar",
+        image: "/assets/images/fasilitas-voli-ub-sport-center.avif",
     },
     {
         id: "4",
-        name: "Lapangan Basket Veteran",
-        category: "Arena Outdoor",
-        image: "/assets/images/fasilitas-bulutangkis-ub-sport-center.avif",
-    },
-    {
-        id: "5",
-        name: "Lapangan Voli Outdoor",
-        category: "Arena Outdoor",
-        image: "/assets/images/fasilitas-yoga-ub-sport-center.avif",
-    },
-    {
-        id: "6",
-        name: "Arena Serbaguna",
-        category: "Fasilitas Outdoor",
-        image: "/assets/images/fasilitas-aerobik-ub-sport-center.avif",
+        name: "Lapangan Futsal Dieng",
+        category: "Lapangan & Arena",
+        classCode: "Terbuka 004",
+        location: "Dieng",
+        venueType: "Arena Luar",
+        image: "/assets/images/fasilitas-futsal-dieng-ub-sport-center.avif",
     },
 ];
 
@@ -68,12 +75,20 @@ function OutdoorFacilityCard({
     index: number;
 }) {
     const displayName = facility.name || "Nama Fasilitas";
+    const destination = facilityReservationDestination(
+        facility.reservation,
+        displayName,
+        facility.location,
+    );
+    const ReservationLink =
+        destination.target === "_self" ? Link : "a";
 
     return (
-        <a
-            href={facility.mapLink ?? "#"}
-            target={facility.mapLink ? "_blank" : undefined}
-            rel={facility.mapLink ? "noopener noreferrer" : undefined}
+        <ReservationLink
+            href={destination.href}
+            target={destination.target}
+            rel={destination.target === "_blank" ? "noopener noreferrer" : undefined}
+            aria-label={`Reservasi ${displayName}`}
             className="group block w-[calc(100vw-37px)] shrink-0 overflow-hidden rounded-[5px] bg-[#f7f7f7] p-[5px] text-black md:w-[min(876px,57.05vw)] md:rounded-[12px] md:p-[10px]"
         >
             <div className="flex h-[33px] items-center justify-between gap-3 px-[12px] md:h-[67px] md:gap-4 md:px-[30px]">
@@ -87,7 +102,7 @@ function OutdoorFacilityCard({
                     </h3>
                 </div>
                 <span className="shrink-0 font-bdo text-[11px] font-normal tracking-[-0.035em] text-black/55 md:text-[clamp(0.95rem,0.9vw,1.05rem)]">
-                    /Outdoor {String(index + 1).padStart(3, "0")}/
+                    /{facility.classCode ?? `Terbuka ${String(index + 1).padStart(3, "0")}`}/
                 </span>
             </div>
 
@@ -96,17 +111,18 @@ function OutdoorFacilityCard({
                     src={facility.image}
                     alt={facility.name}
                     className="h-full w-full object-cover object-center transition duration-700 ease-out group-hover:scale-[1.025] md:group-hover:scale-[1.035]"
-                    loading={index < 2 ? "eager" : "lazy"}
+                    loading="lazy"
+                    decoding="async"
                 />
                 <div className="absolute right-[13px] top-[17px] [&>div]:rounded-[4px] [&>div]:border-2 [&_span]:text-[10px] md:right-[3%] md:top-[6.6%] md:[&>div]:rounded-[7px] md:[&>div]:border-[3px] md:[&_span]:text-[16px]">
                     <FacilityBadge
                         location={facility.location ?? "Dieng"}
-                        category={facility.venueType ?? facility.category ?? "Outdoor Facility"}
-                        variant="blue-red"
+                        category={facility.venueType ?? "Arena Luar"}
+                        variant="red"
                     />
                 </div>
             </div>
-        </a>
+        </ReservationLink>
     );
 }
 
@@ -115,17 +131,20 @@ export default function FacilityOutdoorSection({
     totalFacilitiesCount,
     isLandingPage = false,
 }: FacilityOutdoorSectionProps = {}) {
-    const activeFacilities =
+    /* Always show at least as many items as the fallback set.
+       Real DB data comes first; unused fallback items fill the rest. */
+    const baseFacilities =
         facilities && facilities.length > 0
             ? facilities
-            : DUMMY_OUTDOOR_FACILITIES;
+            : OUTDOOR_FACILITY_FALLBACKS;
+    const usedIds = new Set(baseFacilities.map((f) => String(f.id)));
+    const extraFallback = OUTDOOR_FACILITY_FALLBACKS.filter(
+        (f) => !usedIds.has(String(f.id)),
+    );
+    const activeFacilities = [...baseFacilities, ...extraFallback];
     const renderedItems = isLandingPage
         ? activeFacilities.slice(0, 4)
         : activeFacilities;
-    const remainingOutdoorCount = Math.max(
-        0,
-        (totalFacilitiesCount ?? activeFacilities.length) - renderedItems.length,
-    );
 
     const sectionRef = useRef<HTMLElement>(null);
     const stickyRef = useRef<HTMLDivElement>(null);
@@ -203,7 +222,7 @@ export default function FacilityOutdoorSection({
                 <div className="mx-auto grid w-full max-w-[1920px] grid-cols-[1fr_auto] items-center gap-x-6 px-[18px] pb-[clamp(3.5rem,6vh,5rem)] pt-[clamp(1.8rem,3.8vh,2.6rem)] text-white md:grid-cols-3 md:px-[clamp(1.75rem,4.65vw,5.55rem)] md:pb-[clamp(3rem,5.5vh,4rem)] md:pt-[clamp(2.6rem,4.8vh,3.5rem)]">
                     <div className="flex items-center gap-3 md:gap-5">
                         <span className="section-label-diamond" />
-                        <span className="font-bdo text-[14px] font-medium tracking-[-0.035em] md:text-[clamp(1.35rem,1.35vw,1.75rem)]">
+                        <span className="home-section-anchor font-bdo text-[14px] font-medium tracking-[-0.035em] md:text-[clamp(1.35rem,1.35vw,1.75rem)]">
                             Arena Terbuka
                         </span>
                     </div>
@@ -212,18 +231,9 @@ export default function FacilityOutdoorSection({
                         (Fasilitas)
                     </span>
 
-                    <a
-                        href="/facilities"
-                        className="group flex items-center justify-self-end font-bdo text-[11px] tracking-[-0.025em] text-white/86 md:text-[clamp(1.05rem,1vw,1.35rem)]"
-                    >
-                        <span className="underline decoration-white/70 underline-offset-4">
-                            <span className="font-light">{remainingOutdoorCount}</span>{" "}
-                            <span className="font-normal">Lainnya</span>
-                        </span>
-                        <span className="ml-2 text-[1.2em] leading-none transition-transform duration-300 group-hover:translate-x-1">
-                            ›
-                        </span>
-                    </a>
+                    <span className="justify-self-end font-bdo text-[11px] font-light tracking-[-0.025em] text-white/50 italic md:text-[clamp(1.05rem,1vw,1.35rem)]">
+                        (Outdoor)
+                    </span>
                 </div>
 
                 <div

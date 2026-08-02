@@ -9,8 +9,14 @@ import OutdoorArenaShowcase, {
 import type { FacilityItem } from "@/Components/Facility/FacilityListItem";
 import Footer from "@/Components/Landing/Footer";
 import HeroCurtainEdge from "@/Components/Landing/HeroCurtainEdge";
-import { Head, usePage } from "@inertiajs/react";
+import SeoHead from "@/Components/SeoHead";
+import { usePage } from "@inertiajs/react";
 import type { PageProps } from "@/types";
+import { isOutdoorFacility } from "@/lib/facilityClassification";
+import {
+    facilityReservationDestination,
+    type PublicFacilityReservation,
+} from "@/lib/facilityReservation";
 import { useEffect, useRef } from "react";
 
 interface BackendFacility {
@@ -24,6 +30,7 @@ interface BackendFacility {
     class_code?: string | null;
     rating?: number | null;
     display_metadata?: Record<string, unknown> | null;
+    reservation?: PublicFacilityReservation | null;
 }
 
 type FacilityPageProps = PageProps<{
@@ -75,7 +82,11 @@ export default function FacilityPage() {
     }, []);
 
     const arenaFacilities: FacilityItem[] = facilities
-        .filter((f) => f.category === "Lapangan & Arena")
+        .filter(
+            (f) =>
+                f.category === "Lapangan & Arena" &&
+                !isOutdoorFacility(f),
+        )
         .map((f, idx) => ({
             id: String(idx + 1).padStart(2, "0"),
             title: `/${f.name}.`,
@@ -84,60 +95,39 @@ export default function FacilityPage() {
                 : `/Tertutup ${String(idx + 1).padStart(3, "0")}/`,
             image: f.image || "/assets/images/comingsoon.avif",
             badgeLocation: f.location ?? "Veteran",
-            badgeType: f.venue_type ?? "Indoor Facility",
+            badgeType: "Arena Dalam",
             slug: f.slug,
+            reservation: f.reservation,
         }));
 
     const outdoorFacilities: OutdoorArenaItem[] = facilities
-        .filter((facility) => {
-            const searchable = `${facility.name} ${facility.venue_type ?? ""}`.toLowerCase();
+        .filter(isOutdoorFacility)
+        .map((facility) => {
+            const destination = facilityReservationDestination(
+                facility.reservation,
+                facility.name,
+                facility.location,
+            );
 
-            return [
-                "outdoor",
-                "arena luar",
-                "terbuka",
-                "sepak bola",
-                "football",
-                "voli",
-            ].some((keyword) => searchable.includes(keyword));
-        })
-        .map((facility) => ({
-            id: facility.id,
-            name: facility.name,
-            category: facility.venue_type ?? "Outdoor Facility",
-            image:
-                facility.image ||
-                "/assets/images/fasilitas-arena-terbuka-dieng-ub-sport-center-malang.avif",
-            location: facility.location ?? "UB Sport Center",
-            href: facility.slug ? `/facilities/${facility.slug}` : null,
-            fallback:
-                "/assets/images/fasilitas-arena-terbuka-dieng-ub-sport-center-malang.avif",
-        }));
+            return {
+                id: facility.id,
+                name: facility.name,
+                category: facility.venue_type ?? "Outdoor Facility",
+                image:
+                    facility.image ||
+                    "/assets/images/fasilitas-arena-terbuka-dieng-ub-sport-center-malang.avif",
+                location: facility.location ?? "UB Sport Center",
+                href: destination.href,
+                target: destination.target,
+                fallback:
+                    "/assets/images/fasilitas-arena-terbuka-dieng-ub-sport-center-malang.avif",
+            };
+        });
 
     return (
         <div className="min-h-screen bg-white">
-            <Head>
-                <title>Fasilitas | UB Sport Center</title>
-                <meta
-                    name="description"
-                    content="Temukan fasilitas olahraga terlengkap di UB Sport Center Malang — gym, lapangan futsal, yoga, zumba, dan masih banyak lagi."
-                />
-                <meta
-                    property="og:title"
-                    content="Fasilitas | UB Sport Center"
-                />
-                <meta
-                    property="og:description"
-                    content="Fasilitas olahraga terlengkap di UB Sport Center Malang."
-                />
-                <meta
-                    property="og:image"
-                    content="/assets/images/fasilitas-arena-terbuka-dieng-ub-sport-center-malang.avif"
-                />
-                <meta property="og:type" content="website" />
-                <meta name="twitter:card" content="summary_large_image" />
-            </Head>
-            <main className="relative">
+            <SeoHead />
+            <main className="facility-page-canvas relative">
                 <Navbar activeSection="Facilities" />
                 <FacilityHero />
 
@@ -148,7 +138,7 @@ export default function FacilityPage() {
                     </div>
                 </section>
 
-                <div className="facility-post-membership-flow bg-white">
+                <div className="facility-post-membership-flow relative z-[2] bg-white">
                     <FacilityGallerySection facilities={arenaFacilities} />
                     <ExclusiveFacilitiesSection />
                 </div>

@@ -89,12 +89,10 @@
     position: absolute;
     inset: 0;
     z-index: 1;
-    background: linear-gradient(
-        118deg,
-        rgba(0, 0, 0, 0.2),
-        rgba(255, 255, 255, 0.05) 44%,
-        transparent 70%
-    );
+    background: linear-gradient(118deg,
+            rgba(0, 0, 0, 0.2),
+            rgba(255, 255, 255, 0.05) 44%,
+            transparent 70%);
     pointer-events: none;
 }
 
@@ -156,18 +154,15 @@
     bottom: 0;
     left: 0;
     width: 28%;
-    background: linear-gradient(
-        90deg,
-        transparent 0%,
-        rgba(255, 255, 255, 0.25) 24%,
-        #ffffff 52%,
-        rgba(255, 255, 255, 0.25) 76%,
-        transparent 100%
-    );
+    background: linear-gradient(90deg,
+            transparent 0%,
+            rgba(255, 255, 255, 0.25) 24%,
+            #ffffff 52%,
+            rgba(255, 255, 255, 0.25) 76%,
+            transparent 100%);
     opacity: 0;
     transform: translate3d(-125%, 0, 0);
-    animation: facility-membership-media-scan 4.8s
-        cubic-bezier(0.65, 0, 0.35, 1) 1.45s infinite;
+    animation: facility-membership-media-scan 4.8s cubic-bezier(0.65, 0, 0.35, 1) 1.45s infinite;
     animation-play-state: paused;
 }
 
@@ -176,8 +171,7 @@
     transform: scaleX(1);
 }
 
-.facility-membership__visual.is-visible
-    .facility-membership__media-line::after {
+.facility-membership__visual.is-visible .facility-membership__media-line::after {
     animation-play-state: running;
 }
 
@@ -236,15 +230,15 @@
     white-space: normal;
 }
 
-.facility-membership__heading-reveal > .ubsc-text-reveal__line-ghost,
-.facility-membership__heading-reveal > .ubsc-text-reveal__line-measure {
+.facility-membership__heading-reveal>.ubsc-text-reveal__line-ghost,
+.facility-membership__heading-reveal>.ubsc-text-reveal__line-measure {
     width: 100%;
     max-width: 100%;
     white-space: normal;
     text-indent: var(--facility-membership-heading-indent);
 }
 
-.facility-membership__heading-reveal > .ubsc-text-reveal__line-ghost {
+.facility-membership__heading-reveal>.ubsc-text-reveal__line-ghost {
     display: block;
 }
 
@@ -253,8 +247,7 @@
     z-index: 1;
     display: grid;
     grid-template-columns:
-        minmax(13.5rem, 0.62fr) clamp(3.75rem, 4.5vw, 4.75rem)
-        minmax(0, 1.65fr);
+        minmax(13.5rem, 0.62fr) clamp(3.75rem, 4.5vw, 4.75rem) minmax(0, 1.65fr);
     align-items: stretch;
     gap: 0;
     margin-top: auto;
@@ -289,22 +282,19 @@
     left: 0;
     width: 100%;
     height: 1px;
-    background-image: linear-gradient(
-        90deg,
-        transparent,
-        rgba(255, 0, 0, 0.35) 28%,
-        #ff0000 52%,
-        rgba(255, 0, 0, 0.35) 74%,
-        transparent
-    );
+    background-image: linear-gradient(90deg,
+            transparent,
+            rgba(255, 0, 0, 0.35) 28%,
+            #ff0000 52%,
+            rgba(255, 0, 0, 0.35) 74%,
+            transparent);
     background-position: -18% 50%;
     background-repeat: no-repeat;
     background-size: 14% 100%;
     content: "";
     opacity: 0;
     pointer-events: none;
-    animation: facility-membership-detail-scan 5.6s
-        cubic-bezier(0.65, 0, 0.35, 1) 1.65s infinite;
+    animation: facility-membership-detail-scan 5.6s cubic-bezier(0.65, 0, 0.35, 1) 1.65s infinite;
     animation-play-state: paused;
 }
 
@@ -345,38 +335,28 @@
     padding: 1rem 0.7rem 1.05rem;
     background-color: #04070c;
     background-image:
-        linear-gradient(
-            90deg,
+        linear-gradient(90deg,
             transparent calc(50% - 0.5px),
             rgba(220, 235, 238, 0.02) 50%,
-            transparent calc(50% + 0.5px)
-        ),
-        linear-gradient(
-            180deg,
+            transparent calc(50% + 0.5px)),
+        linear-gradient(180deg,
             transparent calc(47% - 0.5px),
             rgba(220, 235, 238, 0.015) 47%,
-            transparent calc(47% + 0.5px)
-        ),
-        radial-gradient(
-            ellipse 185% 46% at 18% 2%,
+            transparent calc(47% + 0.5px)),
+        radial-gradient(ellipse 185% 46% at 18% 2%,
             rgba(225, 234, 235, 0.105) 0%,
             rgba(94, 143, 164, 0.2) 34%,
-            transparent 67%
-        ),
-        radial-gradient(
-            ellipse 165% 54% at 108% 10%,
+            transparent 67%),
+        radial-gradient(ellipse 165% 54% at 108% 10%,
             rgba(65, 119, 181, 0.44) 0%,
             rgba(21, 103, 141, 0.2) 45%,
-            transparent 72%
-        ),
-        linear-gradient(
-            164deg,
+            transparent 72%),
+        linear-gradient(164deg,
             #657984 0%,
             #153359 22%,
             #0a1824 50%,
             #020509 77%,
-            #10151c 100%
-        );
+            #10151c 100%);
     box-shadow:
         inset 0 1px rgba(255, 255, 255, 0.035),
         inset 0 -1px rgba(0, 0, 0, 0.42);
@@ -398,66 +378,53 @@
 .facility-membership__index-rail::before {
     inset: -42% -240%;
     background:
-        radial-gradient(
-            ellipse 22% 43% at 43% 38%,
+        radial-gradient(ellipse 22% 43% at 43% 38%,
             rgba(246, 246, 239, 0.205) 0%,
             rgba(196, 216, 221, 0.115) 31%,
             rgba(83, 135, 158, 0.15) 53%,
-            transparent 72%
-        ),
-        radial-gradient(
-            ellipse 19% 36% at 58% 27%,
+            transparent 72%),
+        radial-gradient(ellipse 19% 36% at 58% 27%,
             rgba(84, 169, 211, 0.56) 0%,
             rgba(36, 104, 155, 0.24) 45%,
-            transparent 71%
-        ),
-        linear-gradient(
-            163deg,
+            transparent 71%),
+        linear-gradient(163deg,
             transparent 34%,
             rgba(225, 232, 229, 0.105) 42%,
             rgba(82, 127, 148, 0.2) 50%,
-            transparent 62%
-        );
+            transparent 62%);
     opacity: 0.78;
     mix-blend-mode: screen;
     transform: translate3d(-7%, -10%, 0) rotate(-5deg) scale(1.04);
     transition: opacity 700ms cubic-bezier(0.16, 1, 0.3, 1);
-    animation: facility-membership-optic-field-y 12.4s
-        cubic-bezier(0.45, 0, 0.55, 1) infinite paused;
+    animation: facility-membership-optic-field-y 12.4s cubic-bezier(0.45, 0, 0.55, 1) infinite paused;
 }
 
 .facility-membership__index-rail::after {
     inset: -42% -250%;
-    background: repeating-conic-gradient(
-        from 11deg at 50% 50%,
-        rgba(221, 235, 237, 0.075) 0deg 0.55deg,
-        transparent 0.55deg 3.8deg
-    );
+    background: repeating-conic-gradient(from 11deg at 50% 50%,
+            rgba(221, 235, 237, 0.075) 0deg 0.55deg,
+            transparent 0.55deg 3.8deg);
     opacity: 0.34;
     mix-blend-mode: screen;
     transform: rotate(0deg);
     transition: opacity 700ms cubic-bezier(0.16, 1, 0.3, 1);
     animation: facility-membership-optic-orbit 29s linear infinite paused;
-    -webkit-mask-image: radial-gradient(
-        circle at 50% 50%,
-        transparent 0 30%,
-        #000 30.2% 30.55%,
-        transparent 30.9% 48%,
-        #000 48.2% 48.55%,
-        transparent 48.9% 66%,
-        #000 66.2% 66.5%,
-        transparent 66.9%
-    );
-    mask-image: radial-gradient(
-        circle at 50% 50%,
-        transparent 0 30%,
-        #000 30.2% 30.55%,
-        transparent 30.9% 48%,
-        #000 48.2% 48.55%,
-        transparent 48.9% 66%,
-        #000 66.2% 66.5%,
-        transparent 66.9%
-    );
+    -webkit-mask-image: radial-gradient(circle at 50% 50%,
+            transparent 0 30%,
+            #000 30.2% 30.55%,
+            transparent 30.9% 48%,
+            #000 48.2% 48.55%,
+            transparent 48.9% 66%,
+            #000 66.2% 66.5%,
+            transparent 66.9%);
+    mask-image: radial-gradient(circle at 50% 50%,
+            transparent 0 30%,
+            #000 30.2% 30.55%,
+            transparent 30.9% 48%,
+            #000 48.2% 48.55%,
+            transparent 48.9% 66%,
+            #000 66.2% 66.5%,
+            transparent 66.9%);
 }
 
 .facility-membership__index-rail.is-visible::before,
@@ -471,14 +438,12 @@
     width: 32%;
     height: 1px;
     flex: 0 0 1px;
-    background: linear-gradient(
-        90deg,
-        rgba(255, 255, 255, 0.055) 0%,
-        rgba(220, 239, 242, 0.125) 34%,
-        rgba(255, 255, 255, 0.25) 50%,
-        rgba(220, 239, 242, 0.125) 66%,
-        rgba(255, 255, 255, 0.055) 100%
-    );
+    background: linear-gradient(90deg,
+            rgba(255, 255, 255, 0.055) 0%,
+            rgba(220, 239, 242, 0.125) 34%,
+            rgba(255, 255, 255, 0.25) 50%,
+            rgba(220, 239, 242, 0.125) 66%,
+            rgba(255, 255, 255, 0.055) 100%);
     background-position: 140% 50%;
     background-repeat: no-repeat;
     background-size: 260% 100%;
@@ -489,12 +454,11 @@
     animation: facility-membership-optic-datum 3.3s linear infinite paused;
 }
 
-.facility-membership__index-rail.is-visible
-    .facility-membership__index-datum {
+.facility-membership__index-rail.is-visible .facility-membership__index-datum {
     animation-play-state: running;
 }
 
-.facility-membership__index-rail > span {
+.facility-membership__index-rail>span {
     position: relative;
     z-index: 2;
     opacity: 0;
@@ -504,12 +468,12 @@
         transform 760ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.facility-membership__index-rail.is-visible > span {
+.facility-membership__index-rail.is-visible>span {
     opacity: 1;
     transform: translate3d(0, 0, 0);
 }
 
-.facility-membership__index-rail > span:first-of-type {
+.facility-membership__index-rail>span:first-of-type {
     max-width: 100%;
     font-size: 0.45rem;
     font-weight: 600;
@@ -520,7 +484,7 @@
     white-space: nowrap;
 }
 
-.facility-membership__index-rail > span:last-child {
+.facility-membership__index-rail>span:last-child {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -529,7 +493,7 @@
     transition-delay: 300ms;
 }
 
-.facility-membership__index-code > span {
+.facility-membership__index-code>span {
     color: rgba(255, 255, 255, 0.58);
     font-size: 0.38rem;
     font-weight: 600;
@@ -538,13 +502,14 @@
     text-transform: uppercase;
 }
 
-.facility-membership__index-code > strong {
+.facility-membership__index-code>strong {
     font-size: clamp(1.05rem, 1.25vw, 1.35rem);
     font-weight: 500;
     line-height: 0.9;
 }
 
 @keyframes facility-membership-media-scan {
+
     0%,
     18% {
         opacity: 0;
@@ -567,6 +532,7 @@
 }
 
 @keyframes facility-membership-detail-scan {
+
     0%,
     24% {
         opacity: 0;
@@ -586,6 +552,7 @@
 }
 
 @keyframes facility-membership-optic-field-y {
+
     0%,
     100% {
         transform: translate3d(-7%, -10%, 0) rotate(-5deg) scale(1.04);
@@ -605,6 +572,7 @@
 }
 
 @keyframes facility-membership-optic-field-x {
+
     0%,
     100% {
         transform: translate3d(-10%, -4%, 0) rotate(-2deg) scale(1.04);
@@ -708,8 +676,7 @@
         opacity: 0.52;
     }
 
-    .facility-membership__index-rail:hover
-        .facility-membership__index-datum {
+    .facility-membership__index-rail:hover .facility-membership__index-datum {
         transform: scaleX(1.18);
     }
 
@@ -726,13 +693,11 @@
         filter: saturate(0.98) contrast(1.05) brightness(0.94);
     }
 
-    .facility-membership__visual:hover
-        .facility-membership__media-line::before {
+    .facility-membership__visual:hover .facility-membership__media-line::before {
         transform: scaleX(1);
     }
 
-    .facility-membership__visual:hover
-        .facility-membership__media-line::after {
+    .facility-membership__visual:hover .facility-membership__media-line::after {
         animation-duration: 1.65s;
     }
 }
@@ -863,7 +828,7 @@
         padding: 0.65rem 0.85rem;
     }
 
-    .facility-membership__index-code > strong {
+    .facility-membership__index-code>strong {
         font-size: 1rem;
     }
 
@@ -908,12 +873,13 @@
         padding: 0.7rem 1rem;
     }
 
-    .facility-membership__index-code > strong {
+    .facility-membership__index-code>strong {
         font-size: 1.05rem;
     }
 }
 
 @media (max-width: 767px) {
+
     .facility-membership__copy p,
     .facility-membership__copy-meta {
         width: 100%;
@@ -944,7 +910,7 @@
         gap: 0.36rem;
     }
 
-    .facility-membership__index-code > span {
+    .facility-membership__index-code>span {
         font-size: 0.46rem;
     }
 
@@ -955,14 +921,12 @@
         flex: 1 1 auto;
         margin-inline: clamp(0.85rem, 4.5vw, 1.5rem);
         background-color: rgba(54, 132, 168, 0.42);
-        background-image: linear-gradient(
-            90deg,
-            rgba(63, 143, 182, 0.18) 0%,
-            rgba(82, 174, 205, 0.52) 34%,
-            rgba(127, 214, 226, 0.9) 50%,
-            rgba(82, 174, 205, 0.52) 66%,
-            rgba(63, 143, 182, 0.18) 100%
-        );
+        background-image: linear-gradient(90deg,
+                rgba(63, 143, 182, 0.18) 0%,
+                rgba(82, 174, 205, 0.52) 34%,
+                rgba(127, 214, 226, 0.9) 50%,
+                rgba(82, 174, 205, 0.52) 66%,
+                rgba(63, 143, 182, 0.18) 100%);
         box-shadow: 0 0 0.45rem rgba(84, 169, 211, 0.35);
     }
 }
@@ -1031,19 +995,19 @@
 @media (min-width: 1536px) {
     .facility-membership__details {
         grid-template-columns:
-            minmax(13.5rem, 1fr) clamp(3.75rem, 4.5vw, 4.75rem)
-            minmax(0, clamp(34rem, 35vw, 42rem));
+            minmax(13.5rem, 1fr) clamp(3.75rem, 4.5vw, 4.75rem) minmax(0, clamp(34rem, 35vw, 42rem));
     }
 }
 
 @media (prefers-reduced-motion: reduce) {
+
     .facility-membership__details::before,
     .facility-membership__details::after,
     .facility-membership__index-rail,
     .facility-membership__index-rail::before,
     .facility-membership__index-rail::after,
     .facility-membership__index-datum,
-    .facility-membership__index-rail > span,
+    .facility-membership__index-rail>span,
     .facility-membership__object-reveal,
     .facility-membership__media img,
     .facility-membership__media-line,

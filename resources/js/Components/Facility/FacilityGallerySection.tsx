@@ -13,6 +13,10 @@ import SectionDivider from "@/Components/Landing/SectionDivider";
 import ScrollTextReveal from "@/Components/Landing/ScrollTextReveal";
 import type { FacilityItem } from "./FacilityListItem";
 import type { PublicGalleryItem } from "@/types/gallery";
+import {
+    facilityReservationDestination,
+    type PublicFacilityReservation,
+} from "@/lib/facilityReservation";
 import FacilitySectionLabel from "./FacilitySectionLabel";
 import "./FacilitySectionMonument.css";
 import "./FacilityGallerySection.css";
@@ -30,6 +34,8 @@ interface CuratedGalleryItem {
     fallback: string;
     photographer: string;
     slug?: string;
+    location?: string | null;
+    reservation?: PublicFacilityReservation | null;
     galleryItem?: PublicGalleryItem;
 }
 
@@ -167,11 +173,33 @@ function GalleryTile({
         image.src = item.fallback;
     };
 
-    const Wrapper = (item.galleryItem ? "button" : item.slug ? Link : "article") as any;
+    const reservationDestination = item.slug
+        ? facilityReservationDestination(
+              item.reservation,
+              item.title,
+              item.location,
+          )
+        : null;
+    const Wrapper = (
+        item.galleryItem
+            ? "button"
+            : reservationDestination?.target === "_self"
+              ? Link
+              : reservationDestination
+                ? "a"
+                : "article"
+    ) as any;
     const wrapperProps = item.galleryItem
         ? { type: "button", onClick: onOpen }
-        : item.slug
-          ? { href: route("facilities.show", item.slug) }
+        : reservationDestination
+          ? {
+                href: reservationDestination.href,
+                target: reservationDestination.target,
+                rel:
+                    reservationDestination.target === "_blank"
+                        ? "noopener noreferrer"
+                        : undefined,
+            }
           : {};
 
     return (
@@ -182,7 +210,11 @@ function GalleryTile({
             }}
             className={`facility-gallery__tile facility-gallery__tile--${index + 1} ${
                 isVisible ? "is-visible" : ""
-            } ${item.slug || item.galleryItem ? "is-linked" : "is-static"}`}
+            } ${
+                reservationDestination || item.galleryItem
+                    ? "is-linked"
+                    : "is-static"
+            }`}
             style={
                 {
                     "--facility-gallery-delay": `${Math.min(index, 4) * 55}ms`,
@@ -252,6 +284,8 @@ export default function FacilityGallerySection({
                     category: facility?.badgeType || item.category,
                     image: facility?.image || item.image,
                     slug: facility?.slug,
+                    location: facility?.badgeLocation,
+                    reservation: facility?.reservation,
                 };
             });
     }, [cmsItems, facilities]);
@@ -295,7 +329,7 @@ export default function FacilityGallerySection({
                                 split="lines"
                                 delay={110}
                                 stagger={95}
-                                className="facility-gallery__heading section-two-headline-weight text-left font-bdo text-[clamp(2.05rem,8.15vw,2.82rem)] font-medium leading-[1.01] tracking-[-0.058em] text-black md:text-[clamp(1.56rem,3.375vw,1.95rem)] lg:text-[clamp(1.815rem,3.135vw,2.2275rem)] xl:text-[clamp(1.69125rem,1.9635vw,1.947rem)] min-[1440px]:text-[clamp(2.02125rem,2.3265vw,2.2275rem)] 2xl:text-[clamp(2.2275rem,2.10375vw,2.59875rem)]"
+                                className="home-section-heading facility-gallery__heading section-two-headline-weight text-left font-bdo text-[clamp(2.05rem,8.15vw,2.82rem)] font-medium leading-[1.01] tracking-[-0.058em] text-black md:text-[clamp(1.56rem,3.375vw,1.95rem)] lg:text-[clamp(1.815rem,3.135vw,2.2275rem)] xl:text-[clamp(1.69125rem,1.9635vw,1.947rem)] min-[1440px]:text-[clamp(2.02125rem,2.3265vw,2.2275rem)] 2xl:text-[clamp(2.2275rem,2.10375vw,2.59875rem)]"
                             >
                                 {GALLERY_HEADING}
                             </ScrollTextReveal>

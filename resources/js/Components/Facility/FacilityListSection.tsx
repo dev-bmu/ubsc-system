@@ -6,6 +6,9 @@ import {
     useState,
 } from "react";
 import ScrollTextReveal from "@/Components/Landing/ScrollTextReveal";
+import FacilityExploreLink from "@/Components/Landing/FacilityExploreLink";
+import SectionDivider from "@/Components/Landing/SectionDivider";
+import { useHomepageEntranceReady } from "@/Components/Landing/HomepageEntranceContext";
 import FacilityTextMarquee from "./FacilityTextMarquee";
 import FacilityListItem from "./FacilityListItem";
 import type { FacilityItem } from "./FacilityListItem";
@@ -18,7 +21,7 @@ const FACILITIES: FacilityItem[] = [
         code: "/Tertutup 001/",
         image: "/assets/images/fasilitas-tenis-ub-sport-center.avif",
         badgeLocation: "Veteran",
-        badgeType: "Outdoor Facility",
+        badgeType: "Arena Dalam",
     },
     {
         id: "02",
@@ -26,7 +29,7 @@ const FACILITIES: FacilityItem[] = [
         code: "/Tertutup 002/",
         image: "/assets/images/fasilitas-bulutangkis-ub-sport-center.avif",
         badgeLocation: "Veteran",
-        badgeType: "Outdoor Facility",
+        badgeType: "Arena Dalam",
     },
     {
         id: "03",
@@ -34,7 +37,7 @@ const FACILITIES: FacilityItem[] = [
         code: "/Tertutup 003/",
         image: "/assets/images/fasilitas-tennis-meja-ub-sport-center.avif",
         badgeLocation: "Veteran",
-        badgeType: "Outdoor Facility",
+        badgeType: "Arena Dalam",
     },
     {
         id: "04",
@@ -42,7 +45,7 @@ const FACILITIES: FacilityItem[] = [
         code: "/Tertutup 004/",
         image: "/assets/images/fasilitas-futsal-dieng-ub-sport-center.avif",
         badgeLocation: "Veteran",
-        badgeType: "Outdoor Facility",
+        badgeType: "Arena Dalam",
     },
     {
         id: "05",
@@ -50,36 +53,15 @@ const FACILITIES: FacilityItem[] = [
         code: "/Tertutup 005/",
         image: "/assets/images/fasilitas-beladiri-ub-sport-center.avif",
         badgeLocation: "Veteran",
-        badgeType: "Outdoor Facility",
+        badgeType: "Arena Dalam",
     },
 ];
 
-function FacilityIntroArrow({ size = 30 }: { size?: number }) {
-    return (
-        <svg
-            width={size}
-            height={size}
-            viewBox="0 0 72 72"
-            fill="none"
-            aria-hidden="true"
-        >
-            <path
-                d="M24 36H53"
-                stroke="currentColor"
-                strokeWidth="4"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-            />
-            <path
-                d="M42 22L56 36L42 50"
-                stroke="currentColor"
-                strokeWidth="4"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-            />
-        </svg>
-    );
-}
+const FACILITY_LIST_HEADING =
+    "Nikmati berbagai pilihan fasilitas indoor dengan suasana tertata, akses mudah, dan dukungan ruang yang sesuai untuk aktivitas olahraga harian.";
+
+const FACILITY_OVERVIEW_HEADING =
+    "Kenali pilihan fasilitas indoor, kelas, dan outdoor yang kami hadirkan untuk mendukung setiap aktivitas olahraga Anda.";
 
 function ScrollObjectReveal({
     children,
@@ -92,10 +74,11 @@ function ScrollObjectReveal({
 }) {
     const rootRef = useRef<HTMLDivElement>(null);
     const [hasEntered, setHasEntered] = useState(false);
+    const entranceReady = useHomepageEntranceReady();
 
     useEffect(() => {
         const node = rootRef.current;
-        if (!node || hasEntered) return;
+        if (!entranceReady || !node || hasEntered) return;
 
         if (!("IntersectionObserver" in window)) {
             setHasEntered(true);
@@ -117,7 +100,7 @@ function ScrollObjectReveal({
         observer.observe(node);
 
         return () => observer.disconnect();
-    }, [hasEntered]);
+    }, [entranceReady, hasEntered]);
 
     return (
         <div
@@ -130,68 +113,110 @@ function ScrollObjectReveal({
     );
 }
 
-function FacilityIntroLink() {
-    const [hovered, setHovered] = useState(false);
-
-    return (
-        <a
-            href="/facilities"
-            className="relative block w-full max-w-[410px] cursor-pointer select-none overflow-hidden border-b border-white/70 pb-3 pt-1"
-            onMouseEnter={() => setHovered(true)}
-            onMouseLeave={() => setHovered(false)}
-        >
-            <span
-                aria-hidden="true"
-                className="pointer-events-none absolute bg-accent-red"
-                style={{
-                    inset: "-50% -5%",
-                    transform: hovered
-                        ? "skewY(-4deg) translateY(0%)"
-                        : "skewY(-4deg) translateY(135%)",
-                    transition:
-                        "transform 0.55s cubic-bezier(0.76, 0, 0.24, 1)",
-                }}
-            />
-            <span className="pointer-events-none relative z-10 flex w-full items-center justify-between gap-5">
-                <span className="font-bdo text-[clamp(1rem,1.25vw,1.5rem)] font-medium leading-tight tracking-[-0.035em] text-white">
-                    Lihat Fasilitas Lainnya
-                </span>
-                <span
-                    className="flex shrink-0 items-center justify-center text-white"
-                    style={{
-                        transform: hovered ? "rotate(0deg)" : "rotate(-45deg)",
-                        transition:
-                            "transform 0.55s cubic-bezier(0.76, 0, 0.24, 1)",
-                    }}
-                >
-                    <FacilityIntroArrow />
-                </span>
-            </span>
-        </a>
-    );
-}
-
 interface FacilityListSectionProps {
     sectionNumber?: string;
     sectionTitle?: string;
     sectionSubtitle?: string;
     facilities?: FacilityItem[];
     isLandingPage?: boolean;
+    showSectionDivider?: boolean;
+    itemLimit?: number;
+    marqueeWords?: string[];
+    introVariant?: "indoor" | "overview";
+    ctaHref?: string;
+    ctaLabel?: string;
 }
 
 export default function FacilityListSection({
+    sectionNumber,
+    sectionTitle,
+    sectionSubtitle,
     facilities,
     isLandingPage = false,
+    showSectionDivider = false,
+    itemLimit,
+    marqueeWords,
+    introVariant = "indoor",
+    ctaHref,
+    ctaLabel,
 }: FacilityListSectionProps = {}) {
-    const activeList =
+    /* Always show at least as many items as the fallback set.
+       Real DB data comes first; unused fallback items fill the rest. */
+    const baseList =
         facilities && facilities.length > 0 ? facilities : FACILITIES;
-    const renderedList = isLandingPage ? activeList.slice(0, 4) : activeList;
+    const usedIds = new Set(baseList.map((f) => f.id));
+    const extraFallback = FACILITIES.filter((f) => !usedIds.has(f.id));
+    const activeList = [...baseList, ...extraFallback];
+    const resolvedLimit = itemLimit ?? (isLandingPage ? 4 : undefined);
+    const renderedList =
+        resolvedLimit === undefined
+            ? activeList
+            : activeList.slice(0, resolvedLimit);
+    const isOverview = introVariant === "overview";
+    const heading = isOverview
+        ? FACILITY_OVERVIEW_HEADING
+        : FACILITY_LIST_HEADING;
+    const mobileHeadingLines = [
+        "Nikmati berbagai",
+        "pilihan fasilitas indoor",
+        "dengan suasana tertata,",
+        "akses mudah, dan",
+        "dukungan ruang yang",
+        "sesuai untuk aktivitas",
+        "olahraga harian.",
+    ];
+    const tabletHeadingLines = isOverview
+        ? [
+              "Kenali pilihan fasilitas indoor,",
+              "kelas, dan outdoor yang kami",
+              "hadirkan untuk mendukung setiap",
+              "aktivitas olahraga Anda.",
+          ]
+        : [
+              "Nikmati berbagai pilihan fasilitas",
+              "indoor dengan suasana tertata,",
+              "akses mudah, dan dukungan ruang",
+              "yang sesuai untuk aktivitas olahraga harian.",
+          ];
+    const largeTabletHeadingLines = isOverview
+        ? [
+              "Kenali pilihan fasilitas",
+              "indoor, kelas, dan outdoor yang",
+              "kami hadirkan untuk mendukung",
+              "setiap aktivitas olahraga Anda.",
+          ]
+        : [
+              "Nikmati berbagai pilihan",
+              "fasilitas indoor dengan suasana tertata,",
+              "akses mudah, dan dukungan ruang yang",
+              "sesuai untuk aktivitas olahraga harian.",
+          ];
     return (
         <section className="bg-[#242424] overflow-x-clip" id="facility-content">
             {/* --- MARQUEE STRIP --- */}
             <ScrollObjectReveal delay={20}>
-                <FacilityTextMarquee text="INDOOR" className="relative z-0 py-2 md:py-2" />
+                <FacilityTextMarquee
+                    text="INDOOR"
+                    words={marqueeWords}
+                    className="relative z-0 py-2 md:py-2"
+                />
             </ScrollObjectReveal>
+
+            {showSectionDivider &&
+                sectionNumber &&
+                sectionTitle &&
+                sectionSubtitle && (
+                    <div className="px-[clamp(1.5rem,4.5vw,5.5rem)] pb-8 pt-14 sm:pb-10 sm:pt-16 lg:pt-20 xl:pt-[5.9rem]">
+                        <SectionDivider
+                            number={sectionNumber}
+                            title={sectionTitle}
+                            subtitle={sectionSubtitle}
+                            theme="dark"
+                            outerClassName="-mx-[clamp(0rem,1.65vw,2rem)]"
+                            contentClassName="px-3"
+                        />
+                    </div>
+                )}
 
             <div className="mx-auto px-[clamp(1.75rem,4.5vw,5.5rem)] py-6">
                 {/* --- HERO INTRO EDITORIAL LAYOUT --- */}
@@ -201,260 +226,152 @@ export default function FacilityListSection({
                             <span className="section-label-diamond" />
                             <ScrollTextReveal
                                 delay={80}
-                                className="font-bdo text-[clamp(1.16rem,1.32vw,1.5rem)] font-medium tracking-[-0.035em] text-white"
+                                className="home-section-anchor font-bdo text-[clamp(1.16rem,1.32vw,1.5rem)] font-medium tracking-[-0.035em] text-white"
                             >
-                                Arena Tertutup
+                                {isOverview ? "Pilihan Fasilitas" : "Arena Tertutup"}
                             </ScrollTextReveal>
                         </div>
-                        <ScrollObjectReveal
-                            delay={210}
-                            className="mt-auto hidden w-[328px] xl:block min-[1800px]:w-[410px]"
-                        >
-                            <FacilityIntroLink />
-                        </ScrollObjectReveal>
+                        {ctaHref && (
+                            <ScrollObjectReveal
+                                delay={210}
+                                className="mt-auto hidden w-[328px] xl:block min-[1800px]:w-[410px]"
+                            >
+                                <FacilityExploreLink
+                                    href={ctaHref}
+                                    label={ctaLabel}
+                                />
+                            </ScrollObjectReveal>
+                        )}
                     </div>
 
                     <div className="block min-w-0 w-full">
                         <ScrollObjectReveal
                             delay={130}
-                            className="max-w-[1240px]"
+                            className="w-full"
                         >
                             <h2
-                                className="block text-left font-bdo text-[1.75rem] font-medium tracking-[-0.035em] text-white sm:text-[2rem] xl:text-[2.6rem] xl:tracking-[-0.055em]"
-                                style={{
-                                    lineHeight: 1.08,
-                                }}
+                                aria-label={heading}
+                                className="home-section-heading section-two-headline-weight block text-left font-bdo text-[1.75rem] font-medium leading-[1.01] tracking-[-0.058em] text-white sm:text-[2rem] xl:text-[2.6rem]"
                             >
                                 <span
-                                    className="relative hidden min-h-[258px] overflow-visible pt-[148px] xl:block 2xl:hidden"
+                                    className="relative hidden min-h-[258px] overflow-visible pt-[148px] xl:block min-[1800px]:min-h-[318px] min-[1800px]:pt-[190px]"
                                     aria-hidden
                                 >
-                                    <span className="absolute left-0 top-0 block aspect-[187/244] w-[150px] overflow-hidden">
+                                    <span className="absolute left-0 top-0 block aspect-[187/244] w-[150px] -translate-y-[9%] overflow-hidden min-[1800px]:w-[187px]">
                                         <img
                                             src={person}
                                             alt="UB Sport Center"
                                             className="h-full w-full object-cover object-top"
+                                            loading="lazy"
+                                            decoding="async"
                                         />
                                     </span>
-                                    <span className="block overflow-visible whitespace-nowrap pl-[174px]">
-                                        <ScrollTextReveal
-                                            delay={130}
-                                            className="-mb-[0.14em] inline-block pb-[0.14em] pr-[0.08em] whitespace-nowrap"
-                                        >
-                                            Nikmati berbagai pilihan
-                                        </ScrollTextReveal>
-                                    </span>
-                                    <span className="block overflow-visible whitespace-nowrap">
-                                        <ScrollTextReveal
-                                            delay={225}
-                                            className="-mb-[0.14em] pb-[0.14em] pr-[0.08em] whitespace-nowrap"
-                                        >
-                                            fasilitas indoor dengan suasana tertata,
-                                        </ScrollTextReveal>
-                                    </span>
-                                    <span className="block overflow-visible whitespace-nowrap">
-                                        <ScrollTextReveal
-                                            delay={320}
-                                            className="-mb-[0.14em] pb-[0.14em] pr-[0.08em] whitespace-nowrap"
-                                        >
-                                            akses mudah, dan dukungan ruang yang
-                                        </ScrollTextReveal>
-                                    </span>
-                                    <span className="block overflow-visible whitespace-nowrap">
-                                        <ScrollTextReveal
-                                            delay={415}
-                                            className="-mb-[0.14em] pb-[0.14em] pr-[0.08em] whitespace-nowrap"
-                                        >
-                                            sesuai untuk aktivitas olahraga harian.
-                                        </ScrollTextReveal>
-                                    </span>
-                                </span>
-                                <span
-                                    className="relative hidden min-h-[258px] overflow-visible pt-[148px] 2xl:block min-[1800px]:min-h-[318px] min-[1800px]:pt-[190px]"
-                                    aria-hidden
-                                >
-                                    <span className="absolute left-0 top-0 block aspect-[187/244] w-[150px] overflow-hidden min-[1800px]:w-[187px]">
-                                        <img
-                                            src={person}
-                                            alt="UB Sport Center"
-                                            className="h-full w-full object-cover object-top"
-                                        />
-                                    </span>
-                                    <span className="block overflow-visible whitespace-nowrap pl-[174px] min-[1800px]:pl-[216px]">
-                                        <ScrollTextReveal
-                                            delay={130}
-                                            className="-mb-[0.14em] inline-block pb-[0.14em] pr-[0.08em] whitespace-nowrap"
-                                        >
-                                            Nikmati berbagai pilihan fasilitas indoor
-                                        </ScrollTextReveal>
-                                    </span>
-                                    <span className="block overflow-visible whitespace-nowrap">
-                                        <ScrollTextReveal
-                                            delay={225}
-                                            className="-mb-[0.14em] pb-[0.14em] pr-[0.08em] whitespace-nowrap"
-                                        >
-                                            dengan suasana tertata, akses mudah, dan dukungan
-                                        </ScrollTextReveal>
-                                    </span>
-                                    <span className="block overflow-visible whitespace-nowrap">
-                                        <ScrollTextReveal
-                                            delay={320}
-                                            className="-mb-[0.14em] pb-[0.14em] pr-[0.08em] whitespace-nowrap"
-                                        >
-                                            ruang yang sesuai untuk aktivitas olahraga harian.
-                                        </ScrollTextReveal>
-                                    </span>
+                                    <ScrollTextReveal
+                                        split="lines"
+                                        delay={110}
+                                        stagger={95}
+                                        className="facility-list-heading-fluid-reveal"
+                                    >
+                                        {heading}
+                                    </ScrollTextReveal>
                                 </span>
                                 <span
                                     className="relative block min-h-[212px] overflow-visible pt-[78px] sm:min-h-[236px] sm:pt-[102px] md:hidden"
                                     aria-hidden
                                 >
-                                    <span className="absolute left-0 top-0 block aspect-[187/244] w-[88px] overflow-hidden">
+                                    <span className="absolute left-0 top-0 block aspect-[187/244] w-[88px] -translate-y-[9%] overflow-hidden max-[359px]:w-[78px]">
                                         <img
                                             src={person}
                                             alt="UB Sport Center"
                                             className="h-full w-full object-cover object-top"
+                                            loading="lazy"
+                                            decoding="async"
                                         />
                                     </span>
-                                    <span className="block overflow-visible whitespace-nowrap pl-[100px]">
+                                    {isOverview ? (
                                         <ScrollTextReveal
+                                            split="lines"
                                             delay={130}
-                                            className="-mb-[0.14em] inline-block pb-[0.14em] pr-[0.08em] whitespace-nowrap"
+                                            stagger={95}
+                                            className="facility-list-heading-mobile-reveal"
                                         >
-                                            Nikmati berbagai
+                                            {heading}
                                         </ScrollTextReveal>
-                                    </span>
-                                    <span className="block overflow-visible whitespace-nowrap">
-                                        <ScrollTextReveal
-                                            delay={225}
-                                            className="-mb-[0.14em] pb-[0.14em] pr-[0.08em] whitespace-nowrap"
-                                        >
-                                            pilihan fasilitas indoor
-                                        </ScrollTextReveal>
-                                    </span>
-                                    <span className="block overflow-visible whitespace-nowrap">
-                                        <ScrollTextReveal
-                                            delay={320}
-                                            className="-mb-[0.14em] pb-[0.14em] pr-[0.08em] whitespace-nowrap"
-                                        >
-                                            dengan suasana tertata,
-                                        </ScrollTextReveal>
-                                    </span>
-                                    <span className="block overflow-visible whitespace-nowrap">
-                                        <ScrollTextReveal
-                                            delay={415}
-                                            className="-mb-[0.14em] pb-[0.14em] pr-[0.08em] whitespace-nowrap"
-                                        >
-                                            akses mudah, dan
-                                        </ScrollTextReveal>
-                                    </span>
-                                    <span className="block overflow-visible whitespace-nowrap">
-                                        <ScrollTextReveal
-                                            delay={510}
-                                            className="-mb-[0.14em] pb-[0.14em] pr-[0.08em] whitespace-nowrap"
-                                        >
-                                            dukungan ruang yang
-                                        </ScrollTextReveal>
-                                    </span>
-                                    <span className="block overflow-visible whitespace-nowrap">
-                                        <ScrollTextReveal
-                                            delay={605}
-                                            className="-mb-[0.14em] pb-[0.14em] pr-[0.08em] whitespace-nowrap"
-                                        >
-                                            sesuai untuk aktivitas
-                                        </ScrollTextReveal>
-                                    </span>
-                                    <span className="block overflow-visible whitespace-nowrap">
-                                        <ScrollTextReveal
-                                            delay={700}
-                                            className="-mb-[0.14em] pb-[0.14em] pr-[0.08em] whitespace-nowrap"
-                                        >
-                                            olahraga harian.
-                                        </ScrollTextReveal>
-                                    </span>
+                                    ) : (
+                                        mobileHeadingLines.map((line, index) => (
+                                            <span
+                                                key={line}
+                                                className={`block overflow-visible whitespace-nowrap ${
+                                                    index === 0
+                                                        ? "pl-[100px] max-[359px]:pl-[88px]"
+                                                        : ""
+                                                }`}
+                                            >
+                                                <ScrollTextReveal
+                                                    delay={130 + index * 95}
+                                                    className="-mb-[0.14em] inline-block whitespace-nowrap pb-[0.14em] pr-[0.08em]"
+                                                >
+                                                    {line}
+                                                </ScrollTextReveal>
+                                            </span>
+                                        ))
+                                    )}
                                 </span>
                                 <span
                                     className="relative hidden min-h-[258px] overflow-visible pt-[122px] md:block xl:hidden"
                                     aria-hidden
                                 >
-                                    <span className="absolute left-0 top-0 block aspect-[187/244] w-[120px] overflow-hidden lg:w-[138px]">
+                                    <span className="absolute left-0 top-0 block aspect-[187/244] w-[120px] -translate-y-[9%] overflow-hidden lg:w-[138px]">
                                         <img
                                             src={person}
                                             alt="UB Sport Center"
                                             className="h-full w-full object-cover object-top"
+                                            loading="lazy"
+                                            decoding="async"
                                         />
                                     </span>
-                                    <span className="block overflow-visible whitespace-nowrap pl-[142px] lg:hidden">
-                                        <ScrollTextReveal
-                                            delay={130}
-                                            className="-mb-[0.14em] inline-block pb-[0.14em] pr-[0.08em] whitespace-nowrap"
+                                    {tabletHeadingLines.map((line, index) => (
+                                        <span
+                                            key={line}
+                                            className={`block overflow-visible whitespace-nowrap lg:hidden ${
+                                                index === 0 ? "pl-[142px]" : ""
+                                            }`}
                                         >
-                                            Nikmati berbagai pilihan fasilitas
-                                        </ScrollTextReveal>
-                                    </span>
-                                    <span className="block overflow-visible whitespace-nowrap lg:hidden">
-                                        <ScrollTextReveal
-                                            delay={225}
-                                            className="-mb-[0.14em] pb-[0.14em] pr-[0.08em] whitespace-nowrap"
+                                            <ScrollTextReveal
+                                                delay={130 + index * 95}
+                                                className="-mb-[0.14em] inline-block pb-[0.14em] pr-[0.08em] whitespace-nowrap"
+                                            >
+                                                {line}
+                                            </ScrollTextReveal>
+                                        </span>
+                                    ))}
+                                    {largeTabletHeadingLines.map((line, index) => (
+                                        <span
+                                            key={line}
+                                            className={`hidden overflow-visible whitespace-nowrap lg:block ${
+                                                index === 0 ? "pl-[162px]" : ""
+                                            }`}
                                         >
-                                            indoor dengan suasana tertata,
-                                        </ScrollTextReveal>
-                                    </span>
-                                    <span className="block overflow-visible whitespace-nowrap lg:hidden">
-                                        <ScrollTextReveal
-                                            delay={320}
-                                            className="-mb-[0.14em] pb-[0.14em] pr-[0.08em] whitespace-nowrap"
-                                        >
-                                            akses mudah, dan dukungan ruang
-                                        </ScrollTextReveal>
-                                    </span>
-                                    <span className="block overflow-visible whitespace-nowrap lg:hidden">
-                                        <ScrollTextReveal
-                                            delay={415}
-                                            className="-mb-[0.14em] pb-[0.14em] pr-[0.08em] whitespace-nowrap"
-                                        >
-                                            yang sesuai untuk aktivitas olahraga harian.
-                                        </ScrollTextReveal>
-                                    </span>
-                                    <span className="hidden overflow-visible whitespace-nowrap pl-[162px] lg:block">
-                                        <ScrollTextReveal
-                                            delay={130}
-                                            className="-mb-[0.14em] inline-block pb-[0.14em] pr-[0.08em] whitespace-nowrap"
-                                        >
-                                            Nikmati berbagai pilihan
-                                        </ScrollTextReveal>
-                                    </span>
-                                    <span className="hidden overflow-visible whitespace-nowrap lg:block">
-                                        <ScrollTextReveal
-                                            delay={225}
-                                            className="-mb-[0.14em] pb-[0.14em] pr-[0.08em] whitespace-nowrap"
-                                        >
-                                            fasilitas indoor dengan suasana tertata,
-                                        </ScrollTextReveal>
-                                    </span>
-                                    <span className="hidden overflow-visible whitespace-nowrap lg:block">
-                                        <ScrollTextReveal
-                                            delay={320}
-                                            className="-mb-[0.14em] pb-[0.14em] pr-[0.08em] whitespace-nowrap"
-                                        >
-                                            akses mudah, dan dukungan ruang yang
-                                        </ScrollTextReveal>
-                                    </span>
-                                    <span className="hidden overflow-visible whitespace-nowrap lg:block">
-                                        <ScrollTextReveal
-                                            delay={415}
-                                            className="-mb-[0.14em] pb-[0.14em] pr-[0.08em] whitespace-nowrap"
-                                        >
-                                            sesuai untuk aktivitas olahraga harian.
-                                        </ScrollTextReveal>
-                                    </span>
+                                            <ScrollTextReveal
+                                                delay={130 + index * 95}
+                                                className="-mb-[0.14em] inline-block pb-[0.14em] pr-[0.08em] whitespace-nowrap"
+                                            >
+                                                {line}
+                                            </ScrollTextReveal>
+                                        </span>
+                                    ))}
                                 </span>
                             </h2>
                         </ScrollObjectReveal>
 
-                        <ScrollObjectReveal delay={230} className="pt-14 xl:hidden">
-                            <FacilityIntroLink />
-                        </ScrollObjectReveal>
+                        {ctaHref && (
+                            <ScrollObjectReveal delay={230} className="pt-14 xl:hidden">
+                                <FacilityExploreLink
+                                    href={ctaHref}
+                                    label={ctaLabel}
+                                />
+                            </ScrollObjectReveal>
+                        )}
                     </div>
                 </div>
 

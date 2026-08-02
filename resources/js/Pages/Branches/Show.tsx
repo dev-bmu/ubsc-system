@@ -1,6 +1,7 @@
 import Navbar from "@/Components/Landing/Navbar";
 import Footer from "@/Components/Landing/Footer";
-import { Head, Link, usePage } from "@inertiajs/react";
+import SeoHead from "@/Components/SeoHead";
+import { Link, usePage } from "@inertiajs/react";
 import type { PageProps } from "@/types";
 import { ArrowUpRight } from "lucide-react";
 import type { ReactNode } from "react";
@@ -187,15 +188,7 @@ export default function BranchShow() {
 
     return (
         <>
-            <Head title={branchItem.title}>
-                <meta name="description" content={branchItem.description} />
-                <meta property="og:title" content={branchItem.title} />
-                <meta property="og:description" content={branchItem.description} />
-                <meta
-                    property="og:image"
-                    content={branchItem.images_array?.[0] ?? branchItem.cover_image ?? FALLBACK_IMAGE}
-                />
-            </Head>
+            <SeoHead />
 
             <main className="bg-white text-black">
                 <DetailHero branchItem={branchItem} />

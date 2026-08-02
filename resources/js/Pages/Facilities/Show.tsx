@@ -1,7 +1,8 @@
 import Navbar from "@/Components/Landing/Navbar";
 import Footer from "@/Components/Landing/Footer";
 import FacilityBadge from "@/Components/Landing/FacilityBadge";
-import { Head, Link, usePage } from "@inertiajs/react";
+import SeoHead from "@/Components/SeoHead";
+import { Link, usePage } from "@inertiajs/react";
 import type { PageProps } from "@/types";
 import useEmblaCarousel from "embla-carousel-react";
 import { ArrowUpRight, ChevronLeft, ChevronRight, MapPin } from "lucide-react";
@@ -243,15 +244,7 @@ export default function FacilityShow() {
 
     return (
         <>
-            <Head title={facilityItem.name}>
-                <meta name="description" content={facilityItem.description} />
-                <meta property="og:title" content={facilityItem.name} />
-                <meta property="og:description" content={facilityItem.description} />
-                <meta
-                    property="og:image"
-                    content={facilityItem.images_array?.[0] ?? facilityItem.cover_image ?? FALLBACK_IMAGE}
-                />
-            </Head>
+            <SeoHead />
 
             <main className="bg-white text-black">
                 <DetailHero facilityItem={facilityItem} />

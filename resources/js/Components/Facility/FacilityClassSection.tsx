@@ -2,8 +2,11 @@ import { motion } from "framer-motion";
 import { useEffect, useRef } from "react";
 import { Link } from "@inertiajs/react";
 import FacilityBadge from "@/Components/Landing/FacilityBadge";
-
-const MARQUEE_ITEMS = Array(40).fill(null);
+import FacilityTextMarquee from "./FacilityTextMarquee";
+import {
+    facilityReservationDestination,
+    type PublicFacilityReservation,
+} from "@/lib/facilityReservation";
 
 // ─────────────────────────────────────────────
 // Types
@@ -18,6 +21,7 @@ export interface ClassItem {
     badgeCategory: string;
     comingSoon?: boolean;
     slug?: string;
+    reservation?: PublicFacilityReservation | null;
 }
 
 // ─────────────────────────────────────────────
@@ -180,7 +184,7 @@ function ClassScrollSection({
 }) {
     const sectionRef = useRef<HTMLDivElement>(null);
     const bgRef = useRef<HTMLDivElement>(null);
-    const cardRef = useRef<HTMLDivElement>(null);
+    const cardRef = useRef<HTMLAnchorElement>(null);
     const thumbRef = useRef<HTMLImageElement>(null);
 
     useEffect(() => {
@@ -208,8 +212,8 @@ function ClassScrollSection({
                 const clampedProgress = Math.max(0, Math.min(1, scrollProgress));
 
                 // Background moves at 40% speed → parallax offset
-                const parallaxY = (0.5 - clampedProgress) * 25;
-                const thumbParallaxY = (clampedProgress - 0.5) * 34;
+                const parallaxY = (0.5 - clampedProgress) * 45;
+                const thumbParallaxY = (clampedProgress - 0.5) * 55;
                 bg.style.transform = `translate3d(0, ${parallaxY}%, 0)`;
                 thumb.style.transform = `translate3d(0, ${thumbParallaxY}%, 0) scale(1.24)`;
 
@@ -243,8 +247,13 @@ function ClassScrollSection({
         return () => window.removeEventListener("scroll", handleScroll);
     }, []);
 
-    const Wrapper = data.slug ? Link : "div";
-    const wrapperProps = data.slug ? { href: route("facilities.show", data.slug) } : {};
+    const destination = facilityReservationDestination(
+        data.reservation,
+        data.name,
+        data.badgeLocation,
+    );
+    const ReservationLink =
+        destination.target === "_self" ? Link : "a";
 
     return (
         <div
@@ -259,31 +268,40 @@ function ClassScrollSection({
                 zIndex: index + 1,
             }}
         >
-            {/* ── Parallax background ───────────────────── */}
-            <div
-                ref={bgRef}
-                style={{
-                    position: "absolute",
-                    top: "-15%",
-                    left: 0,
-                    right: 0,
-                    height: "130%",
-                    willChange: "transform",
-                }}
+            {/* ── Parallax background (clickable) ───────────────────── */}
+            <ReservationLink
+                href={destination.href}
+                target={destination.target}
+                rel={destination.target === "_blank" ? "noopener noreferrer" : undefined}
+                aria-label={`${data.name} — lihat detail`}
+                className="absolute inset-0 z-0 block cursor-pointer"
             >
-                <img
-                    src={data.image}
-                    alt={data.name}
-                    loading={index === 0 ? "eager" : "lazy"}
+                <div
+                    ref={bgRef}
                     style={{
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "cover",
-                        objectPosition: "center",
-                        display: "block",
+                        position: "absolute",
+                        top: "-25%",
+                        left: 0,
+                        right: 0,
+                        height: "150%",
+                        willChange: "transform",
                     }}
-                />
-            </div>
+                >
+                    <img
+                        src={data.image}
+                        alt={data.name}
+                        loading="lazy"
+                        decoding="async"
+                        style={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover",
+                            objectPosition: "center",
+                            display: "block",
+                        }}
+                    />
+                </div>
+            </ReservationLink>
 
             {/* ── Subtle dark overlay for readability ──── */}
             <div
@@ -294,12 +312,16 @@ function ClassScrollSection({
                     background:
                         "linear-gradient(180deg, rgba(0,0,0,0.03) 0%, rgba(0,0,0,0.12) 100%)",
                     zIndex: 1,
+                    pointerEvents: "none",
                 }}
             />
 
             {/* ── White card (scroll-linked opacity + translateY) ─ */}
-            <Wrapper
-                {...wrapperProps}
+            <ReservationLink
+                href={destination.href}
+                target={destination.target}
+                rel={destination.target === "_blank" ? "noopener noreferrer" : undefined}
+                aria-label={`Reservasi ${data.name}`}
                 ref={cardRef}
                 className="absolute left-1/2 top-[34%] z-10 w-[min(232px,calc(100vw-64px))] opacity-100 will-change-transform md:top-[40%] md:w-[min(800px,calc(100vw-72px))] xl:top-[41%] xl:w-[min(760px,calc(100vw-48px))]"
                 style={{ opacity: 1, transform: "translate3d(-50%, 0, 0)" }}
@@ -327,13 +349,16 @@ function ClassScrollSection({
                             src={data.image}
                             alt={data.name}
                             className="absolute inset-0 h-full w-full object-cover object-center grayscale will-change-transform"
+                            loading="lazy"
+                            decoding="async"
                         />
                         <div
                             className="absolute bottom-[73px] left-1/2 max-w-[calc(100%-10px)] -translate-x-1/2 md:bottom-[42px] xl:bottom-[50px] [&>div]:rounded-[5px] [&>div]:border-[3px] [&_svg]:h-[13px] [&_svg]:w-[13px] [&_span]:text-[14px] md:[&_span]:text-[13px]"
                         >
                             <FacilityBadge
                                 location={data.badgeLocation}
-                                category="Indoor Facility"
+                                category={data.badgeCategory}
+                                variant="blue-red"
                             />
                         </div>
                     </div>
@@ -349,7 +374,7 @@ function ClassScrollSection({
                         </span>
                     </div>
                 </div>
-            </Wrapper>
+            </ReservationLink>
         </div>
     );
 }
@@ -370,13 +395,17 @@ export default function FacilityClassSection({
     classes,
     isLandingPage = false,
 }: FacilityClassSectionProps = {}) {
-    const activeClasses =
+    /* Always show at least as many items as the fallback set.
+       Real DB data comes first; unused fallback items fill the rest. */
+    const baseClasses =
         classes && classes.length > 0 ? classes : DUMMY_CLASSES;
+    const usedIds = new Set(baseClasses.map((c) => c.id));
+    const extraFallback = DUMMY_CLASSES.filter((c) => !usedIds.has(c.id));
+    const activeClasses = [...baseClasses, ...extraFallback];
 
     const renderedClasses = isLandingPage
         ? activeClasses.slice(0, 4)
         : activeClasses;
-    const remainingClassCount = activeClasses.length;
 
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -385,27 +414,15 @@ export default function FacilityClassSection({
             {/* ── Section header ──────────────────────── */}
             {/* ── 3-column intro row ──────────────────── */}
             {/* ── Fullscreen scroll sections ────────────── */}
-            <div className="relative overflow-hidden border-b border-white/10 bg-black py-[14px] md:py-[18px]">
-                <motion.div
-                    className="flex items-center"
-                    animate={{ x: ["0%", "-50%"] }}
-                    transition={{ repeat: Infinity, ease: "linear", duration: 30 }}
-                >
-                    {[...MARQUEE_ITEMS, ...MARQUEE_ITEMS].map((_, i) => (
-                        <span
-                            key={i}
-                            className="shrink-0 pr-12 font-clash text-[12px] font-semibold uppercase tracking-widest text-white lg:text-[16px]"
-                        >
-                            UBSC
-                        </span>
-                    ))}
-                </motion.div>
-            </div>
+            <FacilityTextMarquee
+                text="KELAS"
+                className="relative z-0 py-2 md:py-2"
+            />
 
             <div className="mx-auto grid min-h-[134px] max-w-[1920px] grid-cols-[1fr_auto] items-center gap-x-6 gap-y-4 px-[clamp(1.75rem,4.5vw,5.5rem)] py-9 text-white md:min-h-[154px] md:grid-cols-3 md:py-12">
                 <div className="flex items-center gap-5">
                     <span className="section-label-diamond" />
-                    <span className="font-bdo text-[clamp(1.35rem,1.35vw,1.75rem)] font-medium tracking-[-0.035em]">
+                    <span className="home-section-anchor font-bdo text-[clamp(1.35rem,1.35vw,1.75rem)] font-medium tracking-[-0.035em]">
                         Kelas Kebugaran
                     </span>
                 </div>
@@ -414,18 +431,9 @@ export default function FacilityClassSection({
                     (Fasilitas)
                 </span>
 
-                <a
-                    href="/facilities"
-                    className="group flex items-center justify-self-end font-bdo text-[clamp(1.05rem,1vw,1.35rem)] tracking-[-0.025em] text-white/86"
-                >
-                    <span className="underline decoration-white/70 underline-offset-4">
-                        <span className="font-light">{remainingClassCount}</span>{" "}
-                        <span className="font-normal">Lainnya</span>
-                    </span>
-                    <span className="ml-2 text-[1.2em] leading-none transition-transform duration-300 group-hover:translate-x-1">
-                        ›
-                    </span>
-                </a>
+                <span className="justify-self-end font-bdo text-[clamp(1.05rem,1vw,1.35rem)] font-light tracking-[-0.025em] text-white/50 italic">
+                    (Kelas)
+                </span>
 
             </div>
 

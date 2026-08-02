@@ -324,7 +324,7 @@ export default function ExclusiveFacilitiesSection({
                     split="lines"
                     delay={110}
                     stagger={95}
-                    className="exclusive-facilities__heading section-two-headline-weight max-w-[1100px] font-bdo text-[clamp(2.05rem,8.15vw,2.82rem)] font-medium leading-[1.01] tracking-[-0.058em] text-white md:text-[clamp(2.08rem,4.5vw,2.6rem)] lg:text-[clamp(2.2rem,3.8vw,2.7rem)] xl:max-w-[980px] xl:text-[clamp(2.05rem,2.38vw,2.36rem)] min-[1440px]:text-[clamp(2.45rem,2.82vw,2.7rem)] 2xl:max-w-[1120px] 2xl:text-[clamp(2.7rem,2.55vw,3.15rem)]"
+                    className="home-section-heading exclusive-facilities__heading section-two-headline-weight max-w-[1100px] font-bdo text-[clamp(2.05rem,8.15vw,2.82rem)] font-medium leading-[1.01] tracking-[-0.058em] text-white md:text-[clamp(2.08rem,4.5vw,2.6rem)] lg:text-[clamp(2.2rem,3.8vw,2.7rem)] xl:max-w-[980px] xl:text-[clamp(2.05rem,2.38vw,2.36rem)] min-[1440px]:text-[clamp(2.45rem,2.82vw,2.7rem)] 2xl:max-w-[1120px] 2xl:text-[clamp(2.7rem,2.55vw,3.15rem)]"
                 >
                     {EXCLUSIVE_HEADING}
                 </ScrollTextReveal>
@@ -381,6 +381,7 @@ export default function ExclusiveFacilitiesSection({
                     onScroll={handleScroll}
                     role="list"
                     aria-label="Fasilitas cabang eksklusif"
+                    data-lenis-prevent-touch=""
                 >
                     {items.map((facility, index) => (
                         <ExclusiveFacilityCard

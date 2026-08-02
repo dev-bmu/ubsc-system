@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 
 interface FacilityTextMarqueeProps {
     text: string;
+    words?: string[];
     className?: string;
 }
 
@@ -9,6 +10,7 @@ const MARQUEE_ITEMS = Array(18).fill(null);
 
 export default function FacilityTextMarquee({
     text,
+    words,
     className = "",
 }: FacilityTextMarqueeProps) {
     const trackRef = useRef<HTMLDivElement>(null);
@@ -66,6 +68,8 @@ export default function FacilityTextMarquee({
         };
     }, []);
 
+    const marqueeWords = words && words.length > 0 ? words : [text];
+
     const renderGroup = (key: string, hidden = false) => (
         <div
             ref={hidden ? undefined : groupRef}
@@ -77,7 +81,7 @@ export default function FacilityTextMarquee({
                     key={`${key}-${index}`}
                     className="facility-text-marquee__word shrink-0 font-clash text-[12px] font-semibold uppercase leading-none tracking-widest sm:text-[13px] lg:text-[16px]"
                 >
-                    {text}
+                    {marqueeWords[index % marqueeWords.length]}
                 </span>
             ))}
         </div>

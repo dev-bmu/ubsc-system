@@ -1,6 +1,10 @@
-import { Link } from "@inertiajs/react";
 import FacilityBadge from "@/Components/Landing/FacilityBadge";
 import ScrollTextReveal from "@/Components/Landing/ScrollTextReveal";
+import { Link } from "@inertiajs/react";
+import {
+    facilityReservationDestination,
+    type PublicFacilityReservation,
+} from "@/lib/facilityReservation";
 
 export interface FacilityItem {
     id: string;
@@ -9,7 +13,9 @@ export interface FacilityItem {
     image: string;
     badgeLocation: string;
     badgeType: string;
+    badgeVariant?: "blue" | "red" | "blue-red";
     slug?: string;
+    reservation?: PublicFacilityReservation | null;
 }
 
 interface Props {
@@ -23,12 +29,20 @@ function formatCode(code: string): string {
 
 export default function FacilityListItem({ item, revealDelay = 0 }: Props) {
     const formattedCode = formatCode(item.code);
-    const Wrapper = item.slug ? Link : "div";
-    const wrapperProps = item.slug ? { href: route("facilities.show", item.slug) } : {};
+    const destination = facilityReservationDestination(
+        item.reservation,
+        item.title,
+        item.badgeLocation,
+    );
+    const ReservationLink =
+        destination.target === "_self" ? Link : "a";
 
     return (
-        <Wrapper
-            {...wrapperProps}
+        <ReservationLink
+            href={destination.href}
+            target={destination.target}
+            rel={destination.target === "_blank" ? "noopener noreferrer" : undefined}
+            aria-label={`Reservasi ${item.title.replace(/^\/+|[/.]+$/g, "")}`}
             className="group grid w-full cursor-pointer grid-cols-[86px_minmax(0,1fr)] border-b border-white/20 transition-colors hover:bg-white/[0.025] xl:grid-cols-[minmax(360px,496px)_minmax(0,1fr)_190px] xl:items-start xl:gap-x-[clamp(2rem,3.6vw,4.25rem)] xl:py-1"
         >
             <div className="relative aspect-[86/148] w-[86px] overflow-hidden rounded-[5px] xl:aspect-[496/220] xl:w-full">
@@ -36,11 +50,14 @@ export default function FacilityListItem({ item, revealDelay = 0 }: Props) {
                     src={item.image}
                     alt={item.title}
                     className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.025]"
+                    loading="lazy"
+                    decoding="async"
                 />
                 <div className="absolute bottom-4 left-9 hidden xl:block">
                     <FacilityBadge
                         location={item.badgeLocation}
                         category={item.badgeType}
+                        variant={item.badgeVariant}
                     />
                 </div>
             </div>
@@ -67,6 +84,7 @@ export default function FacilityListItem({ item, revealDelay = 0 }: Props) {
                     <FacilityBadge
                         location={item.badgeLocation}
                         category={item.badgeType}
+                        variant={item.badgeVariant}
                     />
                 </div>
             </div>
@@ -79,6 +97,6 @@ export default function FacilityListItem({ item, revealDelay = 0 }: Props) {
                     {formattedCode}
                 </ScrollTextReveal>
             </span>
-        </Wrapper>
+        </ReservationLink>
     );
 }

@@ -8,6 +8,7 @@ import {
     useState,
 } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Link } from "@inertiajs/react";
 import GalleryLightbox from "@/Components/Gallery/GalleryLightbox";
 import type { PublicGalleryItem } from "@/types/gallery";
 import ScrollTextReveal from "@/Components/Landing/ScrollTextReveal";
@@ -23,6 +24,7 @@ export interface OutdoorArenaItem {
     image: string;
     location?: string | null;
     href?: string | null;
+    target?: "_self" | "_blank";
     fallback?: string;
     galleryItem?: PublicGalleryItem;
 }
@@ -160,6 +162,8 @@ function OutdoorArenaCard({
             facility.fallback ??
             "/assets/images/fasilitas-arena-terbuka-dieng-ub-sport-center-malang.avif";
     };
+    const ReservationLink =
+        facility.target === "_self" ? Link : "a";
 
     return (
         <article
@@ -202,10 +206,16 @@ function OutdoorArenaCard({
                         aria-label={`Buka ${facility.name}`}
                     />
                 ) : facility.href ? (
-                    <a
+                    <ReservationLink
                         href={facility.href}
+                        target={facility.target}
+                        rel={
+                            facility.target === "_blank"
+                                ? "noopener noreferrer"
+                                : undefined
+                        }
                         className="outdoor-arena__card-link"
-                        aria-label={`Lihat ${facility.name}`}
+                        aria-label={`Reservasi ${facility.name}`}
                     />
                 ) : null}
             </div>
@@ -360,7 +370,7 @@ export default function OutdoorArenaShowcase({
                     split="lines"
                     delay={110}
                     stagger={95}
-                    className="outdoor-arena__intro-title section-two-headline-weight max-w-[1100px] font-bdo text-[clamp(2.05rem,8.15vw,2.82rem)] font-medium leading-[1.01] tracking-[-0.058em] text-[#161815] md:text-[clamp(2.08rem,4.5vw,2.6rem)] lg:text-[clamp(2.2rem,3.8vw,2.7rem)] xl:max-w-[980px] xl:text-[clamp(2.05rem,2.38vw,2.36rem)] min-[1440px]:text-[clamp(2.45rem,2.82vw,2.7rem)] 2xl:max-w-[1120px] 2xl:text-[clamp(2.7rem,2.55vw,3.15rem)]"
+                    className="home-section-heading outdoor-arena__intro-title section-two-headline-weight max-w-[1100px] font-bdo text-[clamp(2.05rem,8.15vw,2.82rem)] font-medium leading-[1.01] tracking-[-0.058em] text-[#161815] md:text-[clamp(2.08rem,4.5vw,2.6rem)] lg:text-[clamp(2.2rem,3.8vw,2.7rem)] xl:max-w-[980px] xl:text-[clamp(2.05rem,2.38vw,2.36rem)] min-[1440px]:text-[clamp(2.45rem,2.82vw,2.7rem)] 2xl:max-w-[1120px] 2xl:text-[clamp(2.7rem,2.55vw,3.15rem)]"
                 >
                     {OUTDOOR_HEADING}
                 </ScrollTextReveal>
@@ -432,6 +442,7 @@ export default function OutdoorArenaShowcase({
                             onScroll={handleTrackScroll}
                             role="list"
                             aria-label="Koleksi fasilitas arena luar"
+                            data-lenis-prevent-touch=""
                         >
                             {items.map((facility, index) => (
                                 <OutdoorArenaCard

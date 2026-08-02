@@ -20,7 +20,7 @@ export default function FacilitySectionLabel({
                 delay={70}
                 stagger={18}
                 amount={0.15}
-                className={`font-bdo text-[clamp(1.16rem,1.32vw,1.45rem)] font-medium tracking-[-0.025em] xl:text-[1.25rem] ${
+                className={`home-section-anchor font-bdo text-[clamp(1.16rem,1.32vw,1.45rem)] font-medium tracking-[-0.025em] xl:text-[1.25rem] ${
                     tone === "dark" ? "text-white" : "text-black"
                 }`}
             >
