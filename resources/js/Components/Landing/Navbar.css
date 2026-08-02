@@ -1,0 +1,939 @@
+/* ════════════════════════════════════════════════════
+   KINETIC NAV — dual-layer hover slide
+════════════════════════════════════════════════════ */
+.kinetic-nav-link:is(:hover, .kinetic-nav-motion-active) .knav-primary {
+    transform: translateY(112%);
+}
+.kinetic-nav-link:is(:hover, .kinetic-nav-motion-active) .knav-clone {
+    transform: translateY(0%) !important;
+}
+.kinetic-nav-link:is(:hover, .kinetic-nav-motion-active) .knav-num-primary {
+    transform: translateY(-112%);
+}
+.kinetic-nav-link:is(:hover, .kinetic-nav-motion-active) .knav-num-clone {
+    transform: translateY(0%) !important;
+}
+.knav-primary, .knav-clone                 { transition: transform 0.44s cubic-bezier(0.16,1,0.28,1); }
+.knav-num-primary, .knav-num-clone         { transition: transform 0.38s cubic-bezier(0.20,1,0.32,1); }
+
+/* Every presentation layer inherits its opaque blend source. */
+.kinetic-nav-link,
+.kinetic-nav-link:hover {
+    color: inherit !important;
+    text-shadow: none;
+}
+.kinetic-nav-active {
+    font-weight: 600;
+}
+
+/* Logo stays optically still; its source swaps between white and brand blue. */
+.ubsc-logo-wrap {
+    position: relative;
+    display: inline-flex;
+    overflow: visible;
+    border-radius: 6px;
+    cursor: pointer;
+}
+.ubsc-logo {
+    display: block;
+    image-rendering: auto;
+    filter: none;
+}
+.ubsc-pixel-logo-mask {
+    background: currentColor;
+    -webkit-mask: var(--ubsc-crisp-logo-mask) center / contain no-repeat;
+    mask: var(--ubsc-crisp-logo-mask) center / contain no-repeat;
+    -webkit-mask-mode: alpha;
+    mask-mode: alpha;
+}
+
+@media (max-width: 1099px) {
+    .ubsc-logo,
+    .ubsc-pixel-logo-mask {
+        width: 66.744px;
+        height: 33.372px;
+    }
+}
+
+.ubsc-pixel-card-surface,
+.ubsc-pixel-card-ink,
+.ubsc-cta-btn {
+    width: 240px;
+    height: 66px;
+    border-radius: 5px;
+}
+.ubsc-pixel-card-surface {
+    background: currentColor;
+}
+.ubsc-pixel-card-ink {
+    display: flex;
+    align-items: stretch;
+    overflow: hidden;
+    color: #fff;
+}
+.ubsc-pixel-card-media-slot {
+    align-self: stretch;
+    flex: 0 0 56px;
+    width: 56px;
+    margin: 4px 0 4px 4px;
+    visibility: hidden;
+}
+.ubsc-pixel-status-gem {
+    width: 7px;
+    height: 7px;
+    flex: 0 0 7px;
+    border-radius: 2px;
+    background: currentColor;
+}
+.ubsc-pixel-card-arrow {
+    display: grid;
+    width: 36px;
+    height: 36px;
+    flex: none;
+    place-items: center;
+    color: currentColor;
+    transform: rotate(-45deg);
+    transition: transform .55s cubic-bezier(.76,0,.24,1);
+}
+.ubsc-pixel-card-arrow--active {
+    transform: rotate(0deg);
+}
+.ubsc-pixel-card-arrow .ubsc-profile-cta-arrow {
+    width: 23px;
+    height: 23px;
+}
+.ubsc-pixel-hamburger-line {
+    background: currentColor;
+}
+.ubsc-adaptive-pixel-layer,
+.ubsc-brand-pixel-layer,
+.ubsc-card-ink-layer {
+    pointer-events: none;
+    background: transparent;
+}
+/*
+ * One backdrop-filter pass computes the monochrome inverse.
+ * Masks are applied after that pass, so browser-native alpha
+ * antialiasing is composited only once instead of four times.
+ */
+.ubsc-adaptive-pixel-layer .ubsc-pixel-logo-mask,
+.ubsc-adaptive-pixel-layer .ubsc-pixel-card-surface,
+.ubsc-adaptive-pixel-layer .ubsc-pixel-hamburger-line,
+.ubsc-adaptive-pixel-layer
+    :is(.knav-primary, .knav-clone, .knav-num-primary, .knav-num-clone) {
+    background-color: rgba(255,255,255,.001);
+    -webkit-backdrop-filter: grayscale(1) contrast(10000%) invert(1);
+    backdrop-filter: grayscale(1) contrast(10000%) invert(1);
+}
+.ubsc-adaptive-pixel-layer .ubsc-pixel-logo-mask {
+    background-color: rgba(255,255,255,.001);
+}
+.ubsc-adaptive-pixel-layer .ubsc-pixel-card-surface {
+    overflow: hidden;
+}
+.ubsc-adaptive-pixel-layer
+    :is(.knav-primary, .knav-clone, .knav-num-primary, .knav-num-clone) {
+    color: transparent !important;
+    -webkit-mask-image: var(--ubsc-nav-mask);
+    mask-image: var(--ubsc-nav-mask);
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
+}
+.ubsc-adaptive-pixel-layer
+    .kinetic-nav-active :is(.knav-primary, .knav-clone) {
+    opacity: .95;
+}
+.ubsc-adaptive-pixel-layer
+    .kinetic-nav-link:not(.kinetic-nav-active) .knav-primary {
+    opacity: .65;
+}
+.ubsc-adaptive-pixel-layer
+    .kinetic-nav-link:not(.kinetic-nav-active) .knav-clone {
+    opacity: .85;
+}
+.ubsc-adaptive-pixel-layer
+    :is(.knav-num-primary, .knav-num-clone) {
+    opacity: .35;
+}
+.ubsc-pixel-card-ink
+    :is(.ubsc-pixel-card-guest-copy, .ubsc-pixel-card-member-copy) {
+    color: rgb(40% 40% 40%);
+}
+.ubsc-pixel-card-ink
+    :is(.ubsc-pixel-card-title, .ubsc-pixel-card-register) {
+    color: rgb(72% 72% 72%);
+}
+.ubsc-nav-interaction {
+    pointer-events: none;
+}
+.ubsc-nav-interaction .ubsc-logo-wrap,
+.ubsc-nav-interaction .kinetic-nav-link,
+.ubsc-nav-interaction .ubsc-cta-btn,
+.ubsc-nav-interaction .ubsc-signal-account,
+.ubsc-nav-interaction button[aria-controls='ubsc-mobile-navigation-drawer'] {
+    pointer-events: auto;
+}
+.ubsc-nav-interaction .ubsc-logo {
+    opacity: 0;
+}
+.ubsc-nav-interaction .kinetic-nav-link,
+.ubsc-nav-interaction .kinetic-nav-link:hover,
+.ubsc-nav-interaction .ubsc-nav-card-copy,
+.ubsc-nav-interaction .ubsc-nav-card-copy *,
+.ubsc-nav-interaction .ubsc-nav-card-icon {
+    color: transparent !important;
+    text-shadow: none !important;
+}
+.ubsc-nav-interaction .ubsc-nav-hamburger-line {
+    background: transparent !important;
+}
+
+/* ════════════════════════════════════════════════════
+   CTA CARD WRAP — clean premium button
+════════════════════════════════════════════════════ */
+.ubsc-cta-wrap {
+    position: relative;
+    border-radius: 5px;
+    overflow: visible;
+}
+.ubsc-cta-wrap::before {
+    content: none;
+}
+.ubsc-cta-wrap::after {
+    content: none;
+}
+
+/* ════════════════════════════════════════════════════
+   PREMIUM SEAMLESS NAVBAR
+════════════════════════════════════════════════════ */
+.ubsc-navbar-premium {
+    isolation: isolate;
+    transform: translateZ(0);
+}
+.ubsc-navbar-premium::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 80px;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.00) 0%, rgba(0,0,0,0.00) 100%);
+    pointer-events: none;
+    z-index: -1;
+}
+
+/* ════════════════════════════════════════════════════
+   AUTH SECTION ISOLATION
+════════════════════════════════════════════════════ */
+.ubsc-auth-section {
+    isolation: isolate;
+    position: relative;
+    z-index: 101;
+    transform: translateZ(0);
+}
+
+/* Dropdown portal */
+.ubsc-dropdown-portal {
+    position: fixed;
+    z-index: 99999 !important;
+    isolation: isolate;
+}
+
+/* ════════════════════════════════════════════════════
+   CTA BUTTON INNER
+════════════════════════════════════════════════════ */
+.ubsc-cta-btn {
+    position: relative;
+    overflow: hidden;
+    border-radius: 5px;
+    background: transparent !important;
+}
+
+.ubsc-nav-hamburger-line {
+    background: transparent;
+}
+
+/* ════════════════════════════════════════════════════
+   AVATAR — deep-navy gradient
+════════════════════════════════════════════════════ */
+.ubsc-avatar-bg {
+    background: linear-gradient(135deg,#0c1222 0%,#1b2a4a 50%,#08101e 100%);
+}
+
+/* ════════════════════════════════════════════════════
+   NAVBAR PREMIUM GRAIN — subtle surface texture
+════════════════════════════════════════════════════ */
+.ubsc-nav-grain::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0.028;
+    pointer-events: none;
+    z-index: 1;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.90' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
+    background-size: 256px 256px;
+}
+
+/* ════════════════════════════════════════════════════
+   LIQUID GLASS NAVBAR SURFACE — original glass system
+   Blur, refraction, grain, and highlights stay unchanged;
+   only the dark pigments below use lower alpha.
+   Layered structure:
+     .ubsc-lg-effect  → blurred + displaced backdrop
+     .ubsc-lg-tint    → lightly tinted optical depth
+     .ubsc-lg-shine   → beveled rim / specular highlights
+════════════════════════════════════════════════════ */
+.ubsc-liquid-glass {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    isolation: isolate;
+    box-shadow:
+        0 8px 30px rgba(0, 0, 0, 0.08),
+        0 1px 0 rgba(255, 255, 255, 0.10);
+}
+/* Original refraction layer — blurred backdrop warped by the lens. */
+.ubsc-lg-effect {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    backdrop-filter: blur(2px) saturate(180%) brightness(1.05);
+    -webkit-backdrop-filter: blur(2px) saturate(180%) brightness(1.05);
+    filter: url(#ubsc-glass-distortion);
+    -webkit-filter: url(#ubsc-glass-distortion);
+}
+/* Same glass tint, with only its dark alpha reduced. */
+.ubsc-lg-tint {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background:
+        linear-gradient(
+            180deg,
+            rgba(255, 255, 255, 0.10) 0%,
+            rgba(255, 255, 255, 0.02) 30%,
+            rgba(255, 255, 255, 0.00) 60%
+        ),
+        linear-gradient(
+            to bottom,
+            rgba(8, 12, 28, 0.12) 0%,
+            rgba(8, 12, 28, 0.065) 55%,
+            rgba(8, 12, 28, 0.018) 86%,
+            rgba(8, 12, 28, 0.00) 100%
+        );
+}
+/* Beveled rim + specular highlights — the iOS glass edge */
+.ubsc-lg-shine {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.60),
+        inset 1px 0 0 rgba(255, 255, 255, 0.28),
+        inset -1px 0 0 rgba(255, 255, 255, 0.20),
+        inset 0 10px 22px rgba(255, 255, 255, 0.06),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.14),
+        inset 0 -16px 28px rgba(8, 12, 28, 0.06);
+}
+/* Soft specular glint drifting across the lens */
+.ubsc-lg-shine::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -40%;
+    width: 45%;
+    pointer-events: none;
+    mix-blend-mode: screen;
+    background: linear-gradient(
+        105deg,
+        transparent 0%,
+        rgba(255,255,255,0.05) 40%,
+        rgba(255,255,255,0.22) 50%,
+        rgba(255,255,255,0.05) 60%,
+        transparent 100%
+    );
+    filter: blur(6px);
+    transform: translateX(0) skewX(-12deg);
+    animation: ubsc-glass-sweep 9s cubic-bezier(0.45,0,0.2,1) infinite;
+    will-change: transform, opacity;
+}
+@keyframes ubsc-glass-sweep {
+    0%   { transform: translateX(0)    skewX(-12deg); opacity: 0; }
+    14%  { opacity: 0.85; }
+    45%  { opacity: 0.35; }
+    70%  { transform: translateX(360%) skewX(-12deg); opacity: 0; }
+    100% { transform: translateX(360%) skewX(-12deg); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .ubsc-lg-shine::after {
+        animation: none;
+    }
+}
+/* ==========================================================
+   MEMBER SPACE — refined, lightweight account navigation
+========================================================== */
+@keyframes ubsc-account-enter {
+    0% { opacity: 0; transform: translate3d(0,-8px,0) scale(.975); }
+    65% { opacity: 1; transform: translate3d(0,1px,0) scale(1.002); }
+    100% { opacity: 1; transform: translate3d(0,0,0) scale(1); }
+}
+.ubsc-signal-account {
+    --signal-ink: #121820;
+    --signal-muted: #6d757d;
+    --signal-paper: #fcfcfa;
+    --signal-bed: #f2f3f1;
+    --font-account: "BDO Grotesk";
+    position: absolute;
+    top: calc(100% + 12px);
+    right: 0;
+    z-index: 999;
+    width: min(392px, calc(100vw - 24px));
+    isolation: isolate;
+    color: var(--signal-ink);
+    font-family: var(--font-account);
+    filter: drop-shadow(0 26px 42px rgba(4,10,21,.2));
+    transform-origin: 88% 0;
+    animation: ubsc-account-enter .48s cubic-bezier(.16,1,.3,1) both;
+}
+.ubsc-signal-account *,
+.ubsc-signal-account *::before,
+.ubsc-signal-account *::after { font-family: inherit; }
+.ubsc-signal-account::before {
+    content: '';
+    position: absolute;
+    inset: 18px 26px -4px;
+    z-index: -1;
+    border-radius: 22px;
+    background: rgba(17,38,58,.18);
+    filter: blur(24px);
+    pointer-events: none;
+}
+.ubsc-signal-account__stage {
+    position: relative;
+    min-height: 132px;
+    overflow: hidden;
+    padding: 17px 19px 24px;
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 18px;
+    background:
+        radial-gradient(ellipse at 75% 0%, rgba(62,145,226,.18), transparent 43%),
+        radial-gradient(ellipse at 8% 105%, rgba(209,48,59,.09), transparent 36%),
+        linear-gradient(145deg, #14212d 0%, #0c151e 54%, #080d12 100%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.08), inset 0 -36px 50px rgba(0,0,0,.2);
+}
+.ubsc-signal-account__stage::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(118deg, transparent 8%, rgba(255,255,255,.035) 34%, transparent 58%);
+    pointer-events: none;
+}
+.ubsc-signal-account__stage::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, rgba(1,5,9,.28), transparent 18%, transparent 82%, rgba(1,5,9,.32)), linear-gradient(180deg, transparent 42%, rgba(0,0,0,.24));
+    pointer-events: none;
+}
+.ubsc-signal-account__stage--membership {
+    background: #091018;
+}
+.ubsc-signal-account__stage--membership::before {
+    background-image: url("/assets/images/ub-sport-card-membership.png");
+    background-position: center 54%;
+    background-repeat: no-repeat;
+    background-size: cover;
+    filter: saturate(0) contrast(1.12) brightness(.7);
+    opacity: .92;
+    transform: scale(1.025);
+}
+.ubsc-signal-account__stage--membership::after {
+    background:
+        linear-gradient(90deg, rgba(3,8,13,.64) 0%, rgba(3,8,13,.3) 48%, rgba(3,8,13,.54) 100%),
+        linear-gradient(180deg, rgba(3,8,13,.46) 0%, rgba(3,8,13,.08) 48%, rgba(3,8,13,.52) 100%);
+}
+.ubsc-signal-account__stage--membership .ubsc-signal-account__spectrum {
+    display: none;
+}
+.ubsc-signal-account__topline {
+    position: relative;
+    z-index: 3;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    color: rgba(255,255,255,.92);
+}
+.ubsc-signal-account__channel { min-width: 0; }
+.ubsc-signal-account__eyebrow {
+    display: block;
+    margin-bottom: 7px;
+    color: rgba(159,207,247,.62);
+    font-size: 8.5px;
+    font-weight: 600;
+    letter-spacing: .17em;
+    line-height: 1;
+    text-transform: uppercase;
+}
+.ubsc-signal-account__channel-name {
+    display: block;
+    overflow: hidden;
+    color: rgba(255,255,255,.96);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -.025em;
+    line-height: 1.12;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.ubsc-signal-account__channel-state {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-top: 6px;
+    color: rgba(255,255,255,.56);
+    font-size: 9.5px;
+    font-weight: 400;
+    letter-spacing: .025em;
+    line-height: 1.25;
+}
+.ubsc-account-status-gem {
+    --status-gem: 73,169,251;
+    position: relative;
+    display: inline-grid;
+    width: 9px;
+    height: 9px;
+    flex: 0 0 9px;
+    place-items: center;
+    filter: drop-shadow(0 2px 3px rgba(var(--status-gem),.2));
+}
+.ubsc-account-status-gem::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    clip-path: polygon(50% 0,90% 10%,100% 50%,90% 90%,50% 100%,10% 90%,0 50%,10% 10%);
+    background: linear-gradient(135deg,rgba(255,255,255,.82) 0 13%,rgb(var(--status-gem)) 38% 72%,rgba(var(--status-gem),.64) 100%);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.34);
+}
+.ubsc-account-status-gem::after {
+    content: '';
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    transform: translate(-1px,-1px) rotate(45deg);
+    background: rgba(255,255,255,.92);
+}
+.ubsc-signal-account__timer {
+    flex: 0 0 auto;
+    padding: 6px 8px;
+    border: 1px solid rgba(255,255,255,.09);
+    border-radius: 999px;
+    color: rgba(255,255,255,.68);
+    background: rgba(255,255,255,.035);
+    font-size: 9px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+    letter-spacing: .06em;
+    line-height: 1;
+    text-transform: uppercase;
+}
+.ubsc-signal-account__spectrum {
+    position: absolute;
+    z-index: 2;
+    left: 16px;
+    right: 16px;
+    bottom: 9px;
+    height: 62px;
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);
+    mask-image: linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);
+    opacity: .86;
+    pointer-events: none;
+}
+.ubsc-signal-account__spectrum::before {
+    content: '';
+    position: absolute;
+    inset: auto 6% 0;
+    height: 24px;
+    background: radial-gradient(ellipse at center,rgba(75,163,244,.17),transparent 72%);
+    filter: blur(12px);
+}
+.ubsc-signal-account__wave {
+    position: absolute;
+    inset: 0;
+    transform-origin: 50% 100%;
+    background: repeating-linear-gradient(90deg,transparent 0 5px,rgba(213,237,255,.78) 6px,transparent 7px 10px);
+    clip-path: polygon(0 100%,0 89%,6% 84%,12% 70%,18% 48%,24% 22%,30% 38%,36% 72%,42% 82%,48% 58%,54% 26%,60% 10%,66% 44%,72% 73%,78% 80%,84% 52%,90% 27%,96% 47%,100% 72%,100% 100%);
+}
+.ubsc-signal-account__wave--back { opacity: .28; filter: blur(2px); }
+.ubsc-signal-account__wave--front { background: repeating-linear-gradient(90deg,transparent 0 6px,rgba(236,247,255,.66) 7px,transparent 8px 11px); opacity: .6; }
+.ubsc-signal-account__sheet {
+    position: relative;
+    z-index: 4;
+    margin-top: -17px;
+    padding: 16px 14px 12px;
+    border: 1px solid rgba(13,23,33,.055);
+    border-radius: 18px;
+    background: var(--signal-paper);
+    box-shadow: 0 -1px 0 rgba(255,255,255,.96),0 20px 40px rgba(8,16,27,.12);
+}
+.ubsc-signal-account__profile {
+    display: grid;
+    grid-template-columns: 50px minmax(0,1fr);
+    align-items: center;
+    gap: 2px 13px;
+    padding: 1px 5px 14px;
+}
+.ubsc-signal-account__avatar {
+    grid-row: 1 / span 2;
+    width: 50px;
+    height: 50px;
+    overflow: hidden;
+    border-radius: 16px;
+    background: linear-gradient(145deg,#1d4365,#0c1723);
+    box-shadow: 0 8px 18px rgba(17,39,61,.14),inset 0 0 0 1px rgba(255,255,255,.38);
+}
+.ubsc-signal-account__avatar img { width: 100%; height: 100%; object-fit: cover; }
+.ubsc-signal-account__avatar-fallback { display: grid; width: 100%; height: 100%; place-items: center; color: #fff; font-size: 18px; font-weight: 600; }
+.ubsc-signal-account__identity { min-width: 0; align-self: end; }
+.ubsc-signal-account__name { overflow: hidden; color: #12171d; font-size: 16px; font-weight: 600; letter-spacing: -.025em; line-height: 1.12; text-overflow: ellipsis; white-space: nowrap; }
+.ubsc-signal-account__email { overflow: hidden; margin-top: 3px; color: #747b82; font-size: 10.5px; font-weight: 400; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.ubsc-signal-account__status { grid-column: 2; display: flex; align-items: center; gap: 8px; min-width: 0; align-self: start; margin-top: 3px; }
+.ubsc-signal-account__status-line { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 4px 7px 4px 5px; overflow: hidden; border-radius: 999px; color: #242b32; background: rgba(var(--status-tone,47,147,232),.08); font-size: 9.5px; font-weight: 600; line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
+.ubsc-signal-account__status-sub { color: #747b82; font-size: 9px; font-weight: 400; white-space: nowrap; }
+.ubsc-signal-account__stream { position: relative; overflow: hidden; padding: 5px 7px 7px; border-radius: 16px; background: radial-gradient(circle at 100% 0,rgba(47,147,232,.055),transparent 35%),radial-gradient(circle at 0 100%,rgba(255,59,67,.04),transparent 32%),var(--signal-bed); box-shadow: inset 0 1px 0 rgba(255,255,255,.82),inset 0 -1px 0 rgba(11,18,25,.035); }
+.ubsc-signal-account__stream::before { content: ''; position: absolute; top: 18px; bottom: 55px; left: 24px; width: 1px; background: linear-gradient(transparent,rgba(31,47,61,.13) 16%,rgba(31,47,61,.13) 84%,transparent); pointer-events: none; }
+.ubsc-signal-account__row { --row-accent: 47,147,232; position: relative; display: grid; grid-template-columns: 35px minmax(0,1fr) 22px 26px; align-items: center; gap: 10px; width: 100%; min-height: 55px; padding: 7px 7px 7px 4px; border: 0; border-radius: 14px; background: transparent; color: var(--signal-ink); text-align: left; cursor: pointer; transition: transform .3s cubic-bezier(.16,1,.3,1),background .25s ease,box-shadow .25s ease; }
+.ubsc-signal-account__row::after { content: ''; position: absolute; left: 47px; right: 12px; bottom: 0; height: 1px; background: linear-gradient(90deg,rgba(19,28,37,.085),transparent 91%); transform: scaleX(.92); transform-origin: left; transition: opacity .2s ease,transform .3s ease; }
+.ubsc-signal-account__row:hover,.ubsc-signal-account__row:focus-visible,.ubsc-signal-account__row:active { outline: none; transform: translate3d(2px,0,0); background: linear-gradient(100deg,rgba(var(--row-accent),.1),rgba(255,255,255,.6) 66%,rgba(255,255,255,.12)); box-shadow: 0 8px 20px rgba(13,24,35,.05),inset 0 0 0 1px rgba(255,255,255,.64); }
+.ubsc-signal-account__row:hover::after,.ubsc-signal-account__row:focus-visible::after,.ubsc-signal-account__row:active::after { opacity: 0; transform: scaleX(.5); }
+.ubsc-signal-account__icon { position: relative; z-index: 1; display: grid; width: 34px; height: 34px; place-items: center; border-radius: 11px; color: rgb(var(--row-accent)); background: rgba(var(--row-accent),.095); box-shadow: inset 0 0 0 1px rgba(var(--row-accent),.09); transition: transform .35s cubic-bezier(.16,1,.3,1),background .25s ease; }
+.ubsc-signal-account__row:hover .ubsc-signal-account__icon,.ubsc-signal-account__row:focus-visible .ubsc-signal-account__icon,.ubsc-signal-account__row:active .ubsc-signal-account__icon { transform: translateY(-1px) scale(1.035); background: rgba(var(--row-accent),.14); }
+.ubsc-signal-account__copy { min-width: 0; }
+.ubsc-signal-account__label { display: block; color: #181d22; font-size: 13.5px; font-weight: 600; letter-spacing: -.012em; line-height: 1.18; }
+.ubsc-signal-account__hint { display: block; margin-top: 3px; overflow: hidden; color: #6f767d; font-size: 10.5px; font-weight: 400; line-height: 1.28; text-overflow: ellipsis; white-space: nowrap; }
+.ubsc-signal-account__index { color: rgba(43,53,62,.38); font-size: 9px; font-variant-numeric: tabular-nums; font-weight: 600; letter-spacing: .08em; line-height: 1; text-align: right; transition: color .2s ease; }
+.ubsc-signal-account__row:hover .ubsc-signal-account__index,.ubsc-signal-account__row:focus-visible .ubsc-signal-account__index,.ubsc-signal-account__row:active .ubsc-signal-account__index { color: rgb(var(--row-accent)); }
+.ubsc-signal-account__arrow { display: grid; width: 26px; height: 26px; place-items: center; color: #7e858c; background: transparent; transform: rotate(-45deg); transition: transform .55s cubic-bezier(.76,0,.24,1),color .2s ease; }
+.ubsc-signal-account__row:hover .ubsc-signal-account__arrow,.ubsc-signal-account__row:focus-visible .ubsc-signal-account__arrow,.ubsc-signal-account__row:active .ubsc-signal-account__arrow { transform: rotate(0deg); color: rgb(var(--row-accent)); background: transparent; }
+.ubsc-profile-cta-arrow { display: block; width: 16px; height: 16px; overflow: visible; }
+.ubsc-signal-account__exit { display: grid; grid-template-columns: auto minmax(0,1fr) 34px; align-items: center; gap: 9px; width: calc(100% - 4px); margin: 4px 2px 0; padding: 6px 5px 3px 8px; border: 0; color: #656a70; background: transparent; text-decoration: none; cursor: pointer; transition: color .2s ease; }
+.ubsc-signal-account__exit-label { color: #686f76; font-size: 10.5px; font-weight: 500; }
+.ubsc-signal-account__exit-line { height: 1px; opacity: .42; background: linear-gradient(90deg,rgba(27,32,38,.8),rgba(27,32,38,.22),transparent); transition: opacity .2s ease; }
+.ubsc-signal-account__exit-orb { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 11px; color: #fff; background: #11171d; box-shadow: 0 8px 15px rgba(15,22,29,.18); transition: transform .3s cubic-bezier(.16,1,.3,1),background .2s ease; }
+.ubsc-signal-account__exit:hover .ubsc-signal-account__exit-line,.ubsc-signal-account__exit:focus-visible .ubsc-signal-account__exit-line,.ubsc-signal-account__exit:active .ubsc-signal-account__exit-line { opacity: .9; background: linear-gradient(90deg,#d92c36,rgba(217,44,54,.2),transparent); }
+.ubsc-signal-account__exit:hover .ubsc-signal-account__exit-orb,.ubsc-signal-account__exit:focus-visible .ubsc-signal-account__exit-orb,.ubsc-signal-account__exit:active .ubsc-signal-account__exit-orb { transform: translateX(2px); background: #d92c36; }
+
+
+/* Mobile account surface lives inside the navigation drawer. */
+.ubsc-signal-account--mobile {
+    position: relative;
+    top: auto;
+    right: auto;
+    width: 100%;
+    filter: none;
+    animation: none;
+    transform-origin: center;
+}
+.ubsc-signal-account--mobile::before { display: none; }
+.ubsc-signal-account--mobile .ubsc-signal-account__stage {
+    min-height: 0;
+    overflow: visible;
+    padding: 0;
+    border-radius: 15px;
+    background: transparent;
+    box-shadow: none;
+}
+.ubsc-signal-account--mobile .ubsc-signal-account__stage::before,
+.ubsc-signal-account--mobile .ubsc-signal-account__stage::after { display: none; }
+.ubsc-signal-account__mobile-profile-trigger {
+    position: relative;
+    z-index: 5;
+    display: flex;
+    width: 100%;
+    min-height: 72px;
+    align-items: stretch;
+    overflow: hidden;
+    border: 0;
+    border-radius: 5px;
+    background: #fff;
+    box-shadow: 0 12px 30px rgba(2,8,18,.16), inset 0 0 0 1px rgba(10,20,31,.05);
+    text-align: left;
+    cursor: pointer;
+}
+.ubsc-signal-account__mobile-profile-trigger,
+.ubsc-signal-account__mobile-profile-trigger * {
+    font-family: "Clash Display", "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+.ubsc-signal-account--mobile .ubsc-signal-account__sheet {
+    margin-top: 8px;
+    padding-top: 17px;
+    border-radius: 15px;
+}
+.ubsc-signal-account--mobile .ubsc-signal-account__row { min-height: 57px; }
+.ubsc-mobile-menu {
+    display: flex;
+    height: calc(100vh - 2rem);
+    height: calc(100dvh - 2rem);
+    flex-direction: column;
+    overflow: hidden;
+    overscroll-behavior: none;
+    touch-action: none;
+}
+.ubsc-mobile-menu__page-list {
+    flex: 0 0 auto;
+    max-height: 520px;
+    overflow: hidden;
+    overscroll-behavior: none;
+    touch-action: none;
+    transition: max-height .44s cubic-bezier(.16,1,.3,1), opacity .24s ease;
+}
+.ubsc-mobile-menu__page-link {
+    position: relative;
+    margin-inline: -8px;
+    padding-inline: 8px;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    transition: color .16s ease;
+}
+.ubsc-mobile-menu__page-label,
+.ubsc-mobile-menu__page-number {
+    position: relative;
+    display: inline-block;
+    overflow: hidden;
+}
+.ubsc-mobile-menu__page-label { line-height: 1.15; }
+.ubsc-mobile-menu__page-number {
+    font-size: 10px;
+    line-height: 1;
+    vertical-align: super;
+}
+.ubsc-mobile-menu__page-primary,
+.ubsc-mobile-menu__page-clone,
+.ubsc-mobile-menu__number-primary,
+.ubsc-mobile-menu__number-clone {
+    display: block;
+    will-change: transform;
+}
+.ubsc-mobile-menu__page-primary,
+.ubsc-mobile-menu__page-clone {
+    transition: transform .44s cubic-bezier(.16,1,.28,1);
+}
+.ubsc-mobile-menu__number-primary,
+.ubsc-mobile-menu__number-clone {
+    transition: transform .38s cubic-bezier(.2,1,.32,1);
+}
+.ubsc-mobile-menu__page-clone,
+.ubsc-mobile-menu__number-clone {
+    position: absolute;
+    inset: 0;
+}
+.ubsc-mobile-menu__page-clone {
+    color: rgba(255,255,255,.96);
+    transform: translateY(-112%);
+}
+.ubsc-mobile-menu__number-clone {
+    color: rgba(255,255,255,.68);
+    transform: translateY(112%);
+}
+.ubsc-mobile-menu__page-link:hover,
+.ubsc-mobile-menu__page-link:focus-visible,
+.ubsc-mobile-menu__page-link:active,
+.ubsc-mobile-menu__page-link.is-pressed {
+    color: rgba(255,255,255,.96) !important;
+}
+.ubsc-mobile-menu__page-link:hover .ubsc-mobile-menu__page-primary,
+.ubsc-mobile-menu__page-link:focus-visible .ubsc-mobile-menu__page-primary,
+.ubsc-mobile-menu__page-link:active .ubsc-mobile-menu__page-primary,
+.ubsc-mobile-menu__page-link.is-pressed .ubsc-mobile-menu__page-primary {
+    transform: translateY(112%);
+}
+.ubsc-mobile-menu__page-link:hover .ubsc-mobile-menu__page-clone,
+.ubsc-mobile-menu__page-link:focus-visible .ubsc-mobile-menu__page-clone,
+.ubsc-mobile-menu__page-link:active .ubsc-mobile-menu__page-clone,
+.ubsc-mobile-menu__page-link.is-pressed .ubsc-mobile-menu__page-clone {
+    transform: translateY(0);
+}
+.ubsc-mobile-menu__page-link:hover .ubsc-mobile-menu__number-primary,
+.ubsc-mobile-menu__page-link:focus-visible .ubsc-mobile-menu__number-primary,
+.ubsc-mobile-menu__page-link:active .ubsc-mobile-menu__number-primary,
+.ubsc-mobile-menu__page-link.is-pressed .ubsc-mobile-menu__number-primary {
+    transform: translateY(-112%);
+}
+.ubsc-mobile-menu__page-link:hover .ubsc-mobile-menu__number-clone,
+.ubsc-mobile-menu__page-link:focus-visible .ubsc-mobile-menu__number-clone,
+.ubsc-mobile-menu__page-link:active .ubsc-mobile-menu__number-clone,
+.ubsc-mobile-menu__page-link.is-pressed .ubsc-mobile-menu__number-clone {
+    transform: translateY(0);
+}
+.ubsc-signal-account--mobile button,
+.ubsc-signal-account--mobile a,
+.ubsc-mobile-guest-card {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+.ubsc-signal-account__mobile-profile-trigger {
+    transition: transform .2s cubic-bezier(.16,1,.3,1),box-shadow .2s ease;
+}
+.ubsc-signal-account__mobile-profile-trigger:active {
+    transform: scale(.992);
+    box-shadow: 0 7px 20px rgba(2,8,18,.13),inset 0 0 0 1px rgba(10,20,31,.08);
+}
+.ubsc-mobile-guest-card {
+    border-radius: 5px;
+    transition: transform .2s cubic-bezier(.16,1,.3,1),box-shadow .2s ease;
+}
+.ubsc-guest-card__register {
+    position: relative;
+    top: 2px;
+}
+.ubsc-guest-card__arrow {
+    display: grid;
+    width: clamp(1.75rem,8vw,2.25rem);
+    height: clamp(1.75rem,8vw,2.25rem);
+    flex: none;
+    place-items: center;
+    color: #0b1e3b;
+    transform: rotate(-45deg);
+    transition: transform .55s cubic-bezier(.76,0,.24,1);
+}
+.ubsc-guest-card__arrow .ubsc-profile-cta-arrow {
+    width: clamp(1.1rem,5vw,1.45rem);
+    height: clamp(1.1rem,5vw,1.45rem);
+}
+.ubsc-mobile-guest-card:active {
+    transform: scale(.988);
+    box-shadow: 0 10px 28px rgba(0,0,0,.18);
+}
+.ubsc-guest-card:hover .ubsc-guest-card__arrow,
+.ubsc-guest-card:focus-visible .ubsc-guest-card__arrow,
+.ubsc-guest-card:active .ubsc-guest-card__arrow {
+    transform: rotate(0deg);
+}
+.ubsc-mobile-menu__page-divider {
+    flex: 0 0 auto;
+    transition: opacity .2s ease;
+}
+.ubsc-mobile-account-slot {
+    position: relative;
+    z-index: 2;
+    flex: 0 0 auto;
+    min-height: 0;
+    box-sizing: border-box;
+    background: transparent;
+}
+.ubsc-mobile-menu__dismiss-zone {
+    display: block;
+    width: 100%;
+    min-height: 44px;
+    flex: 1 1 auto;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    cursor: pointer;
+}
+.ubsc-mobile-menu__dismiss-zone:focus-visible {
+    outline: 1px solid rgba(255,255,255,.28);
+    outline-offset: -6px;
+}
+.ubsc-mobile-menu[data-account-open="true"] .ubsc-mobile-menu__page-list {
+    max-height: 0;
+    opacity: 0;
+    pointer-events: none;
+}
+.ubsc-mobile-menu[data-account-open="true"] { touch-action: pan-y; }
+.ubsc-mobile-menu[data-account-open="true"] .ubsc-mobile-menu__page-divider {
+    opacity: 0;
+}
+.ubsc-mobile-menu[data-account-open="true"] .ubsc-mobile-account-slot {
+    flex: 1 1 0;
+    overflow: hidden;
+}
+.ubsc-signal-account--mobile {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+}
+.ubsc-mobile-menu[data-account-open="true"] .ubsc-signal-account--mobile {
+    height: 100%;
+}
+.ubsc-mobile-menu[data-account-open="true"] .ubsc-signal-account--mobile .kl-collapse[data-open="true"] {
+    display: grid;
+    flex: 1 1 0;
+    min-height: 0;
+    grid-template-rows: minmax(0,1fr);
+}
+.ubsc-mobile-menu[data-account-open="true"] .kl-collapse[data-open="true"] > .kl-collapse-inner {
+    position: relative;
+    min-height: 0;
+    overflow: hidden;
+}
+.ubsc-mobile-account-detail {
+    height: 100%;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(21,103,141,.52) transparent;
+}
+.ubsc-mobile-account-detail::-webkit-scrollbar { width: 4px; }
+.ubsc-mobile-account-detail::-webkit-scrollbar-track { background: transparent; }
+.ubsc-mobile-account-detail::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(21,103,141,.7), rgba(255,0,0,.38));
+}
+.ubsc-mobile-account-detail:focus-visible {
+    outline: 1px solid rgba(21,103,141,.52);
+    outline-offset: -2px;
+}
+
+@media (max-height: 700px) and (max-width: 1099px) {
+    .ubsc-mobile-menu__page-link { padding-block: 12px !important; }
+}
+
+@media (max-width: 430px) {
+    .ubsc-signal-account--mobile .ubsc-signal-account__sheet { padding-inline: 10px; }
+    .ubsc-signal-account--mobile .ubsc-signal-account__profile {
+        grid-template-columns: 46px minmax(0,1fr);
+        column-gap: 10px;
+        row-gap: 2px;
+    }
+    .ubsc-signal-account--mobile .ubsc-signal-account__avatar { width: 46px; height: 46px; }
+    .ubsc-signal-account--mobile .ubsc-signal-account__status {
+        grid-column: 2;
+        flex-direction: row;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 8px;
+        margin-top: -3px;
+    }
+    .ubsc-signal-account--mobile .ubsc-signal-account__status-sub { font-size: 9.5px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .ubsc-signal-account,
+    .ubsc-signal-account__stage::before,
+    .ubsc-signal-account__spectrum,
+    .ubsc-signal-account__spectrum::after,
+    .ubsc-signal-account__bar,
+    .ubsc-account-status-gem { animation: none !important; }
+    .ubsc-signal-account__row,
+    .ubsc-signal-account__icon,
+    .ubsc-signal-account__arrow,
+    .ubsc-signal-account__exit-orb,
+    .ubsc-mobile-menu__page-primary,
+    .ubsc-mobile-menu__page-clone,
+    .ubsc-mobile-menu__number-primary,
+    .ubsc-mobile-menu__number-clone { transition-duration: .01ms !important; }
+}

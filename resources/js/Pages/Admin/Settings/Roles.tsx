@@ -99,14 +99,14 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
     {
         id: "gallery",
         letter: "E",
-        label: "Galeri Fasilitas",
-        summary: "Kelola media, kurasi section, jadwal, dan publikasi galeri.",
+        label: "Gallery",
+        summary: "Kelola media, kurasi section, jadwal, dan publikasi Gallery.",
         icon: Images,
         items: [
-            { key: "view-facility-gallery", label: "Melihat Galeri Fasilitas" },
-            { key: "manage-facility-gallery", label: "Mengunggah & Mengubah Media Galeri" },
+            { key: "view-facility-gallery", label: "Melihat Gallery" },
+            { key: "manage-facility-gallery", label: "Mengunggah & Mengubah Media Gallery" },
             { key: "publish-facility-gallery", label: "Meninjau, Menjadwalkan & Mempublikasikan" },
-            { key: "delete-facility-gallery", label: "Menghapus Media Galeri Permanen" },
+            { key: "delete-facility-gallery", label: "Menghapus Media Gallery Permanen" },
         ],
     },
     {

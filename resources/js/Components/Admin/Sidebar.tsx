@@ -791,7 +791,7 @@ export default function Sidebar({ mobileOpen, onClose }: SidebarProps) {
             items: [
                 {
                     icon: Images,
-                    label: "Galeri Fasilitas",
+                    label: "Gallery",
                     href: safeRoute("admin.gallery.index"),
                     active: galleryActive,
                     permissions: [
@@ -951,7 +951,7 @@ export default function Sidebar({ mobileOpen, onClose }: SidebarProps) {
                                 group-hover:scale-125 transition-transform duration-500 sb-logo-breathe"
                             />
                             <img
-                                src="/UBSC PRO.png"
+                                src="/ubsc-staff/brand/ubsc-pro-logo"
                                 alt="UBSC"
                                 className={cn(
                                     "relative z-10 w-auto drop-shadow-sm group-hover:scale-105 transition-all duration-300",

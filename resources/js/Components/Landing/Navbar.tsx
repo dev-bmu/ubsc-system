@@ -1,32 +1,39 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
 import {
-    ArrowRight,
-    LogOut,
-    User as UserIcon,
-    ChevronDown,
-    Settings,
-    CreditCard,
-    MessageCircle,
+    useState,
+    useEffect,
+    useRef,
+    type CSSProperties,
+} from "react";
+import {
     Dumbbell,
+    LogOut,
+    ChevronDown,
+    MessagesSquare,
+    ReceiptText,
+    ScanFace,
 } from "lucide-react";
 import square from "../../../assets/hero/square.png";
 import InfoBanner from "@/Components/Landing/InfoBanner";
-import AuthModal from "@/Components/Landing/AuthModal";
+import { useAuthFlow } from "@/Components/Landing/AuthFlowProvider";
 import ProfileModal from "@/Components/UserDashboard/ProfileModal";
 import PaymentHistoryModal from "@/Components/UserDashboard/PaymentHistoryModal";
 import GymMembershipModal from "@/Components/UserDashboard/GymMembershipModal";
-import { Guilloche, Microtext, FoilText } from "@/Components/UserDashboard/PassKit";
-import { usePage } from "@inertiajs/react";
-import { Link } from "@inertiajs/react";
+import ContactUsModal from "@/Components/UserDashboard/ContactUsModal";
+import { Link, router, usePage } from "@inertiajs/react";
 import type { PageProps } from "@/types";
 import { cn } from "@/lib/utils";
+import "./Navbar.css";
+import {
+    NAV_MASK_DATA,
+    NAVBAR_CRISP_LOGO_MASK,
+} from "./navMaskData";
 
 /* ====================================================================
    TYPES
 ==================================================================== */
-type UserModal = "profile" | "history" | "membership";
+type UserModal = "profile" | "history" | "membership" | "contact";
 
 interface NavItem {
     label: string;
@@ -34,29 +41,37 @@ interface NavItem {
     href: string;
 }
 
-interface RGB {
-    r: number;
-    g: number;
-    b: number;
-}
-
 interface NavbarProps {
     activeSection?: string;
     showInfoBanner?: boolean;
     surface?: "media" | "light";
+    deferLoopAnimations?: boolean;
 }
+
+const ProfileCtaArrow = () => (
+    <svg
+        className="ubsc-profile-cta-arrow"
+        viewBox="0 0 72 72"
+        fill="none"
+        aria-hidden="true"
+    >
+        <path d="M24 36H53" stroke="currentColor" strokeWidth="3.8" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M42 22L56 36L42 50" stroke="currentColor" strokeWidth="3.8" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M29 32.8C32.6 34.9 36 35.8 40 36" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+);
 
 type MemberStatus = 'none' | 'gym_only' | 'booked_only' | 'gym_and_booked';
 
-const MEMBER_STATUS_CONFIG: Record<MemberStatus, { label: string; dotColor: string }> = {
-    none:           { label: 'Visitor',              dotColor: 'bg-slate-400' },
-    gym_only:       { label: 'Gym Member',           dotColor: 'bg-emerald-500' },
-    booked_only:    { label: 'Booked',               dotColor: 'bg-sky-500' },
-    gym_and_booked: { label: 'Gym Member · Booked',  dotColor: 'bg-amber-500' },
+const MEMBER_STATUS_CONFIG: Record<MemberStatus, { label: string; tone: string }> = {
+    none:           { label: 'Pengunjung',                    tone: '116,126,137' },
+    gym_only:       { label: 'Member Gym',                    tone: '20,174,121' },
+    booked_only:    { label: 'Reservasi Aktif',               tone: '34,145,226' },
+    gym_and_booked: { label: 'Member Gym · Reservasi Aktif',  tone: '224,145,31' },
 };
 
 const getMemberStatusConfig = (user: { role?: string | null; member_status?: MemberStatus } | null) => {
-    if (user?.role) return { label: user.role, dotColor: 'bg-accent-red' };
+    if (user?.role) return { label: user.role, tone: '255,0,0' };
     return MEMBER_STATUS_CONFIG[user?.member_status ?? 'none'];
 };
 
@@ -72,88 +87,81 @@ const NAV_ITEMS: NavItem[] = [
     { label: "Booking", number: "06", href: "/booking" },
 ];
 
-/** Base dark neutral — rich deep-navy for premium feel */
-const NEUTRAL_DARK: RGB = { r: 5, g: 7, b: 18 };
+const MOBILE_NAV_FEEDBACK_MS = 420;
+const NAVBAR_LOGO_SRC = "/assets/brand/ubsc-logo-640.webp";
+const LOGOUT_QUERY_KEYS = [
+    "auth",
+    "return_to",
+    "password_reset",
+    "reset_success",
+    "account",
+] as const;
 
-/**
- * Per-frame interpolation factor.
- * ~95% of the way in ~830ms — smooth but responsive.
- */
-const LERP_SPEED = 0.062;
+function currentPublicLogoutPath(): string {
+    if (typeof window === "undefined") return "/";
 
-/* ====================================================================
-   PURE COLOR UTILITIES
-==================================================================== */
-const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
+    const url = new URL(window.location.href);
 
-const lerpRGB = (from: RGB, to: RGB, t: number): RGB => ({
-    r: lerp(from.r, to.r, t),
-    g: lerp(from.g, to.g, t),
-    b: lerp(from.b, to.b, t),
-});
-
-/** Perceived brightness using BT.601 luma coefficients */
-const rgbBrightness = ({ r, g, b }: RGB): number =>
-    r * 0.299 + g * 0.587 + b * 0.114;
-
-/**
- * Normalise extracted color toward NEUTRAL_DARK.
- * Bright source images pull harder toward the neutral to stay elegant.
- */
-const normalizeColor = (c: RGB): RGB => {
-    const br = rgbBrightness(c) / 255;
-    const avg = (c.r + c.g + c.b) / 3;
-    const chromaSoften = 0.14;
-    const softened: RGB = {
-        r: lerp(c.r, avg, chromaSoften),
-        g: lerp(c.g, avg, chromaSoften),
-        b: lerp(c.b, avg, chromaSoften),
-    };
-    const mix = 0.3 + br * 0.5;
-    return {
-        r: Math.round(lerp(softened.r, NEUTRAL_DARK.r, mix)),
-        g: Math.round(lerp(softened.g, NEUTRAL_DARK.g, mix)),
-        b: Math.round(lerp(softened.b, NEUTRAL_DARK.b, mix)),
-    };
-};
-
-/**
- * Extract dominant colour from an <img> element via Canvas.
- */
-function sampleDominantColor(img: HTMLImageElement): RGB {
-    try {
-        const THUMB = 64;
-        const canvas = document.createElement("canvas");
-        canvas.width = THUMB;
-        canvas.height = THUMB;
-        const ctx = canvas.getContext("2d", { willReadFrequently: true });
-        if (!ctx) return { ...NEUTRAL_DARK };
-
-        ctx.drawImage(img, 0, 0, THUMB, THUMB);
-        const { data } = ctx.getImageData(0, 0, THUMB, THUMB);
-
-        let r = 0,
-            g = 0,
-            b = 0,
-            n = 0;
-        const STEP = 3;
-        for (let i = 0; i < data.length; i += 4 * STEP) {
-            if (data[i + 3] < 120) continue;
-            r += data[i];
-            g += data[i + 1];
-            b += data[i + 2];
-            n++;
-        }
-        if (!n) return { ...NEUTRAL_DARK };
-        return {
-            r: Math.round(r / n),
-            g: Math.round(g / n),
-            b: Math.round(b / n),
-        };
-    } catch {
-        return { ...NEUTRAL_DARK };
+    /*
+     * Checkout pages contain private order data and require an authenticated
+     * session. After logout, return to their closest public continuation
+     * instead of bouncing the guest through the login middleware.
+     */
+    if (
+        url.pathname === "/checkout/booking" ||
+        url.pathname.startsWith("/checkout/booking/")
+    ) {
+        return "/booking";
     }
+
+    if (
+        url.pathname === "/checkout/membership" ||
+        url.pathname.startsWith("/checkout/membership/")
+    ) {
+        return "/pricing";
+    }
+
+    LOGOUT_QUERY_KEYS.forEach((key) => url.searchParams.delete(key));
+
+    return `${url.pathname}${url.search}${url.hash}`;
 }
+
+const ACCOUNT_NAVIGATION_ACTIONS = [
+    {
+        key: "profile",
+        label: "Profil Saya",
+        hint: "Identitas, preferensi, dan keamanan akun",
+        icon: ScanFace,
+        accent: "21,103,141",
+    },
+    {
+        key: "history",
+        label: "Riwayat Pembayaran",
+        hint: "Transaksi, bukti pembayaran, dan invoice",
+        icon: ReceiptText,
+        accent: "255,0,0",
+    },
+    {
+        key: "membership",
+        label: "Membership",
+        hint: "Paket aktif, manfaat, dan masa berlaku",
+        icon: Dumbbell,
+        accent: "21,103,141",
+    },
+    {
+        key: "contact",
+        label: "Pusat Bantuan",
+        hint: "Bantuan reservasi dan akses akun",
+        icon: MessagesSquare,
+        accent: "255,0,0",
+    },
+] as const satisfies ReadonlyArray<{
+    key: UserModal;
+    label: string;
+    hint: string;
+    icon: typeof ScanFace;
+    accent: string;
+}>;
 
 /* ====================================================================
    KINETIC NAV LINK
@@ -161,29 +169,55 @@ function sampleDominantColor(img: HTMLImageElement): RGB {
 interface KineticNavLinkProps {
     item: NavItem;
     isActive: boolean;
-    ink?: boolean;
+    presentationOnly?: boolean;
+    motionActive?: boolean;
+    onMotionChange?: (active: boolean) => void;
 }
 
-function KineticNavLink({ item, isActive, ink = false }: KineticNavLinkProps) {
-    const activeCol = ink ? "rgba(18,18,18,0.96)" : "rgba(255,255,255,0.95)";
-    const idleCol = ink ? "rgba(18,18,18,0.58)" : "rgba(255,255,255,0.65)";
-    const hoverCol = ink ? "rgba(18,18,18,0.9)" : "rgba(255,255,255,0.85)";
-    const supCol = ink ? "rgba(18,18,18,0.34)" : "rgba(255,255,255,0.35)";
+function KineticNavLink({
+    item,
+    isActive,
+    presentationOnly = false,
+    motionActive = false,
+    onMotionChange,
+}: KineticNavLinkProps) {
+    const labelMaskStyle = {
+        ["--ubsc-nav-mask" as string]:
+            NAV_MASK_DATA[item.label.toLowerCase()],
+    } as CSSProperties;
+    const numberMaskStyle = {
+        ["--ubsc-nav-mask" as string]:
+            NAV_MASK_DATA[item.number],
+    } as CSSProperties;
 
     return (
         <a
             href={item.href}
-            className={`kinetic-nav-link ${ink ? "kinetic-nav-ink" : ""} ${isActive ? "kinetic-nav-active" : ""} font-clash text-[clamp(0.75rem,1vw,16px)] tracking-wide`}
+            className={`kinetic-nav-link ${isActive ? "kinetic-nav-active" : ""} ${motionActive ? "kinetic-nav-motion-active" : ""} font-clash text-[clamp(0.75rem,1vw,16px)] tracking-wide`}
+            aria-hidden={presentationOnly || undefined}
+            tabIndex={presentationOnly ? -1 : undefined}
+            onMouseEnter={
+                presentationOnly ? undefined : () => onMotionChange?.(true)
+            }
+            onMouseLeave={
+                presentationOnly ? undefined : () => onMotionChange?.(false)
+            }
+            onFocus={
+                presentationOnly ? undefined : () => onMotionChange?.(true)
+            }
+            onBlur={
+                presentationOnly ? undefined : () => onMotionChange?.(false)
+            }
             style={{
                 display: "inline-flex",
                 alignItems: "baseline",
                 gap: "1px",
-                color: isActive ? activeCol : idleCol,
+                color: "inherit",
                 textDecoration: "none",
                 outline: "none",
                 userSelect: "none",
-                transition: "color 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
                 letterSpacing: "0.02em",
+                pointerEvents: presentationOnly ? "none" : undefined,
             }}
         >
             <span
@@ -196,7 +230,11 @@ function KineticNavLink({ item, isActive, ink = false }: KineticNavLinkProps) {
             >
                 <span
                     className="knav-primary"
-                    style={{ display: "block", willChange: "transform" }}
+                    style={{
+                        display: "block",
+                        willChange: "transform",
+                        ...labelMaskStyle,
+                    }}
                 >
                     {item.label}
                 </span>
@@ -209,7 +247,8 @@ function KineticNavLink({ item, isActive, ink = false }: KineticNavLinkProps) {
                         inset: 0,
                         transform: "translateY(-110%)",
                         willChange: "transform",
-                        color: isActive ? activeCol : hoverCol,
+                        color: "inherit",
+                        ...labelMaskStyle,
                     }}
                 >
                     {item.label}
@@ -223,13 +262,17 @@ function KineticNavLink({ item, isActive, ink = false }: KineticNavLinkProps) {
                     fontSize: "10px",
                     lineHeight: 1,
                     verticalAlign: "super",
-                    color: supCol,
+                    color: "inherit",
                     marginLeft: "1px",
                 }}
             >
                 <span
                     className="knav-num-primary"
-                    style={{ display: "block", willChange: "transform" }}
+                    style={{
+                        display: "block",
+                        willChange: "transform",
+                        ...numberMaskStyle,
+                    }}
                 >
                     {item.number}
                 </span>
@@ -241,6 +284,7 @@ function KineticNavLink({ item, isActive, ink = false }: KineticNavLinkProps) {
                         position: "absolute",
                         inset: 0,
                         transform: "translateY(110%)",
+                        ...numberMaskStyle,
                     }}
                 >
                     {item.number}
@@ -250,492 +294,458 @@ function KineticNavLink({ item, isActive, ink = false }: KineticNavLinkProps) {
     );
 }
 
+interface PixelNavSilhouetteProps {
+    activeSection: string;
+    hoveredNavNumber: string | null;
+    mobileOpen: boolean;
+}
+
+function PixelNavSilhouette({
+    activeSection,
+    hoveredNavNumber,
+    mobileOpen,
+}: PixelNavSilhouetteProps) {
+    return (
+        <>
+            <div className="flex items-center gap-2">
+                <span
+                    className="ubsc-pixel-logo-mask block h-12 w-24"
+                    style={{
+                        ["--ubsc-crisp-logo-mask" as string]:
+                            NAVBAR_CRISP_LOGO_MASK,
+                    }}
+                />
+            </div>
+
+            <ul
+                className="hidden items-center gap-6 min-[1100px]:flex xl:gap-12"
+                style={{ position: "relative", zIndex: 2 }}
+            >
+                {NAV_ITEMS.map((item) => (
+                    <li key={item.number}>
+                        <KineticNavLink
+                            item={item}
+                            isActive={item.label === activeSection}
+                            presentationOnly
+                            motionActive={hoveredNavNumber === item.number}
+                        />
+                    </li>
+                ))}
+            </ul>
+
+            <div className="relative">
+                <div className="hidden origin-right scale-90 min-[1100px]:block xl:scale-100">
+                    <div className="ubsc-pixel-card-surface" />
+                </div>
+            </div>
+
+            <div
+                className="flex flex-col items-end justify-center gap-[6px] p-1 min-[1100px]:hidden"
+                aria-hidden="true"
+            >
+                <span
+                    className={cn(
+                        "ubsc-pixel-hamburger-line block h-[2px] w-7 rounded-sm transition-all duration-300",
+                        mobileOpen && "w-6 translate-y-[4px] rotate-45",
+                    )}
+                />
+                <span
+                    className={cn(
+                        "ubsc-pixel-hamburger-line block h-[2px] w-5 rounded-sm transition-all duration-300",
+                        mobileOpen &&
+                            "w-6 -translate-y-[4px] -rotate-45",
+                    )}
+                />
+            </div>
+        </>
+    );
+}
+
+interface PixelCardInkProps {
+    activeSection: string;
+    dropdownOpen: boolean;
+    firstName: string;
+    guestCtaArrowActive: boolean;
+    isLoggedIn: boolean;
+    memberLabel: string;
+    userEmail?: string | null;
+}
+
+function PixelCardInk({
+    activeSection,
+    dropdownOpen,
+    firstName,
+    guestCtaArrowActive,
+    isLoggedIn,
+    memberLabel,
+    userEmail,
+}: PixelCardInkProps) {
+    return (
+        <>
+            <span
+                className="block h-12 w-24"
+                style={{ visibility: "hidden" }}
+            />
+
+            <ul
+                className="hidden items-center gap-6 min-[1100px]:flex xl:gap-12"
+                style={{ visibility: "hidden" }}
+            >
+                {NAV_ITEMS.map((item) => (
+                    <li key={item.number}>
+                        <KineticNavLink
+                            item={item}
+                            isActive={item.label === activeSection}
+                            presentationOnly
+                        />
+                    </li>
+                ))}
+            </ul>
+
+            <div className="relative">
+                <div className="hidden origin-right scale-90 min-[1100px]:block xl:scale-100">
+                    <div className="ubsc-pixel-card-ink">
+                        <span className="ubsc-pixel-card-media-slot" />
+
+                        {isLoggedIn ? (
+                            <div className="ubsc-pixel-card-member-copy flex min-w-0 flex-col justify-center px-3 py-2 text-left">
+                                <p className="ubsc-pixel-card-title max-w-[116px] truncate whitespace-nowrap font-clash text-sm font-semibold leading-tight">
+                                    Good day, {firstName}
+                                </p>
+                                <p className="ubsc-guest-card__register ubsc-pixel-card-register max-w-[96px] truncate font-clash text-[12px] font-medium">
+                                    {userEmail}
+                                </p>
+                                <p className="ubsc-pixel-card-guest -mt-0.5 flex max-w-[100px] items-center gap-1 truncate font-clash text-[10px]">
+                                    <span
+                                        className="ubsc-pixel-status-gem"
+                                        aria-hidden="true"
+                                    />
+                                    {memberLabel}
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="ubsc-pixel-card-guest-copy flex flex-col justify-center px-3 py-2 text-left">
+                                <p className="ubsc-pixel-card-title whitespace-nowrap font-clash text-sm font-semibold leading-tight">
+                                    Lets Get Started
+                                </p>
+                                <p className="ubsc-guest-card__register ubsc-pixel-card-register font-clash text-[12px] font-medium">
+                                    Register Now
+                                </p>
+                                <p className="ubsc-pixel-card-guest -mt-0.5 font-clash text-[10px]">
+                                    Guest
+                                </p>
+                            </div>
+                        )}
+
+                        <div className="ml-auto flex items-center pr-3">
+                            {isLoggedIn ? (
+                                <ChevronDown
+                                    size={20}
+                                    className={cn(
+                                        "transition-transform duration-300 ease-out",
+                                        dropdownOpen && "rotate-180",
+                                    )}
+                                />
+                            ) : (
+                                <span
+                                    className={cn(
+                                        "ubsc-pixel-card-arrow",
+                                        guestCtaArrowActive &&
+                                            "ubsc-pixel-card-arrow--active",
+                                    )}
+                                    aria-hidden="true"
+                                >
+                                    <ProfileCtaArrow />
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <span
+                className="block h-9 w-9 min-[1100px]:hidden"
+                style={{ visibility: "hidden" }}
+            />
+        </>
+    );
+}
+
 /* ====================================================================
    MAIN COMPONENT
 ==================================================================== */
 export default function Navbar({
     activeSection = "Home",
     showInfoBanner = true,
-    surface = "media",
+    deferLoopAnimations = false,
 }: NavbarProps) {
     /* ── Auth state ── */
     const { auth } = usePage<PageProps>().props;
     const user = auth?.user ?? null;
     const isLoggedIn = !!user;
+    const { openAuth } = useAuthFlow();
 
     /* ── UI state ── */
     const [mobileOpen, setMobileOpen] = useState(false);
     const [mobileAcctOpen, setMobileAcctOpen] = useState(false);
+    const [pressedMobileHref, setPressedMobileHref] = useState<string | null>(null);
+    const [hoveredNavNumber, setHoveredNavNumber] = useState<string | null>(
+        null,
+    );
+    const [guestCtaArrowActive, setGuestCtaArrowActive] = useState(false);
     const [dropdownOpen, setDropdownOpen] = useState(false);
+    const [logoutProcessing, setLogoutProcessing] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const mobileAccountDetailRef = useRef<HTMLDivElement>(null);
+    const mobileTouchYRef = useRef(0);
+    const mobilePressStartedAtRef = useRef(0);
+    const mobileNavigationTimerRef = useRef<number | null>(null);
 
     /* ── Modal state (from Navbar__1_.tsx) ── */
-    const [authOpen, setAuthOpen] = useState(false);
-    const [authInitialTab, setAuthInitialTab] = useState<"login" | "register">(
-        "login",
-    );
     const [activeUserModal, setActiveUserModal] = useState<UserModal | null>(
         null,
     );
     const [avatarFailed, setAvatarFailed] = useState(false);
 
+    const logoutFromCurrentPage = () => {
+        if (logoutProcessing) return;
+
+        setDropdownOpen(false);
+        setMobileAcctOpen(false);
+        setMobileOpen(false);
+        setActiveUserModal(null);
+        setLogoutProcessing(true);
+
+        router.post(
+            route("logout"),
+            { return_to: currentPublicLogoutPath() },
+            {
+                preserveScroll: true,
+                onFinish: () => setLogoutProcessing(false),
+            },
+        );
+    };
+
     /* ── Navbar & Background Scroll Behavior ── */
     const [navHidden, setNavHidden] = useState(false);
     const [showBg, setShowBg] = useState(false);
     const lastScrollY = useRef(0);
-    const lastScrollUp = useRef(false);
-    const ticking = useRef(false);
+    const directionAnchorY = useRef(0);
+    const scrollDirection = useRef<-1 | 0 | 1>(0);
+    const navHiddenRef = useRef(false);
+    const ticking = useRef<number | null>(null);
     const bgOpacity = useRef(0);
 
     useEffect(() => {
+        const readScrollY = () => {
+            return Math.max(
+                0,
+                window.scrollY || document.documentElement.scrollTop || 0,
+            );
+        };
+
+        const commitNavHidden = (hidden: boolean) => {
+            if (hidden === navHiddenRef.current) return;
+            navHiddenRef.current = hidden;
+            setNavHidden(hidden);
+        };
+
+        const commitBackground = (visible: boolean) => {
+            const nextOpacity = visible ? 1 : 0;
+            if (nextOpacity === bgOpacity.current) return;
+            bgOpacity.current = nextOpacity;
+            setShowBg(visible);
+        };
+
+        const initialY = readScrollY();
+        lastScrollY.current = initialY;
+        directionAnchorY.current = initialY;
+        commitBackground(initialY > 56);
+
         const update = () => {
-            const y = window.scrollY;
-            const scrollingUp = y < lastScrollY.current;
-            const isAtTop = y < 50;
+            ticking.current = null;
 
-            if (y !== lastScrollY.current) {
-                lastScrollUp.current = scrollingUp;
-            }
+            const y = readScrollY();
+            const delta = y - lastScrollY.current;
 
-            const targetOpacity = y > 50 ? 1 : 0;
-            if (targetOpacity !== bgOpacity.current) {
-                bgOpacity.current = targetOpacity;
-                setShowBg(targetOpacity === 1);
-                const overlay = document.getElementById("ubsc-nav-bg-overlay");
-                if (overlay) {
-                    overlay.style.opacity = targetOpacity.toString();
+            // Separate enter/exit thresholds prevent the glass surface from
+            // repeatedly mounting near the top during Safari elastic scroll.
+            commitBackground(
+                bgOpacity.current === 1 ? y >= 32 : y > 56,
+            );
+
+            if (y <= 50) {
+                scrollDirection.current = 0;
+                directionAnchorY.current = y;
+                commitNavHidden(false);
+            } else if (Math.abs(delta) >= 0.75) {
+                const nextDirection: -1 | 1 = delta > 0 ? 1 : -1;
+
+                if (nextDirection !== scrollDirection.current) {
+                    scrollDirection.current = nextDirection;
+                    directionAnchorY.current = lastScrollY.current;
+                }
+
+                const directionalTravel = Math.abs(
+                    y - directionAnchorY.current,
+                );
+                const threshold = nextDirection > 0 ? 12 : 8;
+
+                if (directionalTravel >= threshold) {
+                    commitNavHidden(nextDirection > 0);
+                    directionAnchorY.current = y;
                 }
             }
 
-            if (isAtTop) {
-                setNavHidden(false);
-            } else if (scrollingUp && lastScrollUp.current) {
-                setNavHidden(false);
-            } else if (!scrollingUp) {
-                setNavHidden(true);
-            }
-
             lastScrollY.current = y;
-            ticking.current = false;
         };
 
         const onScroll = () => {
-            if (!ticking.current) {
-                window.requestAnimationFrame(update);
-                ticking.current = true;
+            if (ticking.current !== null) return;
+            ticking.current = window.requestAnimationFrame(update);
+        };
+
+        window.addEventListener("scroll", onScroll, { passive: true });
+        return () => {
+            window.removeEventListener("scroll", onScroll);
+            if (ticking.current !== null) {
+                window.cancelAnimationFrame(ticking.current);
+                ticking.current = null;
+            }
+        };
+    }, []);
+
+    /* ── iOS-safe document lock for the mobile navigation ── */
+    useEffect(() => {
+        if (!mobileOpen) {
+            if (mobileNavigationTimerRef.current !== null) {
+                window.clearTimeout(mobileNavigationTimerRef.current);
+                mobileNavigationTimerRef.current = null;
+            }
+            setMobileAcctOpen(false);
+            setPressedMobileHref(null);
+            return;
+        }
+
+        const root = document.documentElement;
+        const body = document.body;
+        const lockedProperties = {
+            root: ["overflow", "overscroll-behavior", "touch-action"],
+            body: ["overflow", "overscroll-behavior", "touch-action"],
+        } as const;
+
+        const snapshot = (element: HTMLElement, properties: readonly string[]) =>
+            properties.map((property) => ({
+                property,
+                value: element.style.getPropertyValue(property),
+                priority: element.style.getPropertyPriority(property),
+            }));
+        const rootSnapshot = snapshot(root, lockedProperties.root);
+        const bodySnapshot = snapshot(body, lockedProperties.body);
+        const restore = (
+            element: HTMLElement,
+            entries: ReturnType<typeof snapshot>,
+        ) => {
+            entries.forEach(({ property, value, priority }) => {
+                if (value) element.style.setProperty(property, value, priority);
+                else element.style.removeProperty(property);
+            });
+        };
+
+        root.style.setProperty("overflow", "hidden", "important");
+        root.style.setProperty("overscroll-behavior", "none", "important");
+        root.style.setProperty("touch-action", "none", "important");
+        body.style.setProperty("overflow", "hidden", "important");
+        body.style.setProperty("overscroll-behavior", "none", "important");
+        body.style.setProperty("touch-action", "none", "important");
+
+        return () => {
+            restore(root, rootSnapshot);
+            restore(body, bodySnapshot);
+        };
+    }, [mobileOpen]);
+
+    useEffect(
+        () => () => {
+            if (mobileNavigationTimerRef.current !== null) {
+                window.clearTimeout(mobileNavigationTimerRef.current);
+            }
+        },
+        [],
+    );
+
+    /* The account detail is the only touch-scrollable surface in the drawer. */
+    useEffect(() => {
+        if (!mobileOpen) return;
+
+        const touchAction = mobileAcctOpen ? "pan-y" : "none";
+        document.documentElement.style.setProperty("touch-action", touchAction, "important");
+        document.body.style.setProperty("touch-action", touchAction, "important");
+
+        const onTouchStart = (event: TouchEvent) => {
+            mobileTouchYRef.current = event.touches[0]?.clientY ?? 0;
+        };
+        const onTouchMove = (event: TouchEvent) => {
+            const region = mobileAccountDetailRef.current;
+            const target = event.target as Node | null;
+            if (!mobileAcctOpen || !region || !target || !region.contains(target)) {
+                event.preventDefault();
+                return;
+            }
+
+            const nextY = event.touches[0]?.clientY ?? mobileTouchYRef.current;
+            const deltaY = nextY - mobileTouchYRef.current;
+            mobileTouchYRef.current = nextY;
+            const atTop = region.scrollTop <= 0;
+            const atBottom = Math.ceil(region.scrollTop + region.clientHeight) >= region.scrollHeight;
+            const cannotScroll = region.scrollHeight <= region.clientHeight;
+
+            if (cannotScroll || (atTop && deltaY > 0) || (atBottom && deltaY < 0)) {
+                event.preventDefault();
             }
         };
 
-        update();
-        window.addEventListener("scroll", onScroll, { passive: true });
-        return () => window.removeEventListener("scroll", onScroll);
-    }, []);
-
-    /* ── Lock body scroll when mobile menu open ── */
-    useEffect(() => {
-        document.body.style.overflow = mobileOpen ? "hidden" : "";
-        if (!mobileOpen) setMobileAcctOpen(false);
+        document.addEventListener("touchstart", onTouchStart, { passive: true });
+        document.addEventListener("touchmove", onTouchMove, { passive: false });
         return () => {
-            document.body.style.overflow = "";
+            document.removeEventListener("touchstart", onTouchStart);
+            document.removeEventListener("touchmove", onTouchMove);
         };
-    }, [mobileOpen]);
+    }, [mobileOpen, mobileAcctOpen]);
+
+    /* Avoid leaving the document locked if a rotation/resize crosses desktop. */
+    useEffect(() => {
+        const closeMobileNavigationAtDesktop = () => {
+            if (window.innerWidth >= 1100) {
+                setMobileAcctOpen(false);
+                setMobileOpen(false);
+            }
+        };
+        window.addEventListener("resize", closeMobileNavigationAtDesktop, { passive: true });
+        return () => window.removeEventListener("resize", closeMobileNavigationAtDesktop);
+    }, []);
 
     /* ── Click-outside closes desktop dropdown ── */
     useEffect(() => {
         if (!dropdownOpen) return;
-        const handler = (e: MouseEvent) => {
+        const handlePointerDown = (e: MouseEvent) => {
             if (
                 dropdownRef.current &&
                 !dropdownRef.current.contains(e.target as Node)
             )
                 setDropdownOpen(false);
         };
-        document.addEventListener("mousedown", handler);
-        return () => document.removeEventListener("mousedown", handler);
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "Escape") setDropdownOpen(false);
+        };
+        document.addEventListener("mousedown", handlePointerDown);
+        document.addEventListener("keydown", handleKeyDown);
+        return () => {
+            document.removeEventListener("mousedown", handlePointerDown);
+            document.removeEventListener("keydown", handleKeyDown);
+        };
     }, [dropdownOpen]);
 
-    /* ── Auto-open auth modal from URL ?auth=login|register ── */
-    useEffect(() => {
-        const params = new URLSearchParams(window.location.search);
-        const authParam = params.get("auth");
-        if (authParam === "login" || authParam === "register") {
-            setAuthInitialTab(authParam);
-            setAuthOpen(true);
-            window.history.replaceState(null, "", window.location.pathname);
-        }
-    }, []);
-
-    /* ==============================================================
-       ADAPTIVE COLOR ENGINE
-    ============================================================== */
-    const [_displayColor, setDisplayColor] = useState<RGB>({ ...NEUTRAL_DARK });
-    const currentColorRef = useRef<RGB>({ ...NEUTRAL_DARK });
-    const targetColorRef = useRef<RGB>({ ...NEUTRAL_DARK });
-    const isAnimating = useRef(false);
-    const rafHandle = useRef<number>(0);
-
-    /* ── Inject premium CSS once ── */
-    useEffect(() => {
-        const STYLE_ID = "ubsc-kinetic-nav-styles";
-        if (document.getElementById(STYLE_ID)) return;
-
-        const style = document.createElement("style");
-        style.id = STYLE_ID;
-        style.textContent = `
-            /* ════════════════════════════════════════════════════
-               KINETIC NAV — dual-layer hover slide
-            ════════════════════════════════════════════════════ */
-            .kinetic-nav-link:hover .knav-primary     { transform: translateY(112%); }
-            .kinetic-nav-link:hover .knav-clone        { transform: translateY(0%) !important; }
-            .kinetic-nav-link:hover .knav-num-primary  { transform: translateY(-112%); }
-            .kinetic-nav-link:hover .knav-num-clone    { transform: translateY(0%) !important; }
-            .knav-primary, .knav-clone                 { transition: transform 0.44s cubic-bezier(0.16,1,0.28,1); }
-            .knav-num-primary, .knav-num-clone         { transition: transform 0.38s cubic-bezier(0.20,1,0.32,1); }
-
-            /* ── Active: ethereal glow pulse — no harsh borders ── */
-            .kinetic-nav-active {
-                animation: ubsc-active-pulse 4s ease-in-out infinite;
-            }
-            @keyframes ubsc-active-pulse {
-                0%,100% {
-                    color: rgba(255,255,255,0.95);
-                    text-shadow: none;
-                    opacity: 1;
-                }
-                50% {
-                    color: rgba(255,255,255,1);
-                    text-shadow:
-                        0 0 20px rgba(200,215,255,0.60),
-                        0 0 40px rgba(180,200,255,0.35),
-                        0 0 60px rgba(160,190,255,0.15);
-                    opacity: 1;
-                }
-            }
-            .kinetic-nav-link:hover {
-                color: rgba(255,255,255,0.95) !important;
-            }
-            .kinetic-nav-ink.kinetic-nav-active {
-                animation: none;
-            }
-            .kinetic-nav-ink:hover {
-                color: rgba(18,18,18,0.96) !important;
-            }
-
-            /* ════════════════════════════════════════════════════
-               LOGO WRAP — premium glow with fixed blur
-            ════════════════════════════════════════════════════ */
-            @keyframes ubsc-logo-glow {
-                0%   { filter: drop-shadow(0 0  2px rgba(100,170,255,0.20)); }
-                25%  { filter: drop-shadow(0 0  8px rgba(180,200,255,0.50)); }
-                50%  { filter: drop-shadow(0 0  6px rgba(255,255,255,0.40)); }
-                75%  { filter: drop-shadow(0 0  8px rgba(180,210,255,0.50)); }
-                100% { filter: drop-shadow(0 0  2px rgba(100,170,255,0.20)); }
-            }
-            .ubsc-logo-wrap {
-                position: relative;
-                display: inline-flex;
-                overflow: visible;
-                border-radius: 6px;
-                animation: ubsc-logo-glow 4s ease-in-out infinite;
-                cursor: pointer;
-            }
-            .ubsc-logo-wrap:hover {
-                animation-play-state: paused;
-                filter: drop-shadow(0 0 14px rgba(255,255,255,0.60)) !important;
-                transform: scale(1.05);
-                transition: filter 0.3s ease, transform 0.3s ease;
-            }
-            .ubsc-logo-wrap-ink {
-                animation: none;
-                filter: none;
-            }
-            .ubsc-logo-wrap-ink:hover {
-                filter: drop-shadow(0 4px 10px rgba(0,0,0,0.14)) !important;
-            }
-            .ubsc-logo { display: block; image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; }
-
-            /* ════════════════════════════════════════════════════
-               CTA CARD WRAP — clean premium button
-            ════════════════════════════════════════════════════ */
-            .ubsc-cta-wrap {
-                position: relative;
-                border-radius: 12px;
-                overflow: visible;
-                transition: transform 0.3s ease, box-shadow 0.3s ease;
-            }
-            .ubsc-cta-wrap::before {
-                content: '';
-                position: absolute;
-                inset: 0;
-                border-radius: 12px;
-                border: 1px solid rgba(255,255,255,0.25);
-                background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%);
-                pointer-events: none;
-            }
-            .ubsc-cta-wrap::after {
-                content: '';
-                position: absolute;
-                inset: -2px;
-                border-radius: 14px;
-                box-shadow: 0 0 20px rgba(255,255,255,0.08);
-                pointer-events: none;
-            }
-            .ubsc-cta-wrap:hover {
-                transform: translateY(-2px) scale(1.02);
-                box-shadow:
-                    0 8px 32px rgba(255,255,255,0.15),
-                    0 16px 48px rgba(0,0,0,0.20) !important;
-            }
-            .ubsc-cta-wrap:hover::before {
-                border-color: rgba(255,255,255,0.40);
-            }
-
-            /* ════════════════════════════════════════════════════
-               PREMIUM SEAMLESS NAVBAR
-            ════════════════════════════════════════════════════ */
-            .ubsc-navbar-premium {
-                isolation: isolate;
-                transform: translateZ(0);
-            }
-            .ubsc-navbar-premium::after {
-                content: '';
-                position: absolute;
-                bottom: 0;
-                left: 0;
-                right: 0;
-                height: 80px;
-                background: linear-gradient(to bottom, rgba(0,0,0,0.00) 0%, rgba(0,0,0,0.00) 100%);
-                pointer-events: none;
-                z-index: -1;
-            }
-
-            /* ════════════════════════════════════════════════════
-               AUTH SECTION ISOLATION
-            ════════════════════════════════════════════════════ */
-            .ubsc-auth-section {
-                isolation: isolate;
-                position: relative;
-                z-index: 101;
-                transform: translateZ(0);
-            }
-
-            /* Dropdown portal */
-            .ubsc-dropdown-portal {
-                position: fixed;
-                z-index: 99999 !important;
-                isolation: isolate;
-            }
-
-            /* ════════════════════════════════════════════════════
-               CTA BUTTON INNER
-            ════════════════════════════════════════════════════ */
-            .ubsc-cta-btn {
-                position: relative;
-                overflow: hidden;
-                width: 100%;
-                border-radius: 8px;
-            }
-
-            /* ════════════════════════════════════════════════════
-               AVATAR — deep-navy gradient
-            ════════════════════════════════════════════════════ */
-            .ubsc-avatar-bg {
-                background: linear-gradient(135deg,#0c1222 0%,#1b2a4a 50%,#08101e 100%);
-            }
-
-            /* ════════════════════════════════════════════════════
-               NAVBAR PREMIUM GRAIN — subtle surface texture
-            ════════════════════════════════════════════════════ */
-            .ubsc-nav-grain::before {
-                content: '';
-                position: absolute;
-                inset: 0;
-                opacity: 0.028;
-                pointer-events: none;
-                z-index: 1;
-                background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.90' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
-                background-size: 256px 256px;
-            }
-
-            /* ════════════════════════════════════════════════════
-               LIQUID GLASS NAVBAR SURFACE — iOS 26 "kaca cair"
-               Real refraction: an SVG displacement map bends the
-               content behind the bar like a glass lens, topped with
-               a beveled edge catch-light and a soft specular drift.
-               Layered structure:
-                 .ubsc-lg-effect  → blurred + displaced backdrop
-                 .ubsc-lg-tint    → adaptive tint for text legibility
-                 .ubsc-lg-shine   → beveled rim / specular highlights
-            ════════════════════════════════════════════════════ */
-            .ubsc-liquid-glass {
-                position: absolute;
-                inset: 0;
-                overflow: hidden;
-                isolation: isolate;
-                box-shadow:
-                    0 8px 30px rgba(0, 0, 0, 0.22),
-                    0 1px 0 rgba(255, 255, 255, 0.10);
-            }
-            /* Refraction layer — blurred backdrop warped by the lens */
-            .ubsc-lg-effect {
-                position: absolute;
-                inset: 0;
-                z-index: 0;
-                backdrop-filter: blur(2px) saturate(180%) brightness(1.05);
-                -webkit-backdrop-filter: blur(2px) saturate(180%) brightness(1.05);
-                filter: url(#ubsc-glass-distortion);
-                -webkit-filter: url(#ubsc-glass-distortion);
-            }
-            /* Adaptive tint — keeps white nav text readable over any scene */
-            .ubsc-lg-tint {
-                position: absolute;
-                inset: 0;
-                z-index: 1;
-                background:
-                    linear-gradient(
-                        180deg,
-                        rgba(255, 255, 255, 0.10) 0%,
-                        rgba(255, 255, 255, 0.02) 30%,
-                        rgba(255, 255, 255, 0.00) 60%
-                    ),
-                    linear-gradient(
-                        to bottom,
-                        rgba(8, 12, 28, 0.40) 0%,
-                        rgba(8, 12, 28, 0.22) 55%,
-                        rgba(8, 12, 28, 0.06) 86%,
-                        rgba(8, 12, 28, 0.00) 100%
-                    );
-            }
-            /* Beveled rim + specular highlights — the iOS glass edge */
-            .ubsc-lg-shine {
-                position: absolute;
-                inset: 0;
-                z-index: 2;
-                pointer-events: none;
-                box-shadow:
-                    inset 0 1px 0 rgba(255, 255, 255, 0.60),
-                    inset 1px 0 0 rgba(255, 255, 255, 0.28),
-                    inset -1px 0 0 rgba(255, 255, 255, 0.20),
-                    inset 0 10px 22px rgba(255, 255, 255, 0.06),
-                    inset 0 -1px 0 rgba(255, 255, 255, 0.14),
-                    inset 0 -16px 28px rgba(8, 12, 28, 0.20);
-            }
-            /* Soft specular glint drifting across the lens */
-            .ubsc-lg-shine::after {
-                content: '';
-                position: absolute;
-                top: 0;
-                bottom: 0;
-                left: -40%;
-                width: 45%;
-                pointer-events: none;
-                mix-blend-mode: screen;
-                background: linear-gradient(
-                    105deg,
-                    transparent 0%,
-                    rgba(255,255,255,0.05) 40%,
-                    rgba(255,255,255,0.22) 50%,
-                    rgba(255,255,255,0.05) 60%,
-                    transparent 100%
-                );
-                filter: blur(6px);
-                transform: translateX(0) skewX(-12deg);
-                animation: ubsc-glass-sweep 9s cubic-bezier(0.45,0,0.2,1) infinite;
-                will-change: transform, opacity;
-            }
-            @keyframes ubsc-glass-sweep {
-                0%   { transform: translateX(0)    skewX(-12deg); opacity: 0; }
-                14%  { opacity: 0.85; }
-                45%  { opacity: 0.35; }
-                70%  { transform: translateX(360%) skewX(-12deg); opacity: 0; }
-                100% { transform: translateX(360%) skewX(-12deg); opacity: 0; }
-            }
-            @media (prefers-reduced-motion: reduce) {
-                .ubsc-lg-shine::after {
-                    animation: none;
-                }
-            }
-        `;
-        document.head.appendChild(style);
-    }, []);
-
-    useEffect(
-        () => () => {
-            cancelAnimationFrame(rafHandle.current);
-        },
-        [],
-    );
-
-    /* ── Intersection Observer + RAF colour system ── */
-    useEffect(() => {
-        const startLerp = () => {
-            if (isAnimating.current) return;
-            isAnimating.current = true;
-
-            const tick = () => {
-                const cur = currentColorRef.current;
-                const tgt = targetColorRef.current;
-                const dr = Math.abs(tgt.r - cur.r);
-                const dg = Math.abs(tgt.g - cur.g);
-                const db = Math.abs(tgt.b - cur.b);
-
-                if (dr + dg + db < 0.15) {
-                    currentColorRef.current = { ...tgt };
-                    setDisplayColor({ r: tgt.r, g: tgt.g, b: tgt.b });
-                    isAnimating.current = false;
-                    return;
-                }
-
-                const dist = Math.sqrt(dr * dr + dg * dg + db * db);
-                const adaptiveT =
-                    LERP_SPEED * (0.65 + 0.35 * Math.min(dist / 90, 1));
-                const next = lerpRGB(cur, tgt, adaptiveT);
-                currentColorRef.current = next;
-                setDisplayColor({ r: next.r, g: next.g, b: next.b });
-                rafHandle.current = requestAnimationFrame(tick);
-            };
-
-            rafHandle.current = requestAnimationFrame(tick);
-        };
-
-        const resolveSection = (section: HTMLElement) => {
-            const img = section.querySelector<HTMLImageElement>("img");
-            if (img) {
-                const apply = () => {
-                    const raw = sampleDominantColor(img);
-                    targetColorRef.current = normalizeColor(raw);
-                    startLerp();
-                };
-                if (img.complete && img.naturalWidth > 0) apply();
-                else img.addEventListener("load", apply, { once: true });
-            } else {
-                targetColorRef.current = { ...NEUTRAL_DARK };
-                startLerp();
-            }
-        };
-
-        const observer = new IntersectionObserver(
-            (entries) => {
-                const best = entries
-                    .filter((e) => e.isIntersecting)
-                    .sort(
-                        (a, b) => b.intersectionRatio - a.intersectionRatio,
-                    )[0];
-                if (best) resolveSection(best.target as HTMLElement);
-            },
-            { threshold: [0.35, 0.6], rootMargin: "-5% 0px -5% 0px" },
-        );
-
-        const sections =
-            document.querySelectorAll<HTMLElement>("[data-section]");
-        sections.forEach((s) => observer.observe(s));
-        if (sections.length === 0) {
-            document
-                .querySelectorAll<HTMLElement>("main > *")
-                .forEach((el) => observer.observe(el));
-        }
-        return () => observer.disconnect();
-    }, []);
 
     /* ==============================================================
        DERIVED DISPLAY VALUES
@@ -755,16 +765,32 @@ export default function Navbar({
         setAvatarFailed(false);
     }, [userAvatar]);
 
-    const useInkNavigation = surface === "light" && !showBg && !mobileOpen;
+    const showNavSurface = showBg && !mobileOpen;
+    const navLayerClassName =
+        "fixed left-0 right-0 flex items-center justify-between px-8 py-6 lg:px-12";
+    const navTransform = navHidden
+        ? "translate3d(0, -128px, 0)"
+        : "translate3d(0, 0, 0)";
+    const navLayerStyle: CSSProperties = {
+        top: 27,
+        height: "100px",
+        transform: navTransform,
+        transition: "transform 0.45s cubic-bezier(0.65, 0, 0.35, 1)",
+        willChange: "transform",
+        backfaceVisibility: "hidden",
+        WebkitBackfaceVisibility: "hidden",
+    };
 
     /* ==============================================================
        RENDER
     ============================================================== */
     return (
         <>
-            {showInfoBanner && <InfoBanner />}
+            {showInfoBanner && (
+                <InfoBanner deferLoopAnimations={deferLoopAnimations} />
+            )}
 
-            {/* SVG lens used by the liquid-glass refraction (.ubsc-lg-effect) */}
+            {/* Original glass refraction. */}
             <svg
                 aria-hidden="true"
                 width="0"
@@ -803,63 +829,123 @@ export default function Navbar({
                 </defs>
             </svg>
 
-            {/* Wrapper: background + navbar move as ONE unit */}
+            {/* Original glass layer; only its dark pigment alpha is reduced. */}
             <div
                 id="ubsc-nav-wrapper"
                 className={cn(
-                    "ubsc-nav-grain",
                     "fixed left-0 right-0 flex flex-col",
-                    navHidden ? "-translate-y-full" : "translate-y-0",
+                    showNavSurface && "ubsc-nav-grain",
                 )}
                 style={{
-                    top: 27,
-                    height: "100px",
-                    zIndex: 50,
-                    transition:
-                        "transform 0.45s cubic-bezier(0.65, 0, 0.35, 1)",
+                    ...navLayerStyle,
+                    zIndex: 49,
                 }}
             >
                 {/* Background overlay — stays inside wrapper, moves with navbar */}
                 <div
                     id="ubsc-nav-bg-overlay"
-                    className="ubsc-liquid-glass absolute inset-0 pointer-events-none"
+                    className="ubsc-liquid-glass pointer-events-none absolute inset-0"
+                    aria-hidden="true"
                     style={{
-                        opacity: showBg ? 1 : 0,
-                        transition:
-                            "opacity 0.45s cubic-bezier(0.4, 0, 0.2, 1)",
+                        opacity: showNavSurface ? 1 : 0,
+                        visibility: showNavSurface ? "visible" : "hidden",
+                        transition: showNavSurface
+                            ? "opacity 0.45s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s"
+                            : "opacity 0.45s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s linear 0.45s",
                     }}
                 >
                     <div className="ubsc-lg-effect" />
                     <div className="ubsc-lg-tint" />
                     <div className="ubsc-lg-shine" />
                 </div>
+            </div>
 
-                {/* Navbar content */}
-                <nav
-                    className="relative flex items-center justify-between px-8 py-6 lg:px-12 z-[1]"
-                    style={{ position: "relative", height: "100px", zIndex: 1 }}
-                >
+            {/* One masked backdrop pass: solid monochrome, smooth native edges. */}
+            <div
+                aria-hidden="true"
+                className={cn("ubsc-adaptive-pixel-layer", navLayerClassName)}
+                style={{
+                    ...navLayerStyle,
+                    zIndex: 50,
+                }}
+            >
+                <PixelNavSilhouette
+                    activeSection={activeSection}
+                    hoveredNavNumber={hoveredNavNumber}
+                    mobileOpen={mobileOpen}
+                />
+            </div>
+
+            {/* Blue maps only the logo's black-on-light pixels to the brand tone. */}
+            <div
+                aria-hidden="true"
+                className={cn("ubsc-brand-pixel-layer", navLayerClassName)}
+                style={{
+                    ...navLayerStyle,
+                    zIndex: 51,
+                    mixBlendMode: "screen",
+                }}
+            >
+                <div className="flex items-center gap-2">
+                    <img
+                        src={NAVBAR_LOGO_SRC}
+                        alt=""
+                        className="ubsc-logo block h-12 w-24 object-contain"
+                        width={640}
+                        height={320}
+                        decoding="sync"
+                    />
+                </div>
+            </div>
+
+            {/* White difference ink stays legible over each binary CTA surface pixel. */}
+            <div
+                aria-hidden="true"
+                className={cn("ubsc-card-ink-layer", navLayerClassName)}
+                style={{
+                    ...navLayerStyle,
+                    zIndex: 52,
+                    color: "#ffffff",
+                    mixBlendMode: "difference",
+                }}
+            >
+                <PixelCardInk
+                    activeSection={activeSection}
+                    dropdownOpen={dropdownOpen}
+                    firstName={firstName}
+                    guestCtaArrowActive={guestCtaArrowActive}
+                    isLoggedIn={isLoggedIn}
+                    memberLabel={getMemberStatusConfig(user).label}
+                    userEmail={user?.email}
+                />
+            </div>
+
+            {/* Interaction and media are painted last, without any blend effect. */}
+            <nav
+                className={cn("ubsc-nav-interaction", navLayerClassName)}
+                style={{
+                    ...navLayerStyle,
+                    zIndex: 53,
+                }}
+            >
                     {/* ── Logo ── */}
                     <div className="flex items-center gap-2">
                         <a
                             href="/"
-                            className={cn(
-                                "ubsc-logo-wrap",
-                                useInkNavigation && "ubsc-logo-wrap-ink",
-                            )}
+                            className="ubsc-logo-wrap"
                         >
                             <img
-                                src="/UBSC.svg"
+                                src={NAVBAR_LOGO_SRC}
                                 alt="UB Sport Center Logo"
-                                className="ubsc-logo h-8 w-auto md:h-12"
+                                className="ubsc-logo h-12 w-24 object-contain"
+                                width={640}
+                                height={320}
+                                decoding="sync"
                                 style={{
                                     position: "relative",
                                     zIndex: 2,
-                                    filter: useInkNavigation
-                                        ? "brightness(0) saturate(100%)"
-                                        : "none",
-                                    transition: "filter 240ms ease",
                                 }}
+                                {...{ fetchpriority: "high" }}
                             />
                         </a>
                     </div>
@@ -874,7 +960,11 @@ export default function Navbar({
                                 <KineticNavLink
                                     item={item}
                                     isActive={item.label === activeSection}
-                                    ink={useInkNavigation}
+                                    onMotionChange={(active) =>
+                                        setHoveredNavNumber(
+                                            active ? item.number : null,
+                                        )
+                                    }
                                 />
                             </li>
                         ))}
@@ -896,7 +986,10 @@ export default function Navbar({
                                         onClick={() =>
                                             setDropdownOpen((v) => !v)
                                         }
-                                        className="ubsc-cta-btn group flex items-stretch overflow-hidden rounded-lg bg-white cursor-pointer"
+                                        aria-expanded={dropdownOpen}
+                                        aria-haspopup="menu"
+                                        aria-controls="desktop-account-menu"
+                                        className="ubsc-cta-btn group flex cursor-pointer items-stretch overflow-hidden bg-white"
                                     >
                                         {/* Avatar */}
                                         <div className="mt-1 mb-1 ml-1 w-14 flex-shrink-0 self-stretch overflow-hidden rounded-md">
@@ -918,20 +1011,19 @@ export default function Navbar({
                                         </div>
 
                                         {/* Name / Email / Role */}
-                                        <div className="flex flex-col justify-center px-3 py-2 text-left min-w-0">
-                                            <div className="flex items-baseline gap-0.5">
-                                                <span className="font-clash text-[10px] font-normal text-slate-400/80">
-                                                    Good day,{" "}
-                                                </span>
-                                                <span className="font-clash text-sm font-semibold leading-tight text-slate-700 truncate max-w-[80px]">
-                                                    {firstName}
-                                                </span>
-                                            </div>
-                                            <p className="font-clash text-[10px] font-medium text-slate-500 truncate max-w-[96px] mt-0.5">
+                                        <div className="ubsc-nav-card-copy flex flex-col justify-center px-3 py-2 text-left min-w-0">
+                                            <p className="max-w-[116px] truncate whitespace-nowrap font-clash text-sm font-semibold leading-tight text-navy-900/80">
+                                                Good day, {firstName}
+                                            </p>
+                                            <p className="ubsc-guest-card__register max-w-[96px] truncate font-clash text-[12px] font-medium text-navy-900/80">
                                                 {user?.email}
                                             </p>
-                                            <p className="font-clash text-[10px] font-medium text-slate-400/70 truncate max-w-[100px] -mt-0.5 flex items-center gap-1">
-                                                <span className={cn('inline-block h-1.5 w-1.5 rounded-full flex-shrink-0', getMemberStatusConfig(user).dotColor)} />
+                                            <p className="-mt-0.5 flex max-w-[100px] items-center gap-1 truncate font-clash text-[10px] text-navy-900/40">
+                                                <span
+                                                    className="ubsc-account-status-gem"
+                                                    style={{ ["--status-gem" as string]: getMemberStatusConfig(user).tone }}
+                                                    aria-hidden="true"
+                                                />
                                                 {getMemberStatusConfig(user).label}
                                             </p>
                                         </div>
@@ -941,7 +1033,7 @@ export default function Navbar({
                                             <ChevronDown
                                                 size={20}
                                                 className={cn(
-                                                    "text-slate-400 transition-all duration-300 ease-out",
+                                                    "ubsc-nav-card-icon text-slate-400 transition-all duration-300 ease-out",
                                                     dropdownOpen &&
                                                         "rotate-180 text-slate-600",
                                                 )}
@@ -950,209 +1042,128 @@ export default function Navbar({
                                     </button>
                                 </div>
 
-                                {/* ── Premium Dropdown (Cinematic 3D Unfold) ── */}
+                                {/* Personal account navigation */}
                                 {dropdownOpen && (
-                                    <div
-                                        className="kl-dropdown kl-glass-border absolute right-0 top-full mt-3 w-[308px] overflow-hidden rounded-[22px]"
-                                        style={{
-                                            background: "rgba(250, 249, 247, 0.92)",
-                                            backdropFilter: "blur(24px) saturate(180%)",
-                                            WebkitBackdropFilter: "blur(24px) saturate(180%)",
-                                            boxShadow:
-                                                "0 32px 80px -20px rgba(7,21,48,0.5), 0 16px 32px -12px rgba(7,21,48,0.22), 0 0 0 1px rgba(255,255,255,0.08), inset 0 1px 0 rgba(255,255,255,0.5)",
-                                        }}
-                                    >
-                                        {/* ── Holographic User Header ── */}
-                                        <div className="pass-foil-host relative isolate overflow-hidden bg-gradient-to-br from-navy-800 via-navy-900 to-navy-950 px-5 pb-5 pt-4">
-                                            <Guilloche />
-                                            <div className="kl-dd-header-shimmer" aria-hidden="true" />
-                                            <div
-                                                className="kl-sheen-bar"
-                                                aria-hidden="true"
-                                            />
-                                            {/* Top edge light */}
-                                            <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
-
-                                            <Microtext
-                                                className="relative -mx-5 mb-3 text-white/30"
-                                                text="UB Sport Center · Member Pass"
-                                            />
-                                            <div className="relative flex items-center gap-3.5">
-                                                <div className="kl-ring-host relative h-14 w-14 flex-shrink-0">
-                                                    <span
-                                                        className="kl-ring"
-                                                        aria-hidden="true"
-                                                    />
-                                                    <div className="absolute inset-[3px] overflow-hidden rounded-full">
-                                                        {userAvatar &&
-                                                        !avatarFailed ? (
-                                                            <img
-                                                                src={userAvatar}
-                                                                alt={firstName}
-                                                                className="h-full w-full object-cover"
-                                                                referrerPolicy="no-referrer"
-                                                                onError={() =>
-                                                                    setAvatarFailed(
-                                                                        true,
-                                                                    )
-                                                                }
-                                                            />
-                                                        ) : (
-                                                            <div className="ubsc-avatar-bg flex h-full w-full items-center justify-center">
-                                                                <span className="font-clash text-lg font-bold text-white">
-                                                                    {initials}
-                                                                </span>
-                                                            </div>
-                                                        )}
-                                                    </div>
+                                    <section id="desktop-account-menu" className="ubsc-signal-account" aria-label="Navigasi akun">
+                                        <div className="ubsc-signal-account__stage ubsc-signal-account__stage--membership">
+                                            <div className="ubsc-signal-account__topline">
+                                                <div className="ubsc-signal-account__channel">
+                                                    <span className="ubsc-signal-account__channel-name">
+                                                        Selamat datang, {firstName}
+                                                    </span>
+                                                    <span className="ubsc-signal-account__channel-state">
+                                                        <i className="ubsc-account-status-gem" aria-hidden="true" />
+                                                        Akun aman · tersinkron
+                                                    </span>
                                                 </div>
-                                                <div className="min-w-0 flex-1">
-                                                    <FoilText className="block truncate font-clash text-[15px] font-bold">
-                                                        {user?.name}
-                                                    </FoilText>
-                                                    <p className="mt-0.5 truncate font-bdo text-[11px] text-white/50">
-                                                        {user?.email}
-                                                    </p>
-                                                </div>
+                                                <span className="ubsc-signal-account__timer">04 akses</span>
                                             </div>
-                                            {/* Status badge with breathing glow */}
-                                            <div className="relative mt-3.5">
-                                                <span className="kl-status-badge inline-flex items-center gap-1.5 rounded-full bg-white/[0.12] px-3 py-1.5 font-bdo text-[10px] font-semibold text-white/90 backdrop-blur-sm">
-                                                    <span
-                                                        className={cn('h-2 w-2 rounded-full', getMemberStatusConfig(user).dotColor)}
-                                                        style={{
-                                                            animation:
-                                                                "kl-dot-pulse 3s ease-in-out infinite",
+                                            <div className="ubsc-signal-account__spectrum" aria-hidden="true">
+                                                <span className="ubsc-signal-account__wave ubsc-signal-account__wave--back" />
+                                                <span className="ubsc-signal-account__wave ubsc-signal-account__wave--front" />
+                                            </div>
+                                        </div>
+
+                                        <div className="ubsc-signal-account__sheet">
+                                            <header className="ubsc-signal-account__profile">
+                                                <div className="ubsc-signal-account__avatar">
+                                                    {userAvatar && !avatarFailed ? (
+                                                        <img
+                                                            src={userAvatar}
+                                                            alt={firstName}
+                                                            referrerPolicy="no-referrer"
+                                                            onError={() => setAvatarFailed(true)}
+                                                        />
+                                                    ) : (
+                                                        <span className="ubsc-signal-account__avatar-fallback">{initials}</span>
+                                                    )}
+                                                </div>
+                                                <div className="ubsc-signal-account__identity">
+                                                    <p className="ubsc-signal-account__name">{user?.name}</p>
+                                                    <p className="ubsc-signal-account__email">{user?.email}</p>
+                                                </div>
+                                                <div className="ubsc-signal-account__status">
+                                                    <span className="ubsc-signal-account__status-line" style={{ ["--status-tone" as string]: getMemberStatusConfig(user).tone }}>
+                                                        <i
+                                                            className="ubsc-account-status-gem"
+                                                            style={{ ["--status-gem" as string]: getMemberStatusConfig(user).tone }}
+                                                            aria-hidden="true"
+                                                        />
+                                                        {getMemberStatusConfig(user).label}
+                                                    </span>
+                                                    <span className="ubsc-signal-account__status-sub">Akun terverifikasi</span>
+                                                </div>
+                                            </header>
+
+                                            <div className="ubsc-signal-account__stream">
+                                                {ACCOUNT_NAVIGATION_ACTIONS.map((row, index) => (
+                                                    <button
+                                                        key={row.key}
+                                                        type="button"
+                                                        className="ubsc-signal-account__row"
+                                                        style={{ ["--row-accent" as string]: row.accent }}
+                                                        onClick={(event) => {
+                                                            event.stopPropagation();
+                                                            setDropdownOpen(false);
+                                                            setActiveUserModal(row.key);
                                                         }}
-                                                    />
-                                                    {getMemberStatusConfig(user).label}
-                                                </span>
+                                                    >
+                                                        <span className="ubsc-signal-account__icon">
+                                                            <row.icon size={16} strokeWidth={1.65} />
+                                                        </span>
+                                                        <span className="ubsc-signal-account__copy">
+                                                            <span className="ubsc-signal-account__label">{row.label}</span>
+                                                            <span className="ubsc-signal-account__hint">{row.hint}</span>
+                                                        </span>
+                                                        <span className="ubsc-signal-account__index">{String(index + 1).padStart(2, "0")}</span>
+                                                        <span className="ubsc-signal-account__arrow">
+                                                            <ProfileCtaArrow />
+                                                        </span>
+                                                    </button>
+                                                ))}
+
+                                                <button
+                                                    type="button"
+                                                    onClick={logoutFromCurrentPage}
+                                                    disabled={logoutProcessing}
+                                                    aria-busy={logoutProcessing}
+                                                    className="ubsc-signal-account__exit"
+                                                >
+                                                    <span className="ubsc-signal-account__exit-label">Keluar Akun</span>
+                                                    <span className="ubsc-signal-account__exit-line" />
+                                                    <span className="ubsc-signal-account__exit-orb">
+                                                        <LogOut size={14} strokeWidth={1.7} />
+                                                    </span>
+                                                </button>
                                             </div>
                                         </div>
-
-                                        {/* ── Action Menu with Staggered Entrance ── */}
-                                        <div className="flex flex-col gap-0.5 px-2.5 py-2.5">
-                                            {[
-                                                {
-                                                    key: "profile" as const,
-                                                    label: "My Profile",
-                                                    hint: "Data diri & keamanan",
-                                                    icon: UserIcon,
-                                                    onClick: () =>
-                                                        setActiveUserModal(
-                                                            "profile",
-                                                        ),
-                                                },
-                                                {
-                                                    key: "history" as const,
-                                                    label: "Payment History",
-                                                    hint: "Riwayat transaksi",
-                                                    icon: CreditCard,
-                                                    onClick: () =>
-                                                        setActiveUserModal(
-                                                            "history",
-                                                        ),
-                                                },
-                                                {
-                                                    key: "membership" as const,
-                                                    label: "Gym Membership",
-                                                    hint: "Status keanggotaan",
-                                                    icon: Dumbbell,
-                                                    onClick: () =>
-                                                        setActiveUserModal(
-                                                            "membership",
-                                                        ),
-                                                },
-                                                {
-                                                    key: "contact" as const,
-                                                    label: "Contact Us",
-                                                    hint: "Hubungi via WhatsApp",
-                                                    icon: MessageCircle,
-                                                    onClick: () =>
-                                                        window.open(
-                                                            "https://wa.me/6285280809080",
-                                                            "_blank",
-                                                        ),
-                                                },
-                                            ].map((row, i) => (
-                                                <button
-                                                    key={row.key}
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setDropdownOpen(false);
-                                                        row.onClick();
-                                                    }}
-                                                    className="kl-dd-row kl-dd-item relative flex w-full cursor-pointer items-center gap-3.5 rounded-xl px-3 py-3 text-left"
-                                                    style={{ ["--i" as string]: i }}
-                                                >
-                                                    <div className="kl-dd-icon flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-navy-900/[0.05] ring-1 ring-navy-900/[0.06] transition-all duration-250">
-                                                        <row.icon
-                                                            size={17}
-                                                            className="text-navy-900/65"
-                                                        />
-                                                    </div>
-                                                    <div className="min-w-0 flex-1">
-                                                        <span className="block font-clash text-[13.5px] font-semibold text-navy-900">
-                                                            {row.label}
-                                                        </span>
-                                                        <span className="block mt-0.5 font-bdo text-[10.5px] text-navy-900/40">
-                                                            {row.hint}
-                                                        </span>
-                                                    </div>
-                                                    <svg
-                                                        className="kl-dd-arrow h-4 w-4 text-navy-900/25"
-                                                        fill="none"
-                                                        viewBox="0 0 24 24"
-                                                        stroke="currentColor"
-                                                    >
-                                                        <path
-                                                            strokeLinecap="round"
-                                                            strokeLinejoin="round"
-                                                            strokeWidth={2}
-                                                            d="M9 5l7 7-7 7"
-                                                        />
-                                                    </svg>
-                                                </button>
-                                            ))}
-                                        </div>
-
-                                        {/* Divider */}
-                                        <div className="mx-5 h-px bg-gradient-to-r from-navy-900/[0.08] via-navy-900/[0.04] to-transparent" />
-
-                                        {/* Logout Button */}
-                                        <div className="px-2.5 py-2.5">
-                                            <Link
-                                                href={route("logout")}
-                                                method="post"
-                                                as="button"
-                                                onClick={() =>
-                                                    setDropdownOpen(false)
-                                                }
-                                                className="kl-dd-logout kl-dd-item flex w-full cursor-pointer items-center justify-center gap-2.5 rounded-xl border border-accent-red/15 bg-accent-red/[0.04] px-3 py-3 transition-all active:scale-[0.99]"
-                                                style={{ ["--i" as string]: 5 }}
-                                            >
-                                                <LogOut
-                                                    size={15}
-                                                    className="text-accent-red"
-                                                />
-                                                <span className="font-clash text-[13px] font-semibold text-accent-red">
-                                                    Sign Out
-                                                </span>
-                                            </Link>
-                                        </div>
-                                    </div>
+                                    </section>
                                 )}
+
                             </div>
                         ) : (
                             /*
                              * ── LOGGED OUT: "Lets Get Started" card ──
                              */
-                            <div className="ubsc-cta-wrap hidden min-[1100px]:flex scale-90 xl:scale-100 origin-right">
+                            <div className="ubsc-cta-wrap ubsc-cta-wrap--no-zoom hidden min-[1100px]:flex scale-90 xl:scale-100 origin-right">
                                 <button
                                     type="button"
-                                    onClick={() => setAuthOpen(true)}
-                                    className="ubsc-cta-btn group flex items-stretch overflow-hidden rounded-lg bg-white cursor-pointer"
+                                    onClick={() =>
+                                        openAuth({ view: "login" })
+                                    }
+                                    onMouseEnter={() =>
+                                        setGuestCtaArrowActive(true)
+                                    }
+                                    onMouseLeave={() =>
+                                        setGuestCtaArrowActive(false)
+                                    }
+                                    onFocus={() =>
+                                        setGuestCtaArrowActive(true)
+                                    }
+                                    onBlur={() =>
+                                        setGuestCtaArrowActive(false)
+                                    }
+                                    className="ubsc-cta-btn ubsc-guest-card group flex cursor-pointer items-stretch overflow-hidden bg-white"
                                 >
                                     <div className="mt-1 mb-1 ml-1 w-14 flex-shrink-0 self-stretch overflow-hidden rounded-md">
                                         <img
@@ -1161,22 +1172,21 @@ export default function Navbar({
                                             className="h-full w-full object-cover"
                                         />
                                     </div>
-                                    <div className="flex flex-col justify-center px-3 py-2 text-left">
-                                        <p className="font-clash text-sm font-semibold leading-tight text-navy-900">
+                                    <div className="ubsc-nav-card-copy flex flex-col justify-center px-3 py-2 text-left">
+                                        <p className="font-clash text-sm font-semibold leading-tight text-navy-900/80">
                                             Lets Get Started
                                         </p>
-                                        <p className="font-clash text-[12px] font-medium text-navy-900/80">
+                                        <p className="ubsc-guest-card__register font-clash text-[12px] font-medium text-navy-900/80">
                                             Register Now
                                         </p>
-                                        <p className="font-clash text-[10px] -mt-0.5 text-navy-900/40">
+                                        <p className="-mt-0.5 font-clash text-[10px] text-navy-900/40">
                                             Guest
                                         </p>
                                     </div>
                                     <div className="flex items-center pr-3">
-                                        <ArrowRight
-                                            size={22}
-                                            className="text-navy-900 transition-transform group-hover:translate-x-0.5"
-                                        />
+                                        <span className="ubsc-nav-card-icon ubsc-guest-card__arrow" aria-hidden="true">
+                                            <ProfileCtaArrow />
+                                        </span>
                                     </div>
                                 </button>
                             </div>
@@ -1189,36 +1199,25 @@ export default function Navbar({
                         onClick={() => setMobileOpen((v) => !v)}
                         className="flex flex-col items-end justify-center gap-[6px] p-1 min-[1100px]:hidden"
                         aria-label={mobileOpen ? "Close menu" : "Open menu"}
+                        aria-expanded={mobileOpen}
+                        aria-controls="ubsc-mobile-navigation-drawer"
                         style={{ position: "relative", zIndex: 2 }}
                     >
                         <span
                             className={cn(
-                                "block h-[2px] w-7 rounded-sm transition-all duration-300",
-                                useInkNavigation ? "bg-black/80" : "bg-white/90",
+                                "ubsc-nav-hamburger-line block h-[2px] w-7 rounded-sm transition-all duration-300",
                                 mobileOpen && "w-6 translate-y-[4px] rotate-45",
                             )}
-                            style={{
-                                boxShadow: useInkNavigation
-                                    ? "none"
-                                    : "0 0 4px rgba(255,255,255,0.4)",
-                            }}
                         />
                         <span
                             className={cn(
-                                "block h-[2px] w-5 rounded-sm transition-all duration-300",
-                                useInkNavigation ? "bg-black/80" : "bg-white/90",
+                                "ubsc-nav-hamburger-line block h-[2px] w-5 rounded-sm transition-all duration-300",
                                 mobileOpen &&
                                     "w-6 -translate-y-[4px] -rotate-45",
                             )}
-                            style={{
-                                boxShadow: useInkNavigation
-                                    ? "none"
-                                    : "0 0 4px rgba(255,255,255,0.4)",
-                            }}
                         />
                     </button>
-                </nav>
-            </div>
+            </nav>
 
             {/* ── Mobile overlay backdrop ── */}
             <div
@@ -1230,21 +1229,25 @@ export default function Navbar({
                         : "pointer-events-none opacity-0",
                 )}
                 style={{
-                    background: "rgba(0,0,0,0.65)",
-                    backdropFilter: "blur(4px)",
+                    background: "rgba(3,6,12,0.24)",
+                    backdropFilter: "blur(2px) saturate(112%)",
+                    WebkitBackdropFilter: "blur(2px) saturate(112%)",
                 }}
             />
 
             {/* ── Mobile slide-down menu ── */}
             <div
+                id="ubsc-mobile-navigation-drawer"
+                data-account-open={mobileAcctOpen}
                 className={cn(
-                    "account-modal-scroll fixed top-8 left-0 right-0 z-40 max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain min-[1100px]:hidden transition-transform duration-500 ease-out",
+                    "ubsc-mobile-menu account-modal-scroll fixed top-8 left-0 right-0 z-40 min-[1100px]:hidden transition-transform duration-500 ease-out",
                     mobileOpen ? "translate-y-0" : "-translate-y-full",
                 )}
                 style={{
-                    background: "rgba(8,9,20,0.97)",
-                    backdropFilter: "blur(24px) saturate(130%)",
-                    WebkitBackdropFilter: "blur(24px) saturate(130%)",
+                    background:
+                        "linear-gradient(180deg, rgba(8,9,20,.965) 0%, rgba(8,9,20,.90) 54%, rgba(8,9,20,.58) 78%, rgba(8,9,20,.24) 100%)",
+                    backdropFilter: "blur(18px) saturate(124%)",
+                    WebkitBackdropFilter: "blur(18px) saturate(124%)",
                     borderBottom: "1px solid rgba(255,255,255,0.07)",
                     boxShadow: "0 16px 64px rgba(0,0,0,0.55)",
                 }}
@@ -1252,28 +1255,91 @@ export default function Navbar({
                 <div className="h-[80px] md:h-[104px]" />
                 <div className="h-px w-full bg-white/10" />
 
-                <ul className="flex flex-col px-8 pt-0">
+                <ul className="ubsc-mobile-menu__page-list flex flex-col px-8 pt-0">
                     {NAV_ITEMS.map((item, index) => (
                         <li key={item.number}>
                             <a
                                 href={item.href}
-                                onClick={() => setMobileOpen(false)}
+                                onPointerDown={() => {
+                                    mobilePressStartedAtRef.current = performance.now();
+                                    setPressedMobileHref(item.href);
+                                }}
+                                onPointerCancel={() => {
+                                    mobilePressStartedAtRef.current = 0;
+                                    setPressedMobileHref(null);
+                                }}
+                                onPointerLeave={(event) => {
+                                    if (event.pointerType === "mouse") {
+                                        mobilePressStartedAtRef.current = 0;
+                                        setPressedMobileHref(null);
+                                    }
+                                }}
+                                onClick={(event) => {
+                                    if (
+                                        event.button !== 0 ||
+                                        event.metaKey ||
+                                        event.ctrlKey ||
+                                        event.shiftKey ||
+                                        event.altKey
+                                    ) {
+                                        return;
+                                    }
+
+                                    event.preventDefault();
+                                    setPressedMobileHref(item.href);
+
+                                    if (mobileNavigationTimerRef.current !== null) {
+                                        window.clearTimeout(mobileNavigationTimerRef.current);
+                                    }
+
+                                    const elapsed = mobilePressStartedAtRef.current
+                                        ? performance.now() - mobilePressStartedAtRef.current
+                                        : 0;
+                                    const remainingFeedback = Math.max(
+                                        0,
+                                        MOBILE_NAV_FEEDBACK_MS - elapsed,
+                                    );
+
+                                    mobileNavigationTimerRef.current = window.setTimeout(() => {
+                                        mobileNavigationTimerRef.current = null;
+                                        mobilePressStartedAtRef.current = 0;
+                                        setMobileOpen(false);
+                                        setPressedMobileHref(null);
+                                        router.visit(item.href, {
+                                            preserveScroll: false,
+                                        });
+                                    }, remainingFeedback);
+                                }}
                                 className={cn(
-                                    "font-clash flex items-baseline justify-between py-5 text-xl transition-colors",
+                                    "ubsc-mobile-menu__page-link font-clash flex items-baseline justify-between py-5 text-xl transition-colors",
                                     item.label === activeSection
                                         ? "text-white"
                                         : "text-white/45 hover:text-white/75",
+                                    pressedMobileHref === item.href && "is-pressed",
                                 )}
                             >
-                                <span
-                                    style={{
-                                        textShadow: "0 1px 8px rgba(0,0,0,0.9)",
-                                    }}
-                                >
-                                    {item.label}
+                                <span className="ubsc-mobile-menu__page-label">
+                                    <span
+                                        className="ubsc-mobile-menu__page-primary"
+                                        style={{ textShadow: "0 1px 8px rgba(0,0,0,.9)" }}
+                                    >
+                                        {item.label}
+                                    </span>
+                                    <span
+                                        className="ubsc-mobile-menu__page-clone"
+                                        aria-hidden="true"
+                                        style={{ textShadow: "0 1px 8px rgba(0,0,0,.9)" }}
+                                    >
+                                        {item.label}
+                                    </span>
                                 </span>
-                                <sup className="text-[10px] text-white/30">
-                                    {item.number}
+                                <sup className="ubsc-mobile-menu__page-number text-white/30">
+                                    <span className="ubsc-mobile-menu__number-primary">
+                                        {item.number}
+                                    </span>
+                                    <span className="ubsc-mobile-menu__number-clone" aria-hidden="true">
+                                        {item.number}
+                                    </span>
                                 </sup>
                             </a>
                             {index < NAV_ITEMS.length - 1 && (
@@ -1283,167 +1349,165 @@ export default function Navbar({
                     ))}
                 </ul>
 
-                <div className="mx-8 mt-0 h-px bg-white/10" />
+                <div className="ubsc-mobile-menu__page-divider mx-8 mt-0 h-px bg-white/10" />
 
-                <div className="px-[clamp(1.25rem,4vw,2rem)] py-[clamp(0.75rem,3vw,1.5rem)]">
-                    {isLoggedIn ? (
-                        <div className="flex flex-col gap-2">
-                            {/* Mobile: profile trigger (tap to reveal) */}
-                            <button
-                                type="button"
-                                onClick={() => setMobileAcctOpen((v) => !v)}
-                                className="flex items-center gap-3 rounded-2xl bg-white p-2.5 text-left transition-shadow active:shadow-inner"
-                            >
-                                <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-xl">
-                                    {userAvatar && !avatarFailed ? (
-                                        <img
-                                            src={userAvatar}
-                                            alt={firstName}
-                                            className="h-full w-full object-cover"
-                                            referrerPolicy="no-referrer"
-                                            onError={() => setAvatarFailed(true)}
-                                        />
-                                    ) : (
-                                        <div className="ubsc-avatar-bg flex h-full w-full items-center justify-center">
-                                            <span className="font-clash text-2xl font-bold text-white/90 select-none">
-                                                {initials}
-                                            </span>
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                    <p className="truncate font-clash text-[15px] font-semibold leading-tight text-navy-900">
-                                        {user?.name}
-                                    </p>
-                                    <p className="mt-0.5 truncate font-bdo text-[12px] text-navy-900/45">
-                                        {user?.email}
-                                    </p>
-                                    <span className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-navy-900/[0.06] px-2 py-0.5 font-bdo text-[10px] font-semibold text-navy-900/70">
-                                        <span className={cn('h-1.5 w-1.5 rounded-full', getMemberStatusConfig(user).dotColor)} />
-                                        {getMemberStatusConfig(user).label}
-                                    </span>
-                                </div>
-                                <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-navy-900/[0.06]">
-                                    <ChevronDown
-                                        size={18}
-                                        className={cn(
-                                            "text-navy-900/60 transition-transform duration-300",
-                                            mobileAcctOpen && "rotate-180",
-                                        )}
-                                    />
-                                </div>
-                            </button>
-
-                            {/* Mobile: collapsible account menu (grid-rows CSS) */}
-                            <div
-                                className="kl-collapse"
-                                data-open={mobileAcctOpen}
-                            >
-                                <div className="kl-collapse-inner">
-                                    <div className="flex flex-col gap-2 pt-1">
-                                            {/* Account actions */}
-                                            <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
-                                                {[
-                                                    {
-                                                        key: "profile" as const,
-                                                        label: "My Profile",
-                                                        hint: "Data diri & keamanan",
-                                                        icon: UserIcon,
-                                                        onClick: () =>
-                                                            setActiveUserModal(
-                                                                "profile",
-                                                            ),
-                                                    },
-                                                    {
-                                                        key: "history" as const,
-                                                        label: "Payment History",
-                                                        hint: "Riwayat transaksi",
-                                                        icon: CreditCard,
-                                                        onClick: () =>
-                                                            setActiveUserModal(
-                                                                "history",
-                                                            ),
-                                                    },
-                                                    {
-                                                        key: "membership" as const,
-                                                        label: "Gym Membership",
-                                                        hint: "Status keanggotaan",
-                                                        icon: Dumbbell,
-                                                        onClick: () =>
-                                                            setActiveUserModal(
-                                                                "membership",
-                                                            ),
-                                                    },
-                                                    {
-                                                        key: "contact" as const,
-                                                        label: "Contact Us",
-                                                        hint: "Hubungi via WhatsApp",
-                                                        icon: MessageCircle,
-                                                        onClick: () =>
-                                                            window.open(
-                                                                "https://wa.me/6285280809080",
-                                                                "_blank",
-                                                            ),
-                                                    },
-                                                ].map((row, i) => (
-                                                    <button
-                                                        key={row.key}
-                                                        type="button"
-                                                        onClick={() => {
-                                                            setMobileOpen(false);
-                                                            row.onClick();
-                                                        }}
-                                                        className={cn(
-                                                            "flex w-full items-center gap-3.5 px-3 py-3.5 text-left transition-colors active:bg-white/[0.07]",
-                                                            i > 0 &&
-                                                                "border-t border-white/[0.06]",
-                                                        )}
-                                                    >
-                                                        <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-white/[0.07]">
-                                                            <row.icon
-                                                                size={18}
-                                                                className="text-white/85"
-                                                            />
-                                                        </div>
-                                                        <div className="min-w-0 flex-1">
-                                                            <p className="font-clash text-[15px] font-semibold leading-tight text-white">
-                                                                {row.label}
-                                                            </p>
-                                                            <p className="mt-0.5 font-bdo text-[11px] text-white/40">
-                                                                {row.hint}
-                                                            </p>
-                                                        </div>
-                                                        <ArrowRight className="h-4 w-4 flex-shrink-0 text-white/25 transition-transform active:translate-x-0.5" />
-                                                    </button>
-                                                ))}
+                <div className="ubsc-mobile-account-slot px-[clamp(1.25rem,4vw,2rem)] py-[clamp(0.75rem,3vw,1.5rem)]">
+                    {isLoggedIn && (
+                        <section
+                            className="ubsc-signal-account ubsc-signal-account--mobile"
+                            data-expanded={mobileAcctOpen}
+                            aria-label="Navigasi akun seluler"
+                        >
+                            <div className="ubsc-signal-account__stage">
+                                <button
+                                    type="button"
+                                    className="ubsc-signal-account__mobile-profile-trigger group"
+                                    onClick={() => setMobileAcctOpen((value) => !value)}
+                                    aria-expanded={mobileAcctOpen}
+                                    aria-label={mobileAcctOpen ? "Close account menu" : "Open account menu"}
+                                >
+                                    <div className="mt-1 mb-1 ml-1 w-14 flex-shrink-0 self-stretch overflow-hidden rounded-md">
+                                        {userAvatar && !avatarFailed ? (
+                                            <img
+                                                src={userAvatar}
+                                                alt={firstName}
+                                                className="h-full w-full object-cover"
+                                                referrerPolicy="no-referrer"
+                                                onError={() => setAvatarFailed(true)}
+                                            />
+                                        ) : (
+                                            <div className="ubsc-avatar-bg flex h-full w-full items-center justify-center">
+                                                <span className="font-clash select-none text-xl font-bold text-white/90">
+                                                    {initials}
+                                                </span>
                                             </div>
+                                        )}
+                                    </div>
 
-                                            {/* Logout */}
-                                            <Link
-                                                href={route("logout")}
-                                                method="post"
-                                                as="button"
-                                                onClick={() =>
-                                                    setMobileOpen(false)
-                                                }
-                                                className="flex items-center justify-center gap-2 rounded-2xl border border-red-500/20 bg-red-500/[0.08] px-4 py-3.5 font-clash text-[14px] font-semibold text-red-400 transition-colors hover:bg-red-500/[0.12] active:bg-red-500/15"
+                                    <div className="flex min-w-0 flex-1 flex-col justify-center px-3 py-2 text-left">
+                                        <p className="max-w-[180px] truncate whitespace-nowrap font-clash text-[clamp(0.75rem,3.5vw,1rem)] font-semibold leading-tight text-navy-900/80">
+                                            Good day, {firstName}
+                                        </p>
+                                        <p className="ubsc-guest-card__register mt-0.5 max-w-[180px] truncate font-clash text-[clamp(0.625rem,2.8vw,0.875rem)] text-navy-900/80">
+                                            {user?.email}
+                                        </p>
+                                        <p className="-mt-0.5 flex max-w-[180px] items-center gap-1 truncate font-clash text-[clamp(0.55rem,2.4vw,0.75rem)] text-navy-900/40">
+                                            <span
+                                                className="ubsc-account-status-gem"
+                                                style={{ ["--status-gem" as string]: getMemberStatusConfig(user).tone }}
+                                                aria-hidden="true"
+                                            />
+                                            {getMemberStatusConfig(user).label}
+                                        </p>
+                                    </div>
+
+                                    <div className="flex items-center pr-3">
+                                        <ChevronDown
+                                            size={20}
+                                            className={cn(
+                                                "text-slate-400 transition-all duration-300 ease-out",
+                                                mobileAcctOpen && "rotate-180 text-slate-600",
+                                            )}
+                                        />
+                                    </div>
+                                </button>
+                            </div>
+
+                            <div className="kl-collapse" data-open={mobileAcctOpen}>
+                                <div className="kl-collapse-inner">
+                                    <div
+                                        ref={mobileAccountDetailRef}
+                                        className="ubsc-mobile-account-detail"
+                                        role="region"
+                                        aria-label="Pilihan dan informasi akun"
+                                        tabIndex={mobileAcctOpen ? 0 : -1}
+                                    >
+                                      <div className="ubsc-signal-account__sheet">
+                                        <header className="ubsc-signal-account__profile">
+                                            <div className="ubsc-signal-account__avatar">
+                                                {userAvatar && !avatarFailed ? (
+                                                    <img
+                                                        src={userAvatar}
+                                                        alt={firstName}
+                                                        referrerPolicy="no-referrer"
+                                                        onError={() => setAvatarFailed(true)}
+                                                    />
+                                                ) : (
+                                                    <span className="ubsc-signal-account__avatar-fallback">{initials}</span>
+                                                )}
+                                            </div>
+                                            <div className="ubsc-signal-account__identity">
+                                                <p className="ubsc-signal-account__name">{user?.name}</p>
+                                                <p className="ubsc-signal-account__email">{user?.email}</p>
+                                            </div>
+                                            <div className="ubsc-signal-account__status">
+                                                <span className="ubsc-signal-account__status-line" style={{ ["--status-tone" as string]: getMemberStatusConfig(user).tone }}>
+                                                    <i
+                                                        className="ubsc-account-status-gem"
+                                                        style={{ ["--status-gem" as string]: getMemberStatusConfig(user).tone }}
+                                                        aria-hidden="true"
+                                                    />
+                                                    {getMemberStatusConfig(user).label}
+                                                </span>
+                                                <span className="ubsc-signal-account__status-sub">Akun terverifikasi</span>
+                                            </div>
+                                        </header>
+
+                                        <div className="ubsc-signal-account__stream">
+                                            {ACCOUNT_NAVIGATION_ACTIONS.map((row, index) => (
+                                                <button
+                                                    key={row.key}
+                                                    type="button"
+                                                    className="ubsc-signal-account__row"
+                                                    style={{ ["--row-accent" as string]: row.accent }}
+                                                    onClick={() => {
+                                                        setMobileAcctOpen(false);
+                                                        setMobileOpen(false);
+                                                        setActiveUserModal(row.key);
+                                                    }}
+                                                >
+                                                    <span className="ubsc-signal-account__icon">
+                                                        <row.icon size={16} strokeWidth={1.65} />
+                                                    </span>
+                                                    <span className="ubsc-signal-account__copy">
+                                                        <span className="ubsc-signal-account__label">{row.label}</span>
+                                                        <span className="ubsc-signal-account__hint">{row.hint}</span>
+                                                    </span>
+                                                        <span className="ubsc-signal-account__index">{String(index + 1).padStart(2, "0")}</span>
+                                                        <span className="ubsc-signal-account__arrow">
+                                                        <ProfileCtaArrow />
+                                                    </span>
+                                                </button>
+                                            ))}
+                                            <button
+                                                type="button"
+                                                onClick={logoutFromCurrentPage}
+                                                disabled={logoutProcessing}
+                                                aria-busy={logoutProcessing}
+                                                className="ubsc-signal-account__exit"
                                             >
-                                                <LogOut size={16} />
-                                                Logout
-                                            </Link>
+                                                <span className="ubsc-signal-account__exit-label">Keluar Akun</span>
+                                                <span className="ubsc-signal-account__exit-line" />
+                                                <span className="ubsc-signal-account__exit-orb">
+                                                    <LogOut size={14} strokeWidth={1.7} />
+                                                </span>
+                                            </button>
                                         </div>
+                                      </div>
                                     </div>
                                 </div>
                             </div>
-                    ) : (
+                        </section>
+                    )}
+                    {!isLoggedIn && (
                         /* Mobile: guest card */
                         <button
                             type="button"
                             onClick={() => {
                                 setMobileOpen(false);
-                                setAuthOpen(true);
+                                openAuth({ view: "login" });
                             }}
-                            className="group flex items-stretch overflow-hidden rounded-xl bg-white w-full"
+                            className="ubsc-mobile-guest-card ubsc-guest-card group flex w-full items-stretch overflow-hidden bg-white"
                         >
                             <div className="m-1.5 w-[clamp(3rem,10vw,5rem)] aspect-square flex-shrink-0 overflow-hidden rounded-lg">
                                 <img
@@ -1453,32 +1517,35 @@ export default function Navbar({
                                 />
                             </div>
                             <div className="flex flex-col justify-center px-[clamp(0.5rem,2vw,0.875rem)] py-2 text-left">
-                                <p className="font-clash text-[clamp(0.75rem,3.5vw,1rem)] font-semibold leading-tight text-navy-900">
+                                <p className="font-clash text-[clamp(0.75rem,3.5vw,1rem)] font-semibold leading-tight text-navy-900/80">
                                     Lets Get Started
                                 </p>
-                                <p className="font-clash text-[clamp(0.625rem,2.8vw,0.875rem)] mt-0.5 text-navy-900/80">
+                                <p className="ubsc-guest-card__register mt-0.5 font-clash text-[clamp(0.625rem,2.8vw,0.875rem)] text-navy-900/80">
                                     Register Now
                                 </p>
-                                <p className="font-clash text-[clamp(0.55rem,2.4vw,0.75rem)] -mt-0.5 text-navy-900/40">
+                                <p className="-mt-0.5 font-clash text-[clamp(0.55rem,2.4vw,0.75rem)] text-navy-900/40">
                                     Guest
                                 </p>
                             </div>
                             <div className="ml-auto flex items-center pr-[clamp(0.5rem,2vw,0.875rem)]">
-                                <ArrowRight className="h-[clamp(1rem,4vw,1.25rem)] w-[clamp(1rem,4vw,1.25rem)] text-navy-900 transition-transform group-hover:translate-x-0.5" />
+                                <span className="ubsc-guest-card__arrow" aria-hidden="true">
+                                    <ProfileCtaArrow />
+                                </span>
                             </div>
                         </button>
                     )}
                 </div>
-            </div>
 
-            {/* ── Auth Modal (guest only) ── */}
-            {!isLoggedIn && (
-                <AuthModal
-                    open={authOpen}
-                    initialTab={authInitialTab}
-                    onClose={() => setAuthOpen(false)}
-                />
-            )}
+                {!mobileAcctOpen && (
+                    <button
+                        type="button"
+                        className="ubsc-mobile-menu__dismiss-zone"
+                        onClick={() => setMobileOpen(false)}
+                        aria-label="Tutup menu navigasi"
+                        tabIndex={mobileOpen ? 0 : -1}
+                    />
+                )}
+            </div>
 
             {/* ── User Dashboard Modals (authenticated only) ── */}
             {activeUserModal === "profile" && (
@@ -1489,6 +1556,9 @@ export default function Navbar({
             )}
             {activeUserModal === "membership" && (
                 <GymMembershipModal onClose={() => setActiveUserModal(null)} />
+            )}
+            {activeUserModal === "contact" && (
+                <ContactUsModal onClose={() => setActiveUserModal(null)} />
             )}
         </>
     );

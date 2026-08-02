@@ -287,6 +287,7 @@ const pageTitleMap = [
     { pattern: "admin.memberships.plans.*", title: "Membership Plans", section: "Customers" },
     { pattern: "admin.memberships.*", title: "Memberships", section: "Customers" },
     { pattern: "admin.finance.*", title: "Finance Overview", section: "Finance" },
+    { pattern: "admin.gallery.*", title: "Gallery Facility", section: "Content" },
     { pattern: "admin.news.*", title: "News", section: "Content" },
     { pattern: "admin.promo.*", title: "Carousel Promo", section: "Content" },
     { pattern: "admin.sponsors.*", title: "Sponsors", section: "Content" },

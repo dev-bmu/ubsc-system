@@ -498,8 +498,8 @@ export default function Login({ status }: LoginProps) {
                     <div className="u-brand">
                         <div className="u-logo-wrap">
                             <img
-                                src="/UBSC PRO.png"
-                                alt="UBSC PRO"
+                                src="/assets/brand/ubsc-logo-640.webp"
+                                alt="UB Sport Center"
                                 className="u-logo-img"
                             />
                         </div>
