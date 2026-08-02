@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -19,13 +20,20 @@ class Membership extends Model
         'status',
         'created_by_id',
         'created_via',
+        'registration_token',
+        'registration_email',
+        'registration_phone',
+        'registration_gender',
+        'registration_category',
+        'registration_expires_at',
     ];
 
     protected function casts(): array
     {
         return [
             'start_date' => 'date',
-            'end_date'   => 'date',
+            'end_date' => 'date',
+            'registration_expires_at' => 'datetime',
         ];
     }
 
@@ -62,5 +70,19 @@ class Membership extends Model
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by_id');
+    }
+
+    public function scopeEffectiveAt(Builder $query, ?string $date = null): Builder
+    {
+        $date ??= now()->toDateString();
+
+        return $query
+            ->where('status', 'active')
+            ->whereHas(
+                'transaction',
+                fn (Builder $transaction) => $transaction->where('payment_status', 'PAID'),
+            )
+            ->whereDate('start_date', '<=', $date)
+            ->whereDate('end_date', '>=', $date);
     }
 }

@@ -18,25 +18,81 @@ import {
 } from "lucide-react";
 import { type FormEvent, type ReactNode, useMemo, useState } from "react";
 import SlideOver from "@/Components/Admin/SlideOver";
+import { SingleDropzone } from "@/Components/Admin/ImageDropzone";
 import AdminLayout from "@/Layouts/AdminLayout";
 import { cn } from "@/lib/utils";
-import type { MembershipPlanItem, PageProps } from "@/types";
+import type { MembershipPlanItem, MembershipPlanTier, PageProps } from "@/types";
 
 type Props = PageProps<{ plans: MembershipPlanItem[] }>;
 
 type PlanFormData = {
     name: string;
     description: string;
-    public_badge: string;
+    tier: MembershipPlanTier;
     savings_label: string;
     cta_label: string;
-    card_image_url: string;
+    card_image: File | null;
+    remove_card_image: boolean;
     price: string;
+    compare_at_price: string;
     duration_months: number;
     features: string[];
     is_active: boolean;
+    is_primary: boolean;
     sort_order: string;
+    _method?: "PATCH";
 };
+
+const MEMBERSHIP_TIER_OPTIONS: Array<{
+    value: MembershipPlanTier;
+    label: string;
+    order: string;
+    description: string;
+    swatch: string;
+    active: string;
+    badge: string;
+}> = [
+    {
+        value: "hemat",
+        label: "Hemat",
+        order: "01",
+        description: "Monokrom tenang untuk paket paling terjangkau.",
+        swatch: "bg-[linear-gradient(145deg,#d9dde0_0%,#7b858d_52%,#343a40_100%)]",
+        active: "border-slate-500 bg-slate-50 shadow-[0_14px_28px_-24px_rgba(15,23,42,.75)]",
+        badge: "border-slate-300 bg-slate-100 text-slate-700",
+    },
+    {
+        value: "favorit",
+        label: "Favorit",
+        order: "02",
+        description: "Biru original untuk pilihan utama pengguna.",
+        swatch: "bg-[linear-gradient(145deg,#42a5f5_0%,#1e6fd9_52%,#1530a8_100%)]",
+        active: "border-sky-500 bg-sky-50 shadow-[0_14px_28px_-24px_rgba(14,93,132,.9)]",
+        badge: "border-sky-200 bg-sky-50 text-sky-700",
+    },
+    {
+        value: "performa",
+        label: "Performa",
+        order: "03",
+        description: "Merah bertenaga untuk program berintensitas tinggi.",
+        swatch: "bg-[linear-gradient(145deg,#ff2a20_0%,#d50b03_52%,#720500_100%)]",
+        active: "border-red-600 bg-red-50 shadow-[0_14px_28px_-24px_rgba(177,12,8,.9)]",
+        badge: "border-red-200 bg-red-50 text-red-700",
+    },
+    {
+        value: "eksklusif",
+        label: "Eksklusif",
+        order: "04",
+        description: "Oranye hangat untuk pengalaman paling premium.",
+        swatch: "bg-[linear-gradient(145deg,#ffc15a_0%,#ed7c13_52%,#8b3b08_100%)]",
+        active: "border-orange-500 bg-orange-50 shadow-[0_14px_28px_-24px_rgba(194,65,12,.9)]",
+        badge: "border-orange-200 bg-orange-50 text-orange-700",
+    },
+];
+
+function membershipTierOption(tier: MembershipPlanTier) {
+    return MEMBERSHIP_TIER_OPTIONS.find((option) => option.value === tier) ?? MEMBERSHIP_TIER_OPTIONS[0];
+}
 
 const PAGE_STYLES = `
     @keyframes planFadeUp {
@@ -117,8 +173,24 @@ function durationLabel(months: number): string {
     return `${months} Bulan`;
 }
 
+function durationLead(months: number): string {
+    if (months === 12) return "Membership tahunan untuk";
+    if (months === 1) return "Membership bulanan untuk";
+    return `Membership ${months} bulan untuk`;
+}
+
 function monthlyEstimate(plan: MembershipPlanItem): number {
     return Math.round(plan.price / Math.max(plan.duration_months, 1));
+}
+
+function discountPercentage(price: number, compareAtPrice?: number | null): number | null {
+    const originalPrice = Number(compareAtPrice);
+
+    if (!Number.isFinite(originalPrice) || originalPrice <= price) {
+        return null;
+    }
+
+    return Math.round(((originalPrice - price) / originalPrice) * 100);
 }
 
 function IconTile({ children, className }: { children: ReactNode; className?: string }) {
@@ -192,18 +264,22 @@ function ToggleSwitch({ enabled, onChange }: { enabled: boolean; onChange: (valu
 function PlanForm({ item, onClose }: { item: MembershipPlanItem | null; onClose: () => void }) {
     const isEdit = item !== null;
     const [featureInput, setFeatureInput] = useState("");
-    const { data, setData, post, patch, processing, errors } = useForm<PlanFormData>({
+    const { data, setData, post, processing, errors } = useForm<PlanFormData>({
         name: item?.name ?? "",
         description: item?.description ?? "",
-        public_badge: item?.public_badge ?? "",
+        tier: item?.tier ?? (item?.is_primary ? "favorit" : "hemat"),
         savings_label: item?.savings_label ?? "",
         cta_label: item?.cta_label ?? "",
-        card_image_url: item?.card_image_url ?? "",
+        card_image: null,
+        remove_card_image: false,
         price: item ? String(item.price) : "",
+        compare_at_price: item?.compare_at_price ? String(item.compare_at_price) : "",
         duration_months: item?.duration_months ?? 1,
         features: item?.features ?? [],
         is_active: item?.is_active ?? true,
+        is_primary: item?.is_primary ?? false,
         sort_order: item ? String(item.sort_order) : "0",
+        ...(isEdit ? { _method: "PATCH" as const } : {}),
     });
 
     const addFeature = () => {
@@ -226,9 +302,10 @@ function PlanForm({ item, onClose }: { item: MembershipPlanItem | null; onClose:
         event.preventDefault();
 
         if (isEdit) {
-            patch(route("admin.memberships.plans.update", item.id), {
+            post(route("admin.memberships.plans.update", item.id), {
                 onSuccess: onClose,
                 preserveScroll: true,
+                forceFormData: true,
             });
             return;
         }
@@ -236,10 +313,14 @@ function PlanForm({ item, onClose }: { item: MembershipPlanItem | null; onClose:
         post(route("admin.memberships.plans.store"), {
             onSuccess: onClose,
             preserveScroll: true,
+            forceFormData: true,
         });
     };
 
     const previewPrice = Number(data.price) || 0;
+    const previewCompareAtPrice = Number(data.compare_at_price) || 0;
+    const previewDiscount = discountPercentage(previewPrice, previewCompareAtPrice);
+    const previewTier = membershipTierOption(data.tier);
 
     return (
         <form onSubmit={submit} className="flex flex-col gap-5">
@@ -251,10 +332,26 @@ function PlanForm({ item, onClose }: { item: MembershipPlanItem | null; onClose:
                             <Crown size={17} />
                         </IconTile>
                         <div className="min-w-0">
-                            <p className="font-clash text-base font-semibold text-slate-950">
-                                {data.name || "Paket membership"}
+                            <p className="font-bdo text-[11px] font-semibold text-slate-500">
+                                {durationLead(data.duration_months)}
                             </p>
-                            <p className="font-bdo text-xs font-semibold text-[#B93D2A]">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <p className="font-clash text-base font-semibold text-slate-950">
+                                    {data.name || "Paket membership"}
+                                </p>
+                                <span className={cn("rounded-full border px-2 py-0.5 font-bdo text-[10px] font-bold", previewTier.badge)}>
+                                    {previewTier.label}
+                                </span>
+                            </div>
+                            {previewDiscount && (
+                                <p className="font-bdo text-[11px] font-medium text-slate-400">
+                                    <span className="line-through decoration-[#E35336] decoration-[1.5px]">
+                                        {formatIDR(previewCompareAtPrice)}
+                                    </span>
+                                    <span className="ml-2 text-emerald-600">Hemat {previewDiscount}%</span>
+                                </p>
+                            )}
+                            <p className="mt-0.5 font-bdo text-xs font-semibold text-[#B93D2A]">
                                 {previewPrice > 0 ? formatIDR(previewPrice) : "Nominal belum diisi"} / {durationLabel(data.duration_months)}
                             </p>
                         </div>
@@ -263,7 +360,7 @@ function PlanForm({ item, onClose }: { item: MembershipPlanItem | null; onClose:
             </section>
 
             <div>
-                <label htmlFor="plan_name" className={labelBase}>Nama paket</label>
+                <label htmlFor="plan_name" className={labelBase}>Judul utama card</label>
                 <input
                     id="plan_name"
                     type="text"
@@ -286,6 +383,9 @@ function PlanForm({ item, onClose }: { item: MembershipPlanItem | null; onClose:
                     placeholder="Tulis penjelasan singkat yang mudah dipahami pengguna."
                     className={cn(inputBase, "h-auto resize-none py-3 leading-relaxed")}
                 />
+                <p className="mt-1.5 font-bdo text-[11px] font-medium leading-relaxed text-slate-400">
+                    Konten custom ini tetap utuh saat durasi paket diubah.
+                </p>
                 {errors.description && <p className="mt-1.5 font-bdo text-xs font-medium text-rose-500">{errors.description}</p>}
             </div>
 
@@ -299,26 +399,53 @@ function PlanForm({ item, onClose }: { item: MembershipPlanItem | null; onClose:
                             Tampilan card publik
                         </p>
                         <p className="mt-1 font-bdo text-xs font-medium leading-relaxed text-slate-500">
-                            Field opsional untuk carousel membership di homepage. Jika kosong, website memakai fallback rapi dari data paket utama.
+                            Pilih identitas visual paket. Tingkatan hanya mengubah background besar, badge, dan warna judul kedua; gambar landscape tetap memakai konten yang diunggah.
                         </p>
                     </div>
                 </div>
 
+                <fieldset className="mt-4">
+                    <legend className={labelBase}>Tingkatan pricing gym</legend>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Tingkatan pricing gym">
+                        {MEMBERSHIP_TIER_OPTIONS.map((option) => {
+                            const selected = data.tier === option.value;
+
+                            return (
+                                <button
+                                    key={option.value}
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={selected}
+                                    onClick={() => setData("tier", option.value)}
+                                    className={cn(
+                                        "group flex min-h-[82px] items-start gap-3 rounded-[20px] border p-3 text-left outline-none transition duration-200 focus-visible:ring-2 focus-visible:ring-[#E35336]/35 focus-visible:ring-offset-2",
+                                        selected
+                                            ? option.active
+                                            : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/70",
+                                    )}
+                                >
+                                    <span className={cn("relative mt-0.5 h-10 w-10 shrink-0 overflow-hidden rounded-[13px] shadow-inner", option.swatch)}>
+                                        <span className="absolute inset-x-1.5 top-1 h-px bg-white/55" />
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="flex items-center justify-between gap-3">
+                                            <span className="font-clash text-sm font-semibold text-slate-950">{option.label}</span>
+                                            <span className="font-bdo text-[10px] font-bold text-slate-400">{option.order}/</span>
+                                        </span>
+                                        <span className="mt-1 block font-bdo text-[11px] font-medium leading-[1.35] text-slate-500">
+                                            {option.description}
+                                        </span>
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                    {errors.tier && <p className="mt-1.5 font-bdo text-xs font-medium text-rose-500">{errors.tier}</p>}
+                </fieldset>
+
                 <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div>
-                        <label htmlFor="plan_public_badge" className={labelBase}>Badge kanan</label>
-                        <input
-                            id="plan_public_badge"
-                            type="text"
-                            value={data.public_badge}
-                            onChange={(event) => setData("public_badge", event.target.value)}
-                            placeholder="Contoh: Business & Team"
-                            className={inputBase}
-                        />
-                        {errors.public_badge && <p className="mt-1.5 font-bdo text-xs font-medium text-rose-500">{errors.public_badge}</p>}
-                    </div>
-                    <div>
-                        <label htmlFor="plan_savings_label" className={labelBase}>Label promo</label>
+                        <label htmlFor="plan_savings_label" className={labelBase}>Label promo alternatif</label>
                         <input
                             id="plan_savings_label"
                             type="text"
@@ -327,6 +454,9 @@ function PlanForm({ item, onClose }: { item: MembershipPlanItem | null; onClose:
                             placeholder="Contoh: Hemat 20%"
                             className={inputBase}
                         />
+                        <p className="mt-1.5 font-bdo text-[11px] font-medium leading-relaxed text-slate-400">
+                            Dipakai hanya jika harga normal tidak diisi.
+                        </p>
                         {errors.savings_label && <p className="mt-1.5 font-bdo text-xs font-medium text-rose-500">{errors.savings_label}</p>}
                     </div>
                     <div>
@@ -341,24 +471,49 @@ function PlanForm({ item, onClose }: { item: MembershipPlanItem | null; onClose:
                         />
                         {errors.cta_label && <p className="mt-1.5 font-bdo text-xs font-medium text-rose-500">{errors.cta_label}</p>}
                     </div>
-                    <div>
-                        <label htmlFor="plan_card_image_url" className={labelBase}>URL gambar card</label>
-                        <input
-                            id="plan_card_image_url"
-                            type="text"
-                            value={data.card_image_url}
-                            onChange={(event) => setData("card_image_url", event.target.value)}
-                            placeholder="/assets/images/ub-sport-center-gym-footer.avif"
-                            className={inputBase}
-                        />
-                        {errors.card_image_url && <p className="mt-1.5 font-bdo text-xs font-medium text-rose-500">{errors.card_image_url}</p>}
-                    </div>
+                </div>
+
+                <div className="mt-4 rounded-[20px] border border-slate-200 bg-slate-50/70 p-2.5">
+                    <SingleDropzone
+                        label={isEdit ? "Gambar landscape" : "Gambar landscape (wajib)"}
+                        currentUrl={item?.card_image_url ?? null}
+                        allowRemove={false}
+                        onFileSelect={(file) => {
+                            setData("card_image", file);
+                            if (file) setData("remove_card_image", false);
+                        }}
+                        onRemoveExisting={() => {
+                            setData("card_image", null);
+                            setData("remove_card_image", true);
+                        }}
+                    />
+                    <p className="mt-2 font-bdo text-[11px] font-medium leading-relaxed text-slate-400">
+                        Unggah JPG, PNG, WebP, atau AVIF landscape, minimal 960 x 240 px dan maksimal 5 MB. Gambar lama otomatis diganti setelah upload berhasil.
+                    </p>
+                    {errors.card_image && <p className="mt-1.5 font-bdo text-xs font-medium text-rose-500">{errors.card_image}</p>}
                 </div>
             </section>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
-                    <label htmlFor="plan_price" className={labelBase}>Harga</label>
+                    <label htmlFor="plan_compare_at_price" className={labelBase}>Harga normal</label>
+                    <input
+                        id="plan_compare_at_price"
+                        type="number"
+                        min="0"
+                        step="1000"
+                        value={data.compare_at_price}
+                        onChange={(event) => setData("compare_at_price", event.target.value)}
+                        placeholder="187500"
+                        className={inputBase}
+                    />
+                    <p className="mt-1.5 font-bdo text-[11px] font-medium leading-relaxed text-slate-400">
+                        Opsional. Harus lebih tinggi dari harga membership.
+                    </p>
+                    {errors.compare_at_price && <p className="mt-1.5 font-bdo text-xs font-medium text-rose-500">{errors.compare_at_price}</p>}
+                </div>
+                <div>
+                    <label htmlFor="plan_price" className={labelBase}>Harga membership</label>
                     <input
                         id="plan_price"
                         type="number"
@@ -372,7 +527,7 @@ function PlanForm({ item, onClose }: { item: MembershipPlanItem | null; onClose:
                     />
                     {errors.price && <p className="mt-1.5 font-bdo text-xs font-medium text-rose-500">{errors.price}</p>}
                 </div>
-                <div>
+                <div className="sm:col-span-2">
                     <label htmlFor="plan_duration" className={labelBase}>Durasi</label>
                     <select
                         id="plan_duration"
@@ -380,28 +535,19 @@ function PlanForm({ item, onClose }: { item: MembershipPlanItem | null; onClose:
                         onChange={(event) => setData("duration_months", Number(event.target.value))}
                         className={inputBase}
                     >
-                        <option value={1}>1 Bulan</option>
-                        <option value={3}>3 Bulan</option>
-                        <option value={6}>6 Bulan</option>
-                        <option value={12}>12 Bulan / 1 Tahun</option>
+                        <option value={1}>Bulanan · 1 bulan</option>
+                        <option value={3}>Triwulan · 3 bulan</option>
+                        <option value={6}>Semester · 6 bulan</option>
+                        <option value={12}>Tahunan · 12 bulan</option>
                     </select>
+                    <div className="mt-2 flex items-start gap-2 rounded-[14px] border border-slate-200 bg-slate-50 px-3 py-2.5">
+                        <Timer className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#E35336]" />
+                        <p className="font-bdo text-[11px] font-medium leading-relaxed text-slate-500">
+                            Pembuka card otomatis menjadi <span className="font-semibold text-slate-800">“{durationLead(data.duration_months)}”</span>. Judul dan deskripsi custom tidak akan ditimpa.
+                        </p>
+                    </div>
                     {errors.duration_months && <p className="mt-1.5 font-bdo text-xs font-medium text-rose-500">{errors.duration_months}</p>}
                 </div>
-            </div>
-
-            <div>
-                <label htmlFor="plan_sort" className={labelBase}>Urutan tampil</label>
-                <input
-                    id="plan_sort"
-                    type="number"
-                    value={data.sort_order}
-                    onChange={(event) => setData("sort_order", event.target.value)}
-                    className={inputBase}
-                />
-                <p className="mt-1.5 font-bdo text-[11px] font-medium text-slate-400">
-                    Angka kecil tampil lebih awal di halaman publik.
-                </p>
-                {errors.sort_order && <p className="mt-1.5 font-bdo text-xs font-medium text-rose-500">{errors.sort_order}</p>}
             </div>
 
             <section className="rounded-[24px] border border-slate-200 bg-white p-4">
@@ -485,6 +631,16 @@ function PlanForm({ item, onClose }: { item: MembershipPlanItem | null; onClose:
                 <ToggleSwitch enabled={data.is_active} onChange={(value) => setData("is_active", value)} />
             </section>
 
+            <section className="flex items-center justify-between gap-4 rounded-[24px] border border-[#B9D9EA] bg-[#F2FAFE] px-4 py-3">
+                <div>
+                    <p className="font-clash text-sm font-semibold text-slate-950">Jadikan paket utama</p>
+                    <p className="mt-0.5 font-bdo text-xs font-medium text-slate-500">
+                        Menandai paket rekomendasi/default. Urutan publik tetap Hemat, Favorit, Performa, lalu Eksklusif.
+                    </p>
+                </div>
+                <ToggleSwitch enabled={data.is_primary} onChange={(value) => setData("is_primary", value)} />
+            </section>
+
             <div className="flex flex-col-reverse gap-2 border-t border-slate-100 pt-5 sm:flex-row">
                 <button
                     type="button"
@@ -517,8 +673,9 @@ function PlanCard({
     onEdit: (plan: MembershipPlanItem) => void;
     onDelete: (plan: MembershipPlanItem) => void;
 }) {
-    const saving = plan.duration_months > 1 ? Math.max(0, monthlyEstimate(plan) * plan.duration_months - plan.price) : 0;
+    const discountPercent = discountPercentage(plan.price, plan.compare_at_price);
     const topFeatures = plan.features.slice(0, 4);
+    const tierOption = membershipTierOption(plan.tier);
 
     return (
         <article
@@ -554,6 +711,16 @@ function PlanCard({
                                 >
                                     {plan.is_active ? "Aktif" : "Nonaktif"}
                                 </span>
+                                <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-bdo text-[10px] font-bold", tierOption.badge)}>
+                                    <span className={cn("h-2 w-2 rounded-full", tierOption.swatch)} aria-hidden="true" />
+                                    {tierOption.label}
+                                </span>
+                                {plan.is_primary && (
+                                    <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 font-bdo text-[10px] font-bold uppercase tracking-[0.14em] text-sky-700">
+                                        <Crown size={11} />
+                                        Utama
+                                    </span>
+                                )}
                             </div>
                             <p className="mt-1 line-clamp-2 font-bdo text-sm font-medium leading-relaxed text-slate-500">
                                 {plan.description || "Belum ada deskripsi singkat untuk paket ini."}
@@ -568,6 +735,16 @@ function PlanCard({
                             <p className="font-bdo text-[10px] font-bold uppercase tracking-[0.16em] text-[#B93D2A]/70">
                                 Harga paket
                             </p>
+                            {discountPercent && plan.compare_at_price && (
+                                <p className="mt-1 font-bdo text-xs font-medium text-slate-400">
+                                    <span className="line-through decoration-[#E35336] decoration-[1.5px]">
+                                        {formatIDR(plan.compare_at_price)}
+                                    </span>
+                                    <span className="ml-2 font-semibold text-emerald-600">
+                                        Hemat {discountPercent}%
+                                    </span>
+                                </p>
+                            )}
                             <p className="mt-1 font-clash text-3xl font-bold leading-none text-slate-950">
                                 {formatIDR(plan.price)}
                             </p>
@@ -583,9 +760,9 @@ function PlanCard({
                             </span>
                         </div>
                     </div>
-                    {saving > 0 && (
+                    {discountPercent && (
                         <p className="mt-3 rounded-2xl bg-white/70 px-3 py-2 font-bdo text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100">
-                            Paket panjang memberi nilai lebih dibanding pembayaran bulanan.
+                            Diskon dihitung otomatis dari harga normal dan harga membership.
                         </p>
                     )}
                 </div>
@@ -596,8 +773,10 @@ function PlanCard({
                         <p className="mt-1 font-clash text-xl font-bold text-slate-950">{plan.active_members_count}</p>
                     </div>
                     <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
-                        <p className="font-bdo text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">Urutan</p>
-                        <p className="mt-1 font-clash text-xl font-bold text-slate-950">#{plan.sort_order}</p>
+                        <p className="font-bdo text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">Tingkatan</p>
+                        <p className="mt-1 font-clash text-xl font-bold text-slate-950">
+                            {tierOption.label}
+                        </p>
                     </div>
                 </div>
 
@@ -761,7 +940,7 @@ export default function MembershipPlansIndex() {
                                 Susun paket gym yang jelas, rapi, dan mudah dibandingkan pengguna.
                             </h2>
                             <p className="mt-2 font-bdo text-sm font-medium leading-relaxed text-slate-500">
-                                Atur harga, durasi, status tampil, urutan, dan benefit paket dari satu tempat yang ringkas.
+                                Paket ditampilkan berurutan dari Hemat, Favorit, Performa, hingga Eksklusif; paket utama tetap dapat dipilih secara terpisah.
                             </p>
                         </div>
 

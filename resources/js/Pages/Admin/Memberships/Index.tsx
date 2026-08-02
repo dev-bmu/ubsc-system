@@ -10,10 +10,14 @@
         Clock3,
         Eye,
         History,
+        Mail,
+        Phone,
         Plus,
         ReceiptText,
         RefreshCw,
         Star,
+        Tags,
+        UserRound,
         Wallet,
         XCircle,
     } from "lucide-react";
@@ -25,6 +29,7 @@
     import type {
         AdminMembership,
         BookingTransaction,
+        MembershipPlanTier,
         MembershipStatus,
         PageProps,
         PaymentStatus,
@@ -33,13 +38,25 @@
     interface PlanOption {
         id: number;
         name: string;
+        tier: MembershipPlanTier;
+        tier_label: string;
         price: number;
         duration_months: number;
+        duration_label: string;
+        is_active: boolean;
+    }
+
+    interface UserOption {
+        id: number;
+        name: string;
+        email: string;
+        phone_number: string | null;
     }
 
     type Props = PageProps<{
         memberships: AdminMembership[];
         plans: PlanOption[];
+        users: UserOption[];
     }>;
 
     const PAGE_STYLES = `
@@ -132,24 +149,35 @@
         "mb-1.5 block font-bdo text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500";
 
     const MEMBERSHIP_STATUS_LABEL: Record<MembershipStatus, string> = {
+        pending_payment: "Menunggu pembayaran",
         active: "Aktif",
         expired: "Expired",
         cancelled: "Dibatalkan",
     };
 
     const MEMBERSHIP_STATUS_STYLE: Record<MembershipStatus, string> = {
+        pending_payment: "border-amber-200 bg-amber-50 text-amber-700",
         active: "border-emerald-200 bg-emerald-50 text-emerald-700",
         expired: "border-[#F8B5A8] bg-[#FFF7F5] text-[#B93D2A]",
         cancelled: "border-slate-200 bg-slate-50 text-slate-500",
     };
 
+    const MEMBERSHIP_TIER_STYLE: Record<MembershipPlanTier, string> = {
+        hemat: "bg-slate-500",
+        favorit: "bg-sky-600",
+        performa: "bg-red-600",
+        eksklusif: "bg-orange-500",
+    };
+
     const PAYMENT_STATUS_LABEL: Partial<Record<PaymentStatus, string>> = {
+        UNPAID: "Menunggu pembayaran",
         PAID: "Lunas",
         EXPIRED: "Expired",
         FAILED: "Gagal",
     };
 
     const PAYMENT_STATUS_STYLE: Partial<Record<PaymentStatus, string>> = {
+        UNPAID: "border-amber-200 bg-amber-50 text-amber-700",
         PAID: "border-emerald-200 bg-emerald-50 text-emerald-700",
         EXPIRED: "border-amber-200 bg-amber-50 text-amber-700",
         FAILED: "border-rose-200 bg-rose-50 text-rose-600",
@@ -200,6 +228,20 @@
         });
     }
 
+    function formatDateTime(value: string): string {
+        const date = new Date(value);
+
+        if (Number.isNaN(date.getTime())) return value;
+
+        return date.toLocaleString("id-ID", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+        });
+    }
+
     function shiftDate(dateStr: string, delta: number): string {
         const [year, month, day] = dateStr.split("-").map(Number);
         const date = new Date(year, (month ?? 1) - 1, day ?? 1);
@@ -208,8 +250,12 @@
         return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
     }
 
+    function isMembershipInPeriod(membership: AdminMembership, dateStr: string): boolean {
+        return membership.start_date <= dateStr && membership.end_date >= dateStr;
+    }
+
     function isMembershipActiveOnDate(membership: AdminMembership, dateStr: string): boolean {
-        return membership.status === "active" && membership.start_date <= dateStr && membership.end_date >= dateStr;
+        return membership.status === "active" && isMembershipInPeriod(membership, dateStr);
     }
 
     function daysBetween(dateA: string, dateB: string): number {
@@ -274,6 +320,7 @@
         onCreate: () => void;
     }) {
         const active = memberships.filter((membership) => membership.status === "active").length;
+        const pending = memberships.filter((membership) => membership.status === "pending_payment").length;
         const expired = memberships.filter((membership) => membership.status === "expired").length;
         const cancelled = memberships.filter((membership) => membership.status === "cancelled").length;
         const expiringSoon = memberships.filter((membership) => membership.status === "active" && daysUntil(membership.end_date) <= 14).length;
@@ -302,8 +349,9 @@
                             </p>
                         </div>
 
-                        <div className="grid gap-2 sm:grid-cols-4">
+                        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
                             <HeroMetric label="Aktif" value={active} note={`${activeShare}% live`} />
+                            <HeroMetric label="Menunggu" value={pending} note="belum dibayar" />
                             <HeroMetric label="Segera habis" value={expiringSoon} note="<= 14 hari" />
                             <HeroMetric label="Paket" value={planCount} note="tersedia" />
                             <HeroMetric label="Revenue paid" value={formatPrice(paidAmount)} note={`${filteredCount} tampil`} compact />
@@ -327,6 +375,7 @@
                         </div>
 
                         <div className="mt-4 space-y-2.5">
+                            <LifecycleRow label="Menunggu pembayaran" value={pending} total={memberships.length} color="#F59E0B" />
                             <LifecycleRow label="Aktif" value={active} total={memberships.length} color="#10B981" />
                             <LifecycleRow label="Expired" value={expired} total={memberships.length} color="#E35336" />
                             <LifecycleRow label="Batal" value={cancelled} total={memberships.length} color="#64748B" />
@@ -384,6 +433,9 @@
             return days >= 0 && days <= 14;
         }).length;
         const expired = memberships.filter((membership) => membership.status === "expired").length;
+        const pending = memberships.filter(
+            (membership) => membership.status === "pending_payment" && isMembershipInPeriod(membership, dateStr),
+        ).length;
         return (
             <div className="flex flex-col gap-4">
                 <section className="membership-enter membership-card-glint overflow-hidden rounded-[26px] border border-[#FFE0D8] bg-[linear-gradient(135deg,#ffffff_0%,#FFF8F6_62%,#FFF1EE_100%)] p-3 shadow-[0_20px_46px_-38px_rgba(185,61,42,.34)] sm:p-4">
@@ -409,7 +461,8 @@
                             </button>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+                        <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
+                            <MembershipMetric icon={<Clock3 size={16} />} value={pending} label="Menunggu" note="pembayaran belum selesai" tone="amber" />
                             <MembershipMetric icon={<CheckCircle2 size={16} />} value={activeOnDate} label="Aktif" note="berlaku di tanggal ini" tone="emerald" />
                             <MembershipMetric icon={<Clock3 size={16} />} value={expiringSoon} label="Segera habis" note="maksimal 14 hari lagi" tone="amber" />
                             <MembershipMetric icon={<XCircle size={16} />} value={expired} label="Expired" note="masa aktif berakhir" tone="rose" />
@@ -538,8 +591,17 @@
         );
     }
 
-    function CreateMembershipForm({ plans, onClose }: { plans: PlanOption[]; onClose: () => void }) {
+    function CreateMembershipForm({
+        plans,
+        users,
+        onClose,
+    }: {
+        plans: PlanOption[];
+        users: UserOption[];
+        onClose: () => void;
+    }) {
         const { data, setData, post, processing, errors } = useForm({
+            user_id: "",
             customer_name: "",
             membership_plan_id: "",
             start_date: todayStr(),
@@ -586,18 +648,52 @@
                 </section>
 
                 <div>
-                    <label htmlFor="customer_name" className={labelBase}>Nama member</label>
-                    <input
-                        id="customer_name"
-                        type="text"
-                        value={data.customer_name}
-                        onChange={(event) => setData("customer_name", event.target.value)}
-                        placeholder="Nama lengkap member"
+                    <label htmlFor="membership_user_id" className={labelBase}>Hubungkan akun pengguna</label>
+                    <select
+                        id="membership_user_id"
+                        value={data.user_id}
+                        onChange={(event) => {
+                            const userId = event.target.value;
+                            const selectedUser = users.find(
+                                (user) => String(user.id) === userId,
+                            );
+                            setData((current) => ({
+                                ...current,
+                                user_id: userId,
+                                customer_name:
+                                    selectedUser?.name ?? current.customer_name,
+                            }));
+                        }}
                         className={inputBase}
-                        required
-                    />
-                    {errors.customer_name && <p className="mt-1.5 font-bdo text-xs font-medium text-rose-500">{errors.customer_name}</p>}
+                    >
+                        <option value="">Tamu / tanpa akun</option>
+                        {users.map((user) => (
+                            <option key={user.id} value={user.id}>
+                                {user.name} · {user.email}
+                            </option>
+                        ))}
+                    </select>
+                    <p className="mt-1.5 font-bdo text-[11px] font-medium text-slate-400">
+                        Pilih akun agar membership otomatis muncul di profil pengguna.
+                    </p>
+                    {errors.user_id && <p className="mt-1.5 font-bdo text-xs font-medium text-rose-500">{errors.user_id}</p>}
                 </div>
+
+                {!data.user_id && (
+                    <div>
+                        <label htmlFor="customer_name" className={labelBase}>Nama member tamu</label>
+                        <input
+                            id="customer_name"
+                            type="text"
+                            value={data.customer_name}
+                            onChange={(event) => setData("customer_name", event.target.value)}
+                            placeholder="Nama lengkap member"
+                            className={inputBase}
+                            required={!data.user_id}
+                        />
+                        {errors.customer_name && <p className="mt-1.5 font-bdo text-xs font-medium text-rose-500">{errors.customer_name}</p>}
+                    </div>
+                )}
 
                 <div>
                     <label htmlFor="membership_plan_id" className={labelBase}>Paket membership</label>
@@ -609,8 +705,8 @@
                     >
                         <option value="">Tanpa paket, isi manual</option>
                         {plans.map((plan) => (
-                            <option key={plan.id} value={plan.id}>
-                                {plan.name} - {formatPrice(plan.price)}
+                            <option key={plan.id} value={plan.id} disabled={!plan.is_active}>
+                                {plan.tier_label} · {plan.name} · {plan.duration_label} · {formatPrice(plan.price)}{plan.is_active ? "" : " (nonaktif)"}
                             </option>
                         ))}
                     </select>
@@ -655,7 +751,9 @@
                         <div className="mt-2 flex items-center justify-between gap-3">
                             <div>
                                 <p className="font-clash text-lg font-bold text-slate-950">{formatPrice(selectedPlan.price)}</p>
-                                <p className="font-bdo text-xs font-medium text-slate-500">{selectedPlan.name}</p>
+                                <p className="font-bdo text-xs font-medium text-slate-500">
+                                    {selectedPlan.tier_label} · {selectedPlan.name} · {selectedPlan.duration_label}
+                                </p>
                             </div>
                             <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 font-bdo text-[11px] font-bold text-emerald-700">
                                 Otomatis
@@ -709,7 +807,9 @@
         plans: PlanOption[];
         onClose: () => void;
     }) {
-        const fallbackPlanId = membership.membership_plan_id ?? plans[0]?.id ?? "";
+        const fallbackPlanId = plans.find(
+            (plan) => plan.id === membership.membership_plan_id && plan.is_active,
+        )?.id ?? plans.find((plan) => plan.is_active)?.id ?? "";
         const { data, setData, post, processing, errors } = useForm({
             membership_plan_id: String(fallbackPlanId),
             amount: "",
@@ -761,8 +861,8 @@
                     >
                         {plans.length === 0 && <option value="">Belum ada paket</option>}
                         {plans.map((plan) => (
-                            <option key={plan.id} value={plan.id}>
-                                {plan.name} - {formatPrice(plan.price)}
+                            <option key={plan.id} value={plan.id} disabled={!plan.is_active}>
+                                {plan.tier_label} · {plan.name} · {plan.duration_label} · {formatPrice(plan.price)}{plan.is_active ? "" : " (nonaktif)"}
                             </option>
                         ))}
                     </select>
@@ -774,7 +874,9 @@
                     <section className="rounded-[20px] border border-[#F8B5A8]/70 bg-white p-3.5 shadow-sm">
                         <p className="font-bdo text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">Nominal paket</p>
                         <p className="mt-2 font-clash text-lg font-bold text-slate-950">{formatPrice(selectedPlan.price)}</p>
-                        <p className="font-bdo text-xs font-medium text-slate-500">{selectedPlan.duration_months} bulan masa aktif</p>
+                        <p className="font-bdo text-xs font-medium text-slate-500">
+                            {selectedPlan.tier_label} · {selectedPlan.duration_label} masa aktif
+                        </p>
                     </section>
                 )}
 
@@ -818,6 +920,9 @@
             status_changed: "Status diubah",
             cancelled: "Dibatalkan",
             payment_confirmed: "Pembayaran lunas",
+            registration_submitted: "Pendaftaran dikirim",
+            registration_superseded: "Digantikan pendaftaran baru",
+            payment_expired: "Batas pembayaran berakhir",
         };
 
         return labels[action] ?? action;
@@ -834,8 +939,14 @@
     }) {
         const remainingDays = daysUntil(membership.end_date);
         const [showRenew, setShowRenew] = useState(false);
+        const hasRegistrationDetails = Boolean(
+            membership.registration?.email
+            || membership.registration?.phone
+            || membership.registration?.gender
+            || membership.registration?.category,
+        );
 
-        const handleUpdateStatus = (status: MembershipStatus) => {
+        const handleUpdateStatus = (status: Exclude<MembershipStatus, "pending_payment">) => {
             router.patch(route("admin.memberships.update", membership.id), { status }, { onSuccess: onClose, preserveScroll: true });
         };
 
@@ -872,6 +983,13 @@
 
                         <div className="mt-4 grid gap-2">
                             <DetailLine icon={<Star size={15} />} label="Paket" value={membership.plan_name ?? "Manual"} />
+                            <DetailLine
+                                icon={<BadgeCheck size={15} />}
+                                label="Tingkatan dan durasi"
+                                value={membership.plan_tier_label && membership.plan_duration_label
+                                    ? `${membership.plan_tier_label} · ${membership.plan_duration_label}`
+                                    : membership.plan_duration_label ?? "Periode manual"}
+                            />
                             <DetailLine icon={<CalendarRange size={15} />} label="Periode" value={`${formatDate(membership.start_date)} - ${formatDate(membership.end_date)}`} />
                             <DetailLine
                                 icon={<Clock3 size={15} />}
@@ -881,6 +999,49 @@
                         </div>
                     </div>
                 </section>
+
+                {membership.registration && hasRegistrationDetails && (
+                    <section className="rounded-[20px] border border-slate-200 bg-white p-3.5 shadow-sm">
+                        <div className="flex items-center justify-between gap-3">
+                            <p className="font-bdo text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
+                                Data pendaftaran
+                            </p>
+                            <span className="rounded-full bg-slate-50 px-2.5 py-1 font-bdo text-[10px] font-bold text-slate-500 ring-1 ring-slate-200">
+                                {membership.created_via === "public" ? "Pendaftaran publik" : "Input admin"}
+                            </span>
+                        </div>
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                            <DetailLine
+                                icon={<Mail size={15} />}
+                                label="Email"
+                                value={membership.registration.email ?? "Belum tersedia"}
+                            />
+                            <DetailLine
+                                icon={<Phone size={15} />}
+                                label="WhatsApp"
+                                value={membership.registration.phone ?? membership.customer_phone ?? "Belum tersedia"}
+                            />
+                            <DetailLine
+                                icon={<UserRound size={15} />}
+                                label="Jenis kelamin"
+                                value={membership.registration.gender === "L"
+                                    ? "Laki-laki"
+                                    : membership.registration.gender === "P"
+                                        ? "Perempuan"
+                                        : "Belum tersedia"}
+                            />
+                            <DetailLine
+                                icon={<Tags size={15} />}
+                                label="Kategori"
+                                value={membership.registration.category === "warga_ub"
+                                    ? "Warga UB"
+                                    : membership.registration.category === "umum"
+                                        ? "Umum"
+                                        : "Belum tersedia"}
+                            />
+                        </div>
+                    </section>
+                )}
 
                 {membership.renewed_from_label && (
                     <section className="rounded-[20px] border border-slate-200 bg-white p-3.5 shadow-sm">
@@ -902,6 +1063,11 @@
                             <span className="font-bdo text-xs font-medium text-slate-500">Dibayar pada {membership.transaction.paid_at}</span>
                         )}
                     </div>
+                    {membership.status === "pending_payment" && membership.registration?.expires_at && (
+                        <p className="mt-3 rounded-[14px] border border-amber-200 bg-amber-50 px-3 py-2 font-bdo text-[11px] font-semibold text-amber-700">
+                            Batas pembayaran {formatDateTime(membership.registration.expires_at)}
+                        </p>
+                    )}
                 </section>
 
                 <section className="rounded-[20px] border border-slate-200 bg-white p-3.5 shadow-sm">
@@ -967,7 +1133,7 @@
                 </section>
 
                 <section className="grid gap-2">
-                    {membership.status !== "cancelled" && (
+                    {(membership.status === "active" || membership.status === "expired") && (
                         <button
                             type="button"
                             onClick={() => setShowRenew(true)}
@@ -1056,14 +1222,30 @@
             }),
             listHelper.accessor("plan_name", {
                 header: "Paket",
-                cell: (info) => {
-                    const value = info.getValue();
+                cell: ({ row }) => {
+                    const membership = row.original;
+                    const value = membership.plan_name;
 
                     return value ? (
-                        <span className="inline-flex max-w-[180px] items-center gap-1.5 rounded-full border border-[#F8B5A8]/70 bg-[#FFF7F5] px-3 py-1 font-bdo text-[11px] font-bold text-[#B93D2A]">
-                            <Star size={12} />
-                            <span className="truncate">{value}</span>
-                        </span>
+                        <div className="max-w-[210px]">
+                            <span className="flex min-w-0 items-center gap-1.5 font-bdo text-[11px] font-bold text-slate-800">
+                                <span
+                                    className={cn(
+                                        "h-2 w-2 shrink-0 rounded-full",
+                                        membership.plan_tier
+                                            ? MEMBERSHIP_TIER_STYLE[membership.plan_tier]
+                                            : "bg-slate-300",
+                                    )}
+                                    aria-hidden="true"
+                                />
+                                <span className="truncate">{value}</span>
+                            </span>
+                            <span className="mt-1 block truncate font-bdo text-[10px] font-semibold text-slate-400">
+                                {[membership.plan_tier_label, membership.plan_duration_label]
+                                    .filter(Boolean)
+                                    .join(" · ")}
+                            </span>
+                        </div>
                     ) : (
                         <span className="font-bdo text-xs font-semibold text-slate-400">Manual</span>
                     );
@@ -1117,13 +1299,13 @@
     }
 
     export default function MembershipsIndex() {
-        const { memberships, plans } = usePage<Props>().props;
+        const { memberships, plans, users } = usePage<Props>().props;
         const [selected, setSelected] = useState<AdminMembership | null>(null);
         const [showCreate, setShowCreate] = useState(false);
         const [dateStr, setDateStr] = useState(todayStr());
 
         const filteredMemberships = useMemo(
-            () => memberships.filter((membership) => isMembershipActiveOnDate(membership, dateStr)),
+            () => memberships.filter((membership) => isMembershipInPeriod(membership, dateStr)),
             [dateStr, memberships],
         );
 
@@ -1176,7 +1358,13 @@
                     title={<span className="font-clash text-xl font-bold">Tambah Membership</span>}
                     description={<span className="font-bdo text-sm text-slate-500">Daftarkan anggota baru dengan alur cepat.</span>}
                 >
-                    {showCreate && <CreateMembershipForm plans={plans} onClose={() => setShowCreate(false)} />}
+                    {showCreate && (
+                        <CreateMembershipForm
+                            plans={plans}
+                            users={users}
+                            onClose={() => setShowCreate(false)}
+                        />
+                    )}
                 </SlideOver>
             </AdminLayout>
         );
