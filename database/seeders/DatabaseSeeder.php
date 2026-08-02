@@ -20,6 +20,8 @@ class DatabaseSeeder extends Seeder
             // CMS content — must run before BookingSeeder (which needs Facility)
             FacilityCategorySeeder::class,
             FacilitySeeder::class,
+            OutdoorFacilitySeeder::class,
+            FacilityPricingPresentationSeeder::class,
             FacilityPriceSeeder::class,
             NewsCategorySeeder::class,
             NewsSeeder::class,
@@ -27,6 +29,7 @@ class DatabaseSeeder extends Seeder
             SponsorLogoSeeder::class,
             ReelSeeder::class,
             InfoBannerSeeder::class,
+            MembershipPlanSeeder::class,
             TestimonialSeeder::class,
             ReviewSeeder::class,
             BookingSeeder::class,

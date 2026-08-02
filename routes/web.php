@@ -1,73 +1,83 @@
 <?php
 
+use App\Http\Controllers\Admin\AdminBrandAssetController;
 use App\Http\Controllers\Admin\BookingController;
-use App\Http\Controllers\Admin\InfoBannerController;
-use App\Http\Controllers\Admin\RoleController;
-use App\Models\InfoBanner;
-use App\Models\SystemSetting;
-use App\Http\Controllers\Admin\ScheduleController;
-use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\FacilityCategoryController;
-use App\Http\Controllers\Admin\FinanceReportController;
-use App\Http\Controllers\Admin\MembershipController;
-use App\Http\Controllers\Admin\MembershipPlanController;
-use App\Http\Controllers\Admin\NotificationController;
-use App\Http\Controllers\Admin\TransactionController;
 use App\Http\Controllers\Admin\FacilityController;
 use App\Http\Controllers\Admin\FacilityPriceController;
 use App\Http\Controllers\Admin\FacilityUnitController;
+use App\Http\Controllers\Admin\FinanceReportController;
 use App\Http\Controllers\Admin\GalleryBatchController;
 use App\Http\Controllers\Admin\GalleryBulkController;
 use App\Http\Controllers\Admin\GalleryController;
-use App\Http\Controllers\Admin\GalleryCurationController;
 use App\Http\Controllers\Admin\GalleryCsvController;
+use App\Http\Controllers\Admin\GalleryCurationController;
 use App\Http\Controllers\Admin\GalleryItemController;
 use App\Http\Controllers\Admin\GalleryLocationController;
 use App\Http\Controllers\Admin\GallerySavedViewController;
 use App\Http\Controllers\Admin\GalleryStatusController;
 use App\Http\Controllers\Admin\GalleryUploadSessionController;
 use App\Http\Controllers\Admin\IdentityQueueController;
+use App\Http\Controllers\Admin\InfoBannerController;
+use App\Http\Controllers\Admin\MembershipController;
+use App\Http\Controllers\Admin\MembershipPlanController;
 use App\Http\Controllers\Admin\NewsCategoryController;
 use App\Http\Controllers\Admin\NewsController;
+use App\Http\Controllers\Admin\NotificationController;
 use App\Http\Controllers\Admin\PromoCarouselController;
 use App\Http\Controllers\Admin\ReelController;
+use App\Http\Controllers\Admin\RoleController;
+use App\Http\Controllers\Admin\ScheduleController;
 use App\Http\Controllers\Admin\SponsorLogoController;
 use App\Http\Controllers\Admin\TestimonialController;
+use App\Http\Controllers\Admin\TransactionController;
+use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\Public\PublicBookingController;
-use App\Http\Controllers\Public\PublicBranchController;
-use App\Http\Controllers\Public\InvoiceController;
-use App\Http\Controllers\Public\MockPaymentController;
-use App\Http\Controllers\Public\PublicCheckoutController;
-use App\Http\Controllers\Public\PublicFacilityController;
 use App\Http\Controllers\Public\FacilityGalleryController;
 use App\Http\Controllers\Public\GalleryAnalyticsController;
 use App\Http\Controllers\Public\GallerySitemapController;
+use App\Http\Controllers\Public\InvoiceController;
+use App\Http\Controllers\Public\MembershipCheckoutController;
+use App\Http\Controllers\Public\MockPaymentController;
+use App\Http\Controllers\Public\PublicBookingController;
+use App\Http\Controllers\Public\PublicBranchController;
+use App\Http\Controllers\Public\PublicCheckoutController;
+use App\Http\Controllers\Public\PublicFacilityController;
+use App\Http\Controllers\Public\PublicMembershipController;
 use App\Http\Controllers\Public\PublicNewsController;
 use App\Http\Controllers\Public\ReviewController;
-use App\Http\Resources\Public\FacilityResource;
+use App\Http\Controllers\Public\SitemapController;
+use App\Http\Controllers\User\UserMembershipController;
+use App\Http\Controllers\User\UserPurchaseHistoryController;
 use App\Http\Middleware\RedirectStaffFromPublic;
+use App\Http\Resources\Public\FacilityResource;
 use App\Models\Booking;
 use App\Models\Facility;
+use App\Models\InfoBanner;
 use App\Models\Membership;
 use App\Models\MembershipPlan;
 use App\Models\Review;
+use App\Models\SystemSetting;
 use App\Models\Testimonial;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\BookingCalendarService;
+use App\Support\PublicReviewFeed;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
-Route::get('/', [HomeController::class, 'index'])->middleware([RedirectStaffFromPublic::class, 'throttle:60,1']);
+Route::get('/', [HomeController::class, 'index'])
+    ->middleware([RedirectStaffFromPublic::class, 'throttle:60,1'])
+    ->name('home');
 
 Route::get('/about', function () {
     return Inertia::render('AboutPage', [
         'testimonials' => Testimonial::active()->ordered()->with('media')->get()->map(fn ($t) => [
-            'id'         => $t->id,
-            'image'      => $t->imageUrl(),
-            'quote'      => $t->quote,
+            'id' => $t->id,
+            'image' => $t->imageUrl(),
+            'quote' => $t->quote,
             'authorName' => $t->author_name,
             'authorRole' => $t->author_role,
             'authorLogo' => $t->logoUrl(),
@@ -98,29 +108,53 @@ Route::get('/news/{slug}', [PublicNewsController::class, 'show'])
 Route::get('/pricing', function () {
     return Inertia::render('PricingPage', [
         'membershipPlans' => MembershipPlan::where('is_active', true)
+            ->with('media')
             ->withCount([
-                'memberships as active_members_count' => fn ($q) => $q->where('status', 'active'),
+                'memberships as active_members_count' => fn ($q) => $q
+                    ->where('status', 'active')
+                    ->whereDate('start_date', '<=', today())
+                    ->whereDate('end_date', '>=', today()),
             ])
+            ->orderByTier()
             ->orderBy('sort_order')
+            ->orderBy('price')
+            ->orderBy('id')
             ->get()
             ->map(fn ($p) => [
-                'id'              => $p->id,
-                'name'            => $p->name,
-                'description'     => $p->description,
-                'public_badge'    => $p->public_badge,
-                'savings_label'   => $p->savings_label,
-                'cta_label'       => $p->cta_label,
-                'card_image_url'  => $p->card_image_url,
-                'price'           => $p->price,
+                'id' => $p->id,
+                'name' => $p->name,
+                'description' => $p->description,
+                'tier' => $p->tier,
+                'public_badge' => $p->public_badge,
+                'savings_label' => $p->savings_label,
+                'cta_label' => $p->cta_label,
+                'card_image_url' => $p->cardImageUrl(),
+                'price' => $p->price,
+                'compare_at_price' => $p->compare_at_price,
+                'discount_percent' => $p->discountPercentage(),
                 'duration_months' => $p->duration_months,
-                'features'        => $p->features ?? [],
-                'is_active'       => $p->is_active,
-                'sort_order'      => $p->sort_order,
+                'duration_label' => $p->durationLabel(),
+                'duration_lead' => $p->durationLead(),
+                'features' => $p->features ?? [],
+                'is_active' => $p->is_active,
+                'is_primary' => $p->is_primary,
+                'sort_order' => $p->sort_order,
                 'active_members_count' => $p->active_members_count,
             ]),
         'facilities' => FacilityResource::collection(
             Facility::active()
-                ->with(['category', 'prices'])
+                ->with([
+                    'category',
+                    'prices' => fn ($query) => $query
+                        ->orderBy('sort_order')
+                        ->orderBy('id'),
+                    'units' => fn ($query) => $query
+                        ->where('is_active', true)
+                        ->orderBy('id'),
+                    'units.prices' => fn ($query) => $query
+                        ->orderBy('sort_order')
+                        ->orderBy('id'),
+                ])
                 ->orderBy('sort_order')
                 ->get()
         )->resolve(),
@@ -164,42 +198,109 @@ Route::get('/galeri-fasilitas/{section}', fn (string $section) => redirect()->ro
 Route::post('/galeri-fasilitas/events', [GalleryAnalyticsController::class, 'store'])
     ->middleware('throttle:120,1');
 
-Route::get('/sitemap.xml', [GallerySitemapController::class, 'index'])->name('gallery.sitemap.index');
+Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('gallery.sitemap.index');
+Route::get('/sitemap-pages.xml', [SitemapController::class, 'pages'])->name('sitemap.pages');
+Route::get('/sitemap-news.xml', [SitemapController::class, 'news'])->name('sitemap.news');
+Route::get('/sitemap-facilities.xml', [SitemapController::class, 'facilities'])->name('sitemap.facilities');
 Route::get('/sitemap-gallery-pages.xml', [GallerySitemapController::class, 'pages'])->name('gallery.sitemap.pages');
 Route::get('/sitemap-gallery-images.xml', [GallerySitemapController::class, 'images'])->name('gallery.sitemap.images');
 Route::get('/sitemap-gallery-videos.xml', [GallerySitemapController::class, 'videos'])->name('gallery.sitemap.videos');
 
-Route::get('/booking', function () {
-    $user           = auth()->user();
-    $canReview      = $user && Booking::where('user_id', $user->id)->where('status', 'completed')->exists();
+Route::get('/booking', function (
+    PublicReviewFeed $reviewFeed,
+    BookingCalendarService $bookingCalendar,
+) {
+    $user = auth()->user();
+    $canReview = $user && Booking::where('user_id', $user->id)->where('status', 'completed')->exists();
     $existingReview = $user ? Review::where('user_id', $user->id)->first() : null;
+    $calendarMetadata = $bookingCalendar->metadata();
 
     return Inertia::render('BookingPage', [
+        'membershipPlans' => MembershipPlan::where('is_active', true)
+            ->with('media')
+            ->withCount([
+                'memberships as active_members_count' => fn ($q) => $q
+                    ->where('status', 'active')
+                    ->whereDate('start_date', '<=', today())
+                    ->whereDate('end_date', '>=', today()),
+            ])
+            ->orderByTier()
+            ->orderBy('sort_order')
+            ->orderBy('price')
+            ->orderBy('id')
+            ->get()
+            ->map(fn ($plan) => [
+                'id' => $plan->id,
+                'name' => $plan->name,
+                'description' => $plan->description,
+                'tier' => $plan->tier,
+                'public_badge' => $plan->public_badge,
+                'savings_label' => $plan->savings_label,
+                'cta_label' => $plan->cta_label,
+                'card_image_url' => $plan->cardImageUrl(),
+                'price' => $plan->price,
+                'compare_at_price' => $plan->compare_at_price,
+                'discount_percent' => $plan->discountPercentage(),
+                'duration_months' => $plan->duration_months,
+                'duration_label' => $plan->durationLabel(),
+                'duration_lead' => $plan->durationLead(),
+                'features' => $plan->features ?? [],
+                'is_active' => $plan->is_active,
+                'is_primary' => $plan->is_primary,
+                'sort_order' => $plan->sort_order,
+                'active_members_count' => $plan->active_members_count,
+            ]),
         'facilities' => FacilityResource::collection(
-            Facility::active()->with(['category', 'prices', 'units.media'])->orderBy('sort_order')->get()
+            Facility::visibleInBookingDirectory()
+                ->with(['category', 'prices', 'media', 'units.media'])
+                ->orderBy('sort_order')
+                ->get()
         )->resolve(),
-        'can_review'       => $canReview,
-        'existing_review'  => $existingReview ? [
-            'id'     => $existingReview->id,
+        'booking_today' => $calendarMetadata['window']['min_date'],
+        'booking_calendar' => $calendarMetadata,
+        'can_review' => $canReview,
+        'existing_review' => $existingReview ? [
+            'id' => $existingReview->id,
             'rating' => (float) $existingReview->rating,
-            'text'   => $existingReview->text,
+            'text' => $existingReview->text,
         ] : null,
-        'approved_reviews' => Review::approved()->with('user')->latest()->get()->map(fn ($r) => [
-            'id'         => (string) $r->id,
-            'rating'     => (float) $r->rating,
-            'text'       => $r->text,
-            'authorName' => $r->reviewer_name ?? $r->user?->name ?? 'Pengguna',
-            'authorDate' => $r->created_at->format('d M Y'),
-            'avatar'     => $r->user?->avatar
-                ? '/storage/' . $r->user->avatar
-                : '/assets/icons/ulasan-malang-tennis-academy-ubsc.avif',
+        'approved_reviews' => $reviewFeed->reviews(),
+        'testimonials' => Testimonial::active()->ordered()->with('media')->get()->map(fn ($t) => [
+            'id' => $t->id,
+            'image' => $t->imageUrl(),
+            'quote' => $t->quote,
+            'authorName' => $t->author_name,
+            'authorRole' => $t->author_role,
+            'authorLogo' => $t->logoUrl(),
         ])->values()->all(),
     ]);
-})->middleware([RedirectStaffFromPublic::class, 'throttle:60,1'])->name('booking');
+})->middleware(RedirectStaffFromPublic::class)->name('booking');
+
+Route::get('/booking/reviews/feed', [ReviewController::class, 'index'])
+    ->middleware([RedirectStaffFromPublic::class, 'throttle:120,1'])
+    ->name('booking.reviews.feed');
+
+Route::get('/booking/availability', [PublicBookingController::class, 'availability'])
+    ->middleware('throttle:booking-availability')
+    ->name('booking.availability');
 
 Route::get('/booking/slots', [PublicBookingController::class, 'slots'])
-    ->middleware('throttle:120,1')
+    ->middleware('throttle:booking-slots')
     ->name('booking.slots');
+
+Route::get(
+    '/invoice/booking/{bookingOrder}/verify',
+    [InvoiceController::class, 'verify'],
+)
+    ->middleware(['signed', 'throttle:30,1'])
+    ->name('checkout.booking.invoice.verify');
+
+Route::get(
+    '/invoice/membership/{membership}/verify',
+    [InvoiceController::class, 'verifyMembership'],
+)
+    ->middleware(['signed', 'throttle:30,1'])
+    ->name('checkout.membership.invoice.verify');
 
 Route::get('/coming-soon', function () {
     return Inertia::render('ComingSoon');
@@ -213,15 +314,37 @@ Route::middleware(['auth', 'verified', RedirectStaffFromPublic::class])->group(f
     Route::post('/reviews', [ReviewController::class, 'store'])->name('reviews.store');
 
     Route::post('/checkout/booking', [PublicCheckoutController::class, 'store'])
+        ->middleware('throttle:booking-checkout')
         ->name('checkout.booking.store');
     Route::get('/checkout/booking/{bookingOrder}', [PublicCheckoutController::class, 'show'])
         ->name('checkout.booking.show');
     Route::post('/checkout/booking/{bookingOrder}/pay', [MockPaymentController::class, 'pay'])
+        ->middleware('throttle:booking-payment')
         ->name('checkout.booking.mock-pay');
     Route::get('/checkout/booking/{bookingOrder}/success', [PublicCheckoutController::class, 'success'])
         ->name('checkout.booking.success');
     Route::get('/checkout/booking/{bookingOrder}/invoice.pdf', [InvoiceController::class, 'booking'])
         ->name('checkout.booking.invoice');
+
+    Route::get('/checkout/membership/{membership}', [MembershipCheckoutController::class, 'show'])
+        ->name('checkout.membership.show');
+    Route::post('/checkout/membership/{membership}/pay', [MembershipCheckoutController::class, 'pay'])
+        ->middleware('throttle:10,1')
+        ->name('checkout.membership.pay');
+    Route::get('/checkout/membership/{membership}/success', [MembershipCheckoutController::class, 'success'])
+        ->name('checkout.membership.success');
+    Route::get('/checkout/membership/{membership}/invoice.pdf', [InvoiceController::class, 'membership'])
+        ->name('checkout.membership.invoice');
+
+    Route::post('/membership/registrations', [PublicMembershipController::class, 'store'])
+        ->middleware('throttle:10,1')
+        ->name('membership.registrations.store');
+    Route::get('/membership/registrations/{membership}', [PublicMembershipController::class, 'show'])
+        ->middleware('throttle:60,1')
+        ->name('membership.registrations.show');
+    Route::post('/membership/registrations/{membership}/pay', [PublicMembershipController::class, 'pay'])
+        ->middleware('throttle:10,1')
+        ->name('membership.registrations.pay');
 
     Route::get('/profile', function (Request $request) {
         if ($request->user()?->hasAnyRole([
@@ -239,51 +362,10 @@ Route::middleware(['auth', 'verified', RedirectStaffFromPublic::class])->group(f
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    Route::get('/user/transactions', function () {
-        $transactions = Transaction::where('user_id', auth()->id())
-            ->with('transactionable')
-            ->latest()
-            ->take(20)
-            ->get();
-
-        $transactions->each(function ($t) {
-            if ($t->transactionable instanceof Booking) {
-                $t->transactionable->loadMissing('facility');
-            } elseif ($t->transactionable instanceof Membership) {
-                $t->transactionable->loadMissing('plan');
-            }
-        });
-
-        return response()->json($transactions->map(fn ($t) => [
-            'id'             => $t->id,
-            'receipt_number' => $t->receipt_number,
-            'xendit_invoice_id' => $t->xendit_invoice_id,
-            'amount'         => $t->amount,
-            'payment_status' => $t->payment_status,
-            'checkout_url'   => $t->checkout_url,
-            'paid_at'        => $t->paid_at?->toDateTimeString(),
-            'created_at'     => $t->created_at->toDateTimeString(),
-            'type'           => $t->transactionable instanceof Membership ? 'membership' : 'booking',
-            'facility_name'  => $t->transactionable instanceof Booking
-                ? ($t->transactionable->facility?->name ?? '-')
-                : '-',
-            'booking_date'   => $t->transactionable instanceof Booking
-                ? $t->transactionable->booking_date
-                : null,
-            'membership_plan' => $t->transactionable instanceof Membership
-                ? ($t->transactionable->plan?->name ?? 'Manual')
-                : null,
-            'membership_status' => $t->transactionable instanceof Membership
-                ? $t->transactionable->status
-                : null,
-            'membership_period' => $t->transactionable instanceof Membership
-                ? [
-                    'start_date' => $t->transactionable->start_date?->format('Y-m-d'),
-                    'end_date' => $t->transactionable->end_date?->format('Y-m-d'),
-                ]
-                : null,
-        ]));
-    })->name('user.transactions');
+    Route::get('/user/transactions', [UserPurchaseHistoryController::class, 'index'])
+        ->name('user.transactions');
+    Route::get('/user/membership', [UserMembershipController::class, 'show'])
+        ->name('user.membership');
 });
 
 // ─── Admin ────────────────────────────────────────────────────────────────────
@@ -295,6 +377,9 @@ Route::middleware([
     ->prefix('ubsc-staff')
     ->name('admin.')
     ->group(function () {
+
+        Route::get('brand/ubsc-pro-logo', AdminBrandAssetController::class)
+            ->name('brand.logo');
 
         Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
         Route::post('notifications/read', [NotificationController::class, 'markRead'])->name('notifications.read');
@@ -308,10 +393,10 @@ Route::middleware([
 
         // Membership Plans (must precede {membership} wildcard routes)
         Route::prefix('memberships/plans')->name('memberships.plans.')->group(function () {
-            Route::get('',           [MembershipPlanController::class, 'index'])->name('index');
-            Route::post('',          [MembershipPlanController::class, 'store'])->name('store');
-            Route::patch('{plan}',   [MembershipPlanController::class, 'update'])->name('update');
-            Route::delete('{plan}',  [MembershipPlanController::class, 'destroy'])->name('destroy');
+            Route::get('', [MembershipPlanController::class, 'index'])->name('index');
+            Route::post('', [MembershipPlanController::class, 'store'])->name('store');
+            Route::patch('{plan}', [MembershipPlanController::class, 'update'])->name('update');
+            Route::delete('{plan}', [MembershipPlanController::class, 'destroy'])->name('destroy');
         });
 
         // Memberships
@@ -330,24 +415,24 @@ Route::middleware([
 
         // Dashboard
         Route::get('/', function () {
-            $now              = now();
-            $prevMonth        = $now->month === 1 ? 12 : $now->month - 1;
-            $prevYear         = $now->month === 1 ? $now->year - 1 : $now->year;
-            $currentRevenue   = (int) Transaction::where('payment_status', 'PAID')
+            $now = now();
+            $prevMonth = $now->month === 1 ? 12 : $now->month - 1;
+            $prevYear = $now->month === 1 ? $now->year - 1 : $now->year;
+            $currentRevenue = (int) Transaction::where('payment_status', 'PAID')
                 ->whereMonth('paid_at', $now->month)
                 ->whereYear('paid_at', $now->year)
                 ->where('paid_at', '<=', $now)
                 ->sum('amount');
             $lastMonthRevenue = (int) Transaction::where('payment_status', 'PAID')->whereMonth('paid_at', $prevMonth)->whereYear('paid_at', $prevYear)->sum('amount');
-            $revenueTrend = match(true) {
+            $revenueTrend = match (true) {
                 $lastMonthRevenue > 0 => round((($currentRevenue - $lastMonthRevenue) / $lastMonthRevenue) * 100, 1),
-                $currentRevenue > 0  => 100.0,
-                default              => 0.0,
+                $currentRevenue > 0 => 100.0,
+                default => 0.0,
             };
 
             // Daily revenue array for the current month (full IDR, one value per day)
-            $daysInMonth    = (int) $now->daysInMonth;
-            $dailyRaw       = Transaction::where('payment_status', 'PAID')
+            $daysInMonth = (int) $now->daysInMonth;
+            $dailyRaw = Transaction::where('payment_status', 'PAID')
                 ->whereMonth('paid_at', $now->month)
                 ->whereYear('paid_at', $now->year)
                 ->where('paid_at', '<=', $now)
@@ -355,14 +440,14 @@ Route::middleware([
                 ->groupBy('day')
                 ->pluck('total', 'day');
             $dailyRevenue = array_map(
-                fn($d) => (int) ($dailyRaw[$d] ?? 0),
+                fn ($d) => (int) ($dailyRaw[$d] ?? 0),
                 range(1, $daysInMonth),
             );
 
             // Today's occupancy per active facility
             // Operating window = 15 hours = 900 minutes
             $operatingMinutes = 900;
-            $todayBookings    = Booking::with('facility')
+            $todayBookings = Booking::with('facility')
                 ->whereDate('booking_date', today())
                 ->whereIn('status', ['confirmed', 'pending'])
                 ->get();
@@ -372,10 +457,11 @@ Route::middleware([
             $occupancyData = $activeFacilities->values()->map(function ($facility, $idx) use ($todayBookings, $operatingMinutes, $COLORS) {
                 $booked = $todayBookings
                     ->where('facility_id', $facility->id)
-                    ->sum(fn($b) => \Carbon\Carbon::parse($b->start_time)->diffInMinutes(\Carbon\Carbon::parse($b->end_time)));
+                    ->sum(fn ($b) => \Carbon\Carbon::parse($b->start_time)->diffInMinutes(\Carbon\Carbon::parse($b->end_time)));
+
                 return [
-                    'name'  => $facility->name,
-                    'pct'   => (int) min(100, round($booked / $operatingMinutes * 100)),
+                    'name' => $facility->name,
+                    'pct' => (int) min(100, round($booked / $operatingMinutes * 100)),
                     'color' => $COLORS[$idx % count($COLORS)],
                 ];
             })->all();
@@ -385,24 +471,24 @@ Route::middleware([
                 ->latest()
                 ->take(5)
                 ->get()
-                ->map(fn($b) => [
-                    'id'       => $b->id,
-                    'type'     => 'booking',
-                    'title'    => 'Reservasi Baru',
-                    'subtitle' => ($b->customer_name ?? $b->user?->name ?? 'Guest') . ' · ' . ($b->facility?->name ?? '-'),
-                    'time'     => $b->created_at->diffForHumans(),
+                ->map(fn ($b) => [
+                    'id' => $b->id,
+                    'type' => 'booking',
+                    'title' => 'Reservasi Baru',
+                    'subtitle' => ($b->customer_name ?? $b->user?->name ?? 'Guest').' · '.($b->facility?->name ?? '-'),
+                    'time' => $b->created_at->diffForHumans(),
                 ]);
 
             $recentMemberships = Membership::with('user')
                 ->latest()
                 ->take(3)
                 ->get()
-                ->map(fn($m) => [
-                    'id'       => $m->id,
-                    'type'     => 'membership',
-                    'title'    => 'Membership Baru',
+                ->map(fn ($m) => [
+                    'id' => $m->id,
+                    'type' => 'membership',
+                    'title' => 'Membership Baru',
                     'subtitle' => $m->customer_name ?? $m->user?->name ?? 'Guest',
-                    'time'     => $m->created_at->diffForHumans(),
+                    'time' => $m->created_at->diffForHumans(),
                 ]);
 
             $recentPayments = Transaction::where('payment_status', 'PAID')
@@ -410,13 +496,13 @@ Route::middleware([
                 ->orderByDesc('paid_at')
                 ->take(5)
                 ->get()
-                ->map(fn($t) => [
-                    'id'       => $t->id,
-                    'type'     => 'payment',
-                    'title'    => 'Pembayaran Diterima',
-                    'subtitle' => 'Rp ' . number_format($t->amount, 0, ',', '.') . ' · '
-                        . ($t->user?->name ?? $t->transactionable?->customer_name ?? 'Guest'),
-                    'time'     => $t->paid_at?->diffForHumans() ?? '-',
+                ->map(fn ($t) => [
+                    'id' => $t->id,
+                    'type' => 'payment',
+                    'title' => 'Pembayaran Diterima',
+                    'subtitle' => 'Rp '.number_format($t->amount, 0, ',', '.').' · '
+                        .($t->user?->name ?? $t->transactionable?->customer_name ?? 'Guest'),
+                    'time' => $t->paid_at?->diffForHumans() ?? '-',
                 ]);
 
             $recentActivity = $recentBookings
@@ -429,24 +515,24 @@ Route::middleware([
 
             return Inertia::render('Admin/Dashboard', [
                 'stats' => [
-                    'pendingIdentities'  => User::where('identity_status', 'pending')->count(),
-                    'activeFacilities'   => $activeFacilities->count(),
-                    'todaysBookings'     => Booking::where('booking_date', today())->whereIn('status', ['pending', 'confirmed'])->count(),
-                    'totalRevenue'       => $currentRevenue,
-                    'activeMemberships'  => Membership::where('status', 'active')->count(),
+                    'pendingIdentities' => User::where('identity_status', 'pending')->count(),
+                    'activeFacilities' => $activeFacilities->count(),
+                    'todaysBookings' => Booking::where('booking_date', today())->whereIn('status', ['pending', 'confirmed'])->count(),
+                    'totalRevenue' => $currentRevenue,
+                    'activeMemberships' => Membership::effectiveAt()->count(),
                 ],
-                'revenueTrend'      => $revenueTrend,
-                'dailyRevenue'      => $dailyRevenue,
-                'daysInMonth'       => $daysInMonth,
+                'revenueTrend' => $revenueTrend,
+                'dailyRevenue' => $dailyRevenue,
+                'daysInMonth' => $daysInMonth,
                 'currentDayInMonth' => (int) $now->day,
                 'currentMonthLabel' => $now->translatedFormat('M Y'),
-                'occupancyData'     => array_values($occupancyData),
-                'recentActivity'    => $recentActivity,
-                'gym_traffic'       => SystemSetting::get('gym_traffic', 'Low Occupancy'),
-                'info_banners'      => InfoBanner::ordered()->get()->map(fn ($b) => [
-                    'id'         => $b->id,
-                    'message'    => $b->message,
-                    'is_active'  => $b->is_active,
+                'occupancyData' => array_values($occupancyData),
+                'recentActivity' => $recentActivity,
+                'gym_traffic' => SystemSetting::get('gym_traffic', 'Low Occupancy'),
+                'info_banners' => InfoBanner::ordered()->get()->map(fn ($b) => [
+                    'id' => $b->id,
+                    'message' => $b->message,
+                    'is_active' => $b->is_active,
                     'sort_order' => $b->sort_order,
                 ])->values()->all(),
             ]);
@@ -505,23 +591,32 @@ Route::middleware([
                 403,
             );
 
-            $facility->load(['prices' => fn ($query) => $query->orderBy('sort_order')]);
+            $facility->load([
+                'category',
+                'prices' => fn ($query) => $query->orderBy('sort_order'),
+            ]);
+
             return Inertia::render('Admin/Facilities/Pricing', [
-                'facility' => ['id' => $facility->id, 'name' => $facility->name],
-                'prices'   => $facility->prices->map(fn ($p) => [
-                    'id'               => $p->id,
-                    'user_category'    => $p->user_category,
-                    'label'            => $p->label,
-                    'price'            => $p->price,
+                'facility' => [
+                    'id' => $facility->id,
+                    'name' => $facility->name,
+                    'category' => $facility->category?->name,
+                    'venue_type' => $facility->venue_type,
+                ],
+                'prices' => $facility->prices->map(fn ($p) => [
+                    'id' => $p->id,
+                    'user_category' => $p->user_category,
+                    'label' => $p->label,
+                    'price' => $p->price,
                     'duration_minutes' => $p->duration_minutes ?? 60,
-                    'schedule_type'    => $p->schedule_type,
-                    'applicable_days'  => $p->applicable_days,
-                    'starts_at'        => $p->starts_at ? substr($p->starts_at, 0, 5) : null,
-                    'ends_at'          => $p->ends_at ? substr($p->ends_at, 0, 5) : null,
-                    'starts_on'        => $p->starts_on?->format('Y-m-d'),
-                    'ends_on'          => $p->ends_on?->format('Y-m-d'),
-                    'notes'            => $p->notes,
-                    'sort_order'       => $p->sort_order,
+                    'schedule_type' => $p->schedule_type,
+                    'applicable_days' => $p->applicable_days,
+                    'starts_at' => $p->starts_at ? substr($p->starts_at, 0, 5) : null,
+                    'ends_at' => $p->ends_at ? substr($p->ends_at, 0, 5) : null,
+                    'starts_on' => $p->starts_on?->format('Y-m-d'),
+                    'ends_on' => $p->ends_on?->format('Y-m-d'),
+                    'notes' => $p->notes,
+                    'sort_order' => $p->sort_order,
                 ])->values()->all(),
             ]);
         })->name('facilities.pricing');
@@ -610,14 +705,15 @@ Route::middleware([
         Route::put('settings/gym-traffic', function (\Illuminate\Http\Request $request) {
             $request->validate(['value' => ['required', 'in:Low Occupancy,Medium Occupancy,High Occupancy,We Are Close']]);
             SystemSetting::set('gym_traffic', $request->value);
+
             return back();
         })->name('settings.gym-traffic.update');
 
         // Info Banners (mutation-only; index rendered inside admin.news.index)
-        Route::post('info-banners',               [InfoBannerController::class, 'store'])   ->name('info-banners.store');
-        Route::put('info-banners/{infoBanner}',   [InfoBannerController::class, 'update'])  ->name('info-banners.update');
-        Route::delete('info-banners/{infoBanner}',[InfoBannerController::class, 'destroy']) ->name('info-banners.destroy');
-        Route::post('info-banners/reorder',       [InfoBannerController::class, 'reorder']) ->name('info-banners.reorder');
+        Route::post('info-banners', [InfoBannerController::class, 'store'])->name('info-banners.store');
+        Route::put('info-banners/{infoBanner}', [InfoBannerController::class, 'update'])->name('info-banners.update');
+        Route::delete('info-banners/{infoBanner}', [InfoBannerController::class, 'destroy'])->name('info-banners.destroy');
+        Route::post('info-banners/reorder', [InfoBannerController::class, 'reorder'])->name('info-banners.reorder');
 
         // News Categories
         Route::post('news-categories', [NewsCategoryController::class, 'store'])

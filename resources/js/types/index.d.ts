@@ -17,6 +17,7 @@ export interface User {
     is_google?: boolean;
     role?: string | null;
     member_status?: 'none' | 'gym_only' | 'booked_only' | 'gym_and_booked';
+    member_status_next_transition_at?: string | null;
     permissions?: string[];
 }
 
@@ -42,6 +43,21 @@ export interface AdminNotificationsPayload {
     generated_at: string;
 }
 
+export interface SeoPayload {
+    title: string;
+    description: string;
+    canonical: string;
+    robots: string;
+    image?: string | null;
+    image_alt?: string | null;
+    type?: string;
+    site_name?: string;
+    locale?: string;
+    previous?: string | null;
+    next?: string | null;
+    json_ld?: Record<string, unknown> | null;
+}
+
 export type PageProps<
     T extends Record<string, unknown> = Record<string, unknown>,
 > = T & {
@@ -55,6 +71,7 @@ export type PageProps<
     announcements?: string[];
     admin_notifications?: AdminNotificationsPayload;
     gym_traffic?: string;
+    seo?: SeoPayload;
 };
 
 // ─── Facility Types ───────────────────────────────────────────────────────────
@@ -87,6 +104,10 @@ export interface FacilityItem {
     class_code?: string | null;
     rating?: number;
     display_metadata?: Record<string, unknown> | null;
+    reservation_method?: "auto" | "website" | "whatsapp" | "external";
+    reservation_url?: string | null;
+    reservation_phone?: string | null;
+    reservation_message?: string | null;
     is_active: boolean;
     sort_order: number;
     category: FacilityCategory;
@@ -244,18 +265,26 @@ export interface AdminBooking {
     transaction: BookingTransaction | null;
 }
 
-export type MembershipStatus = "active" | "expired" | "cancelled";
+export type MembershipStatus = "pending_payment" | "active" | "expired" | "cancelled";
+
+export type MembershipPlanTier = "hemat" | "favorit" | "performa" | "eksklusif";
 
 export interface MembershipPlanItem {
     id: number;
     name: string;
     description: string | null;
+    tier: MembershipPlanTier;
     public_badge?: string | null;
     savings_label?: string | null;
     cta_label?: string | null;
     card_image_url?: string | null;
+    is_primary?: boolean;
     price: number;
+    compare_at_price?: number | null;
+    discount_percent?: number | null;
     duration_months: number;
+    duration_label?: string;
+    duration_lead?: string;
     features: string[];
     is_active: boolean;
     sort_order: number;
@@ -271,8 +300,19 @@ export interface AdminMembership {
     created_by_name?: string | null;
     created_via?: string | null;
     plan_name: string | null;
+    plan_tier?: MembershipPlanTier | null;
+    plan_tier_label?: string | null;
+    plan_duration_months?: number | null;
+    plan_duration_label?: string | null;
     customer_name: string;
     customer_phone: string | null;
+    registration?: {
+        email: string | null;
+        phone: string | null;
+        gender: string | null;
+        category: string | null;
+        expires_at: string | null;
+    };
     start_date: string;          // YYYY-MM-DD
     end_date: string;            // YYYY-MM-DD
     status: MembershipStatus;

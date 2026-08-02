@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Notifications\Auth\ResetPasswordNotification;
+use App\Support\PublicReturnPath;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -13,7 +15,7 @@ use Spatie\Permission\Traits\HasRoles;
 class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable, HasRoles;
+    use HasFactory, HasRoles, Notifiable;
 
     protected $fillable = [
         'name',
@@ -42,8 +44,18 @@ class User extends Authenticatable implements MustVerifyEmail
         return [
             'email_verified_at' => 'datetime',
             'birth_date' => 'date',
-            'password'          => 'hashed',
+            'password' => 'hashed',
         ];
+    }
+
+    public function sendPasswordResetNotification(
+        #[\SensitiveParameter] $token,
+    ): void {
+        $returnTo = app()->bound('request')
+            ? PublicReturnPath::normalize(request()->input('return_to'))
+            : null;
+
+        $this->notify(new ResetPasswordNotification($token, $returnTo));
     }
 
     public function getAvatarUrlAttribute(): ?string
@@ -54,7 +66,7 @@ class User extends Authenticatable implements MustVerifyEmail
 
         return Str::startsWith($this->avatar, ['http://', 'https://', '/'])
             ? $this->avatar
-            : asset('storage/' . $this->avatar);
+            : asset('storage/'.$this->avatar);
     }
 
     public function news(): HasMany
@@ -70,5 +82,10 @@ class User extends Authenticatable implements MustVerifyEmail
     public function memberships(): HasMany
     {
         return $this->hasMany(Membership::class);
+    }
+
+    public function paymentAttempts(): HasMany
+    {
+        return $this->hasMany(PaymentAttempt::class);
     }
 }
