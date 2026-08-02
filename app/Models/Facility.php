@@ -25,6 +25,10 @@ class Facility extends Model implements HasMedia
         'class_code',
         'rating',
         'display_metadata',
+        'reservation_method',
+        'reservation_url',
+        'reservation_phone',
+        'reservation_message',
         'is_active',
         'sort_order',
     ];
@@ -69,5 +73,27 @@ class Facility extends Model implements HasMedia
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('is_active', true);
+    }
+
+    /**
+     * Keep the public booking directory and reservation-link resolver on the
+     * same rule. If booking visibility gains its own flag later, it only needs
+     * to be changed here and in isVisibleInBookingDirectory().
+     */
+    public function scopeVisibleInBookingDirectory(Builder $query): Builder
+    {
+        return $query
+            ->where('is_active', true)
+            ->whereIn('reservation_method', ['website', 'auto']);
+    }
+
+    public function isVisibleInBookingDirectory(): bool
+    {
+        return $this->is_active === true
+            && in_array(
+                $this->reservation_method,
+                ['website', 'auto'],
+                true,
+            );
     }
 }

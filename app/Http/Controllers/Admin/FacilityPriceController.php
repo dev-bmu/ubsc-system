@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Facility;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class FacilityPriceController extends Controller
@@ -63,24 +64,26 @@ class FacilityPriceController extends Controller
 
         $validated = $validator->validate();
 
-        $facility->prices()->delete();
+        DB::transaction(function () use ($facility, $validated): void {
+            $facility->prices()->delete();
 
-        foreach ($validated['prices'] as $i => $p) {
-            $facility->prices()->create([
-                'user_category'   => $p['user_category'],
-                'label'           => $p['label'],
-                'price'           => $p['price'],
-                'duration_minutes'=> $p['duration_minutes'] ?? 60,
-                'schedule_type'   => $p['schedule_type'] ?? 'regular',
-                'applicable_days' => $p['applicable_days'] ?? null,
-                'starts_at'       => $p['starts_at'] ?? null,
-                'ends_at'         => $p['ends_at'] ?? null,
-                'starts_on'       => $p['starts_on'] ?? null,
-                'ends_on'         => $p['ends_on'] ?? null,
-                'notes'           => $p['notes'] ?? null,
-                'sort_order'      => $p['sort_order'] ?? $i,
-            ]);
-        }
+            foreach ($validated['prices'] as $i => $p) {
+                $facility->prices()->create([
+                    'user_category'   => $p['user_category'],
+                    'label'           => $p['label'],
+                    'price'           => $p['price'],
+                    'duration_minutes'=> $p['duration_minutes'] ?? 60,
+                    'schedule_type'   => $p['schedule_type'] ?? 'regular',
+                    'applicable_days' => $p['applicable_days'] ?? null,
+                    'starts_at'       => $p['starts_at'] ?? null,
+                    'ends_at'         => $p['ends_at'] ?? null,
+                    'starts_on'       => $p['starts_on'] ?? null,
+                    'ends_on'         => $p['ends_on'] ?? null,
+                    'notes'           => $p['notes'] ?? null,
+                    'sort_order'      => $p['sort_order'] ?? $i,
+                ]);
+            }
+        });
 
         return back()->with('success', 'Harga berhasil disimpan.');
     }

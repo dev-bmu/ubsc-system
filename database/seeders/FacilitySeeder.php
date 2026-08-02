@@ -46,6 +46,16 @@ class FacilitySeeder extends Seeder
                     'sort_order'           => $data['sort_order'],
                 ]
             );
+            $desiredReservationMethod =
+                $data['sort_order'] <= 4 ? 'website' : 'whatsapp';
+            if (
+                $facility->wasRecentlyCreated
+                || $facility->reservation_method === 'auto'
+            ) {
+                $facility->update([
+                    'reservation_method' => $desiredReservationMethod,
+                ]);
+            }
 
             if ($facility->getMedia('hero')->isEmpty()) {
                 $path = public_path('assets/images/' . $data['image']);
@@ -70,6 +80,14 @@ class FacilitySeeder extends Seeder
                     'sort_order'           => $data['sort_order'],
                 ]
             );
+            if (
+                $facility->wasRecentlyCreated
+                || $facility->reservation_method === 'auto'
+            ) {
+                $facility->update([
+                    'reservation_method' => 'whatsapp',
+                ]);
+            }
 
             if ($facility->getMedia('hero')->isEmpty()) {
                 $path = public_path('assets/images/' . $data['image']);

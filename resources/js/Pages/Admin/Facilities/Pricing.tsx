@@ -40,7 +40,12 @@ interface PriceRow {
 }
 
 type PricingPageProps = PageProps<{
-    facility: { id: number; name: string };
+    facility: {
+        id: number;
+        name: string;
+        category?: string | null;
+        venue_type?: string | null;
+    };
     prices: PriceRow[];
 }>;
 
@@ -724,7 +729,21 @@ export default function FacilityPricing() {
                                     <p className="mt-1 truncate font-clash text-lg font-semibold text-slate-950">
                                         {facility.name}
                                     </p>
+                                    <p className="mt-1 font-bdo text-[11px] font-semibold leading-relaxed text-slate-500">
+                                        {[facility.category, facility.venue_type]
+                                            .filter(Boolean)
+                                            .join(" · ") ||
+                                            "Klasifikasi belum dilengkapi"}
+                                    </p>
                                 </div>
+                            </div>
+
+                            <div className="mt-4 rounded-[5px] border border-[#B9DCEB] bg-[#F2FAFD] px-3.5 py-3">
+                                <p className="font-bdo text-[11px] font-semibold leading-relaxed text-[#456878]">
+                                    Setelah disimpan, harga ini otomatis dipakai
+                                    pada halaman pricing, booking, checkout, dan
+                                    perhitungan transaksi.
+                                </p>
                             </div>
 
                             <div className="mt-5 grid grid-cols-2 gap-3">

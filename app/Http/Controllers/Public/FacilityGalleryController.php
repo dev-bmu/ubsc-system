@@ -108,9 +108,15 @@ class FacilityGalleryController extends Controller
                 'description' => $description,
                 'canonical' => $canonical,
                 'image' => $firstImage ? $this->absolute($firstImage) : null,
+                'image_alt' => $section
+                    ? "Galeri {$section->name} UB Sport Center"
+                    : 'Galeri fasilitas olahraga UB Sport Center',
                 'robots' => collect(['q', 'location', 'media_type', 'year', 'media'])->contains(
                     fn (string $key) => $request->filled($key),
                 ) ? 'noindex,follow' : 'index,follow,max-image-preview:large',
+                'type' => 'website',
+                'site_name' => config('seo.site_name', 'UB Sport Center'),
+                'locale' => config('seo.locale', 'id_ID'),
                 'previous' => $items->previousPageUrl()
                     ? $this->canonicalPagination($canonicalPath, $items->currentPage() - 1)
                     : null,

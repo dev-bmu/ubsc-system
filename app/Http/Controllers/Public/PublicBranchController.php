@@ -3,13 +3,15 @@
 namespace App\Http\Controllers\Public;
 
 use App\Http\Controllers\Controller;
+use App\Support\PublicSeo;
+use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class PublicBranchController extends Controller
 {
-    public function show(string $slug): Response
+    public function show(Request $request, string $slug): Response
     {
         $branches = $this->branches();
         $branch = $branches->firstWhere('slug', $slug);
@@ -22,6 +24,7 @@ class PublicBranchController extends Controller
                 ->where('slug', '!==', $slug)
                 ->values()
                 ->all(),
+            'seo' => PublicSeo::branch($request, $branch),
         ]);
     }
 

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\BookingSchedule;
+use App\Services\BookingCalendarService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -13,37 +14,16 @@ use Inertia\Response;
 
 class ScheduleController extends Controller
 {
-    private const MONTH_NAMES = [
-        1  => 'Januari',  2  => 'Februari', 3  => 'Maret',
-        4  => 'April',    5  => 'Mei',       6  => 'Juni',
-        7  => 'Juli',     8  => 'Agustus',   9  => 'September',
-        10 => 'Oktober',  11 => 'November',  12 => 'Desember',
-    ];
+    public function __construct(
+        private readonly BookingCalendarService $calendarService,
+    ) {}
 
     public function index(): Response
     {
         $this->authorizeScheduleAccess();
 
-        $rows = collect(range(0, 6))->map(function (int $offset) {
-            $date  = Carbon::now()->startOfMonth()->addMonths($offset);
-            $month = $date->month;
-            $year  = $date->year;
-
-            $schedule = BookingSchedule::where('month', $month)
-                ->where('year', $year)
-                ->first();
-
-            return [
-                'month'        => $month,
-                'year'         => $year,
-                'label'        => self::MONTH_NAMES[$month] . ' ' . $year,
-                'is_open'      => (bool) ($schedule?->is_open ?? false),
-                'closed_dates' => BookingSchedule::cleanClosedDatesForMonth($schedule?->closed_dates, $month, $year),
-            ];
-        });
-
         return Inertia::render('Admin/Settings/Schedules/Index', [
-            'schedules' => $rows,
+            'schedules' => $this->calendarService->adminScheduleRows(),
         ]);
     }
 
@@ -63,8 +43,9 @@ class ScheduleController extends Controller
 
         $schedule->is_open = !$schedule->is_open;
         $schedule->save();
+        $this->calendarService->bumpRevision();
 
-        $label  = self::MONTH_NAMES[$data['month']] . ' ' . $data['year'];
+        $label = $this->calendarService->monthLabel($data['month'], $data['year']);
         $status = $schedule->is_open ? 'dibuka' : 'ditutup';
 
         return back()->with('success', "Jadwal {$label} berhasil {$status}.");
@@ -114,6 +95,7 @@ class ScheduleController extends Controller
             ['month' => $data['month'], 'year' => $data['year']],
             ['closed_dates' => $closedDates],
         );
+        $this->calendarService->bumpRevision();
 
         return back()->with('success', 'Tanggal tutup berhasil disimpan.');
     }
@@ -128,8 +110,9 @@ class ScheduleController extends Controller
             ['month' => $next->month, 'year' => $next->year],
             ['is_open' => true],
         );
+        $this->calendarService->bumpRevision();
 
-        $label = self::MONTH_NAMES[$next->month] . ' ' . $next->year;
+        $label = $this->calendarService->monthLabel($next->month, $next->year);
 
         return back()->with('success', "Jadwal {$label} berhasil dibuka.");
     }

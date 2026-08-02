@@ -2,6 +2,7 @@ import { Head, Link, router, useForm, usePage } from "@inertiajs/react";
 import {
     ArrowLeft,
     Building2,
+    CalendarCheck2,
     ChevronDown,
     Database,
     Image,
@@ -13,12 +14,14 @@ import {
     Trash2,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
     MultiDropzone,
     SingleDropzone,
     type ExistingMedia,
 } from "@/Components/Admin/ImageDropzone";
 import AdminLayout from "@/Layouts/AdminLayout";
+import { isOutdoorFacility } from "@/lib/facilityClassification";
 import { cn } from "@/lib/utils";
 import type { FacilityCategory, FacilityItem, PageProps } from "@/types";
 import type { FormEvent, ReactNode } from "react";
@@ -183,33 +186,122 @@ interface DetailItem {
     key: string;
     value: string;
 }
+interface IndoorPricingItem {
+    label: string;
+    wargaPrice: string;
+    umumPrice: string;
+}
+interface ClassPricingItem {
+    level: string;
+    wargaPrice: string;
+    umumPrice: string;
+}
+interface PublicPricingItem {
+    label: string;
+    value: string;
+}
+interface PricingPresentation {
+    indoorPeriods: IndoorPricingItem[];
+    classRates: ClassPricingItem[];
+    classRentals: PublicPricingItem[];
+    outdoorRates: PublicPricingItem[];
+}
 interface MetadataState {
     periods: Period[];
     daftarHarga: { left: DaftarHargaItem[]; right: DaftarHargaItem[] };
     additionalDetails: DetailItem[];
+    pricingPresentation: PricingPresentation;
+    [key: string]: unknown;
 }
 
 function emptyMeta(): MetadataState {
-    return { periods: [], daftarHarga: { left: [], right: [] }, additionalDetails: [] };
+    return {
+        periods: [],
+        daftarHarga: { left: [], right: [] },
+        additionalDetails: [],
+        pricingPresentation: {
+            indoorPeriods: [],
+            classRates: [],
+            classRentals: [],
+            outdoorRates: [],
+        },
+    };
 }
 
 function parseMeta(raw: Record<string, unknown> | null | undefined): MetadataState {
     if (!raw) return emptyMeta();
     const dh = raw.daftarHarga as { left?: DaftarHargaItem[]; right?: DaftarHargaItem[] } | undefined;
+    const presentation = (
+        raw.pricingPresentation &&
+        typeof raw.pricingPresentation === "object" &&
+        !Array.isArray(raw.pricingPresentation)
+            ? raw.pricingPresentation
+            : {}
+    ) as Partial<PricingPresentation>;
+    const details = Array.isArray(raw.additionalDetails)
+        ? raw.additionalDetails.flatMap((entry) => {
+              if (typeof entry === "string" || typeof entry === "number") {
+                  const value = String(entry).trim();
+                  return value ? [{ key: value, value: "" }] : [];
+              }
+              if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+                  return [];
+              }
+              const record = entry as Record<string, unknown>;
+              const key = String(record.key ?? record.label ?? "").trim();
+              const value = String(record.value ?? record.harga ?? "").trim();
+              return key || value ? [{ key, value }] : [];
+          })
+        : [];
+
     return {
-        periods:           (raw.periods as Period[]) ?? [],
-        daftarHarga:       { left: dh?.left ?? [], right: dh?.right ?? [] },
-        additionalDetails: (raw.additionalDetails as DetailItem[]) ?? [],
+        ...raw,
+        periods: Array.isArray(raw.periods) ? (raw.periods as Period[]) : [],
+        daftarHarga: {
+            left: Array.isArray(dh?.left) ? dh.left : [],
+            right: Array.isArray(dh?.right) ? dh.right : [],
+        },
+        additionalDetails: details,
+        pricingPresentation: {
+            indoorPeriods: Array.isArray(presentation.indoorPeriods)
+                ? presentation.indoorPeriods
+                : [],
+            classRates: Array.isArray(presentation.classRates)
+                ? presentation.classRates
+                : [],
+            classRentals: Array.isArray(presentation.classRentals)
+                ? presentation.classRentals
+                : [],
+            outdoorRates: Array.isArray(presentation.outdoorRates)
+                ? presentation.outdoorRates
+                : [],
+        },
     };
 }
 
 function hasMetaContent(m: MetadataState): boolean {
-    return (
+    const presentationCount =
+        m.pricingPresentation.indoorPeriods.length +
+        m.pricingPresentation.classRates.length +
+        m.pricingPresentation.classRentals.length +
+        m.pricingPresentation.outdoorRates.length;
+    const hasKnownContent =
         m.periods.length > 0 ||
         m.daftarHarga.left.length > 0 ||
         m.daftarHarga.right.length > 0 ||
-        m.additionalDetails.length > 0
-    );
+        m.additionalDetails.length > 0 ||
+        presentationCount > 0;
+    const hasPreservedContent = Object.entries(m).some(([key, value]) => {
+        if (["periods", "daftarHarga", "additionalDetails", "pricingPresentation"].includes(key)) {
+            return false;
+        }
+        if (value === null || value === undefined || value === "") return false;
+        if (Array.isArray(value)) return value.length > 0;
+        if (typeof value === "object") return Object.keys(value).length > 0;
+        return true;
+    });
+
+    return hasKnownContent || hasPreservedContent;
 }
 
 // ── Form types ────────────────────────────────────────────────────────────────
@@ -231,6 +323,10 @@ type FormData = {
     class_code: string;
     rating: number;
     display_metadata: string;
+    reservation_method: "website" | "whatsapp" | "external";
+    reservation_url: string;
+    reservation_phone: string;
+    reservation_message: string;
     is_active: boolean;
     sort_order: number;
     hero: File | null;
@@ -246,7 +342,7 @@ function slugify(str: string): string {
 }
 
 const LOCATIONS = ["Veteran", "Dieng"];
-const VENUE_TYPES = ["Arena Tertutup", "Arena Terbuka", "Kelas & Kebugaran"];
+const VENUE_TYPES = ["Arena Dalam", "Arena Luar", "Kelas & Kebugaran"];
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
 type Weekday = (typeof WEEKDAYS)[number];
 const WEEKDAY_ID: Record<Weekday, string> = {
@@ -283,6 +379,13 @@ function CreatableSelect({
     const [open, setOpen] = useState(false);
     const [input, setInput] = useState(value);
     const wrapperRef = useRef<HTMLDivElement>(null);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+    const [dropdownPosition, setDropdownPosition] = useState<{
+        left: number;
+        top: number;
+        width: number;
+        opensUpward: boolean;
+    } | null>(null);
 
     // Sync input with external value changes (e.g. form reset)
     useEffect(() => { setInput(value); }, [value]);
@@ -292,12 +395,57 @@ function CreatableSelect({
         if (!open) return;
         const handler = (e: MouseEvent) => {
             const t = e.target as HTMLElement;
-            if (!wrapperRef.current?.contains(t)) {
+            if (
+                !wrapperRef.current?.contains(t) &&
+                !dropdownRef.current?.contains(t)
+            ) {
                 setOpen(false);
             }
         };
         document.addEventListener("mousedown", handler);
         return () => document.removeEventListener("mousedown", handler);
+    }, [open]);
+
+    useEffect(() => {
+        if (!open) {
+            setDropdownPosition(null);
+            return;
+        }
+
+        const updateDropdownPosition = () => {
+            const rect = wrapperRef.current?.getBoundingClientRect();
+            if (!rect) return;
+
+            const menuHeight = 232;
+            const viewportPadding = 8;
+            const spaceBelow = window.innerHeight - rect.bottom;
+            const opensUpward =
+                spaceBelow < menuHeight && rect.top > spaceBelow;
+            const width = Math.min(
+                rect.width,
+                window.innerWidth - viewportPadding * 2,
+            );
+            const left = Math.min(
+                Math.max(viewportPadding, rect.left),
+                window.innerWidth - width - viewportPadding,
+            );
+
+            setDropdownPosition({
+                left,
+                top: opensUpward ? rect.top - 4 : rect.bottom + 4,
+                width,
+                opensUpward,
+            });
+        };
+
+        updateDropdownPosition();
+        window.addEventListener("resize", updateDropdownPosition);
+        window.addEventListener("scroll", updateDropdownPosition, true);
+
+        return () => {
+            window.removeEventListener("resize", updateDropdownPosition);
+            window.removeEventListener("scroll", updateDropdownPosition, true);
+        };
     }, [open]);
 
     const filtered = input
@@ -311,8 +459,18 @@ function CreatableSelect({
     const dropdown = open
         ? (
               <div
+                  ref={dropdownRef}
                   data-crselect-drop
-                  className="facility-scrollbar absolute left-0 top-[calc(100%+4px)] z-[80] w-full overflow-hidden rounded-2xl border border-[#F8B5A8]/70 bg-white shadow-[0_24px_60px_-34px_rgba(127,36,25,0.35)]"
+                  className="facility-scrollbar fixed z-[200] overflow-hidden rounded-2xl border border-[#F8B5A8]/70 bg-white shadow-[0_24px_60px_-34px_rgba(127,36,25,0.35)]"
+                  style={{
+                      left: dropdownPosition?.left,
+                      top: dropdownPosition?.top,
+                      width: dropdownPosition?.width,
+                      transform: dropdownPosition?.opensUpward
+                          ? "translateY(-100%)"
+                          : undefined,
+                      visibility: dropdownPosition ? "visible" : "hidden",
+                  }}
               >
                   <div className="max-h-56 overflow-y-auto py-1">
                   {filtered.map((opt) => (
@@ -371,7 +529,9 @@ function CreatableSelect({
                     className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[#B93D2A]/60"
                 />
             </div>
-            {dropdown}
+            {dropdown && typeof document !== "undefined"
+                ? createPortal(dropdown, document.body)
+                : null}
             {error && <p className="mt-1.5 font-bdo text-[11px] text-rose-500">{error}</p>}
         </div>
     );
@@ -555,181 +715,319 @@ function AddRowButton({ label, onClick }: { label: string; onClick: () => void }
 function MetadataBuilder({
     value,
     onChange,
+    pricingHref,
+    context,
 }: {
     value: MetadataState;
     onChange: (next: MetadataState) => void;
+    pricingHref?: string;
+    context: "indoor" | "outdoor" | "class" | "general";
 }) {
-    const [open, setOpen] = useState({ periods: true, daftarHarga: false, details: false });
-
-    const setPeriods = (periods: Period[]) => onChange({ ...value, periods });
-    const setDH      = (daftarHarga: MetadataState["daftarHarga"]) => onChange({ ...value, daftarHarga });
+    const [open, setOpen] = useState({ pricing: true, rentals: true, details: true });
     const setDetails = (additionalDetails: DetailItem[]) => onChange({ ...value, additionalDetails });
+    const setPresentation = (pricingPresentation: PricingPresentation) =>
+        onChange({ ...value, pricingPresentation });
 
     const fieldClass = "min-w-0 flex-1 rounded-xl border border-slate-200/80 bg-white px-3 py-2 font-bdo text-xs text-slate-800 placeholder:text-slate-300 focus:border-[#E35336]/60 focus:outline-none focus:ring-2 focus:ring-[#E35336]/10";
+    const guidance = {
+        indoor: {
+            title: "Layanan tambahan arena",
+            hint: "Contoh: Sewa Raket — Rp10.000 / maksimal 2 jam",
+            keyPlaceholder: "Nama layanan, contoh: Sewa Raket",
+            valuePlaceholder: "Harga atau keterangan, contoh: Rp10.000 / 2 jam",
+        },
+        class: {
+            title: "Persewaan dan fasilitas kelas",
+            hint: "Awali nama persewaan dengan kata “Sewa” agar tampil pada blok Persewaan.",
+            keyPlaceholder: "Nama, contoh: Sewa Ruang Yoga",
+            valuePlaceholder: "Harga atau catatan, contoh: Rp150.000 / sesi",
+        },
+        outdoor: {
+            title: "Informasi tambahan arena luar",
+            hint: "Contoh: Kapasitas — 22 pemain, atau Penerangan — Tersedia",
+            keyPlaceholder: "Nama informasi, contoh: Kapasitas",
+            valuePlaceholder: "Isi informasi, contoh: 22 pemain",
+        },
+        general: {
+            title: "Informasi tambahan",
+            hint: "Tambahkan hanya informasi yang membantu pengunjung.",
+            keyPlaceholder: "Nama informasi",
+            valuePlaceholder: "Isi informasi",
+        },
+    }[context];
+
+    const presentationEditor = context === "indoor" ? (
+        <SubSection
+            label="Tarif yang tampil di Arena Dalam"
+            count={value.pricingPresentation.indoorPeriods.length}
+            open={open.pricing}
+            onToggle={() => setOpen((state) => ({ ...state, pricing: !state.pricing }))}
+            hint="Tampilan halaman pricing; harga transaksi tetap dikelola terpisah."
+        >
+            <div className="flex flex-col gap-2">
+                {value.pricingPresentation.indoorPeriods.map((period, index) => (
+                    <RowInput
+                        key={index}
+                        fields={
+                            <>
+                                {([
+                                    ["label", "Nama periode", "Pagi / 06.00–12.00"],
+                                    ["wargaPrice", "Tarif Warga UB", "95K / Jam"],
+                                    ["umumPrice", "Tarif Umum", "105K / Jam"],
+                                ] as const).map(([key, label, placeholder]) => (
+                                    <input
+                                        key={key}
+                                        type="text"
+                                        aria-label={`${label} ${index + 1}`}
+                                        value={period[key]}
+                                        onChange={(event) => {
+                                            const indoorPeriods = [...value.pricingPresentation.indoorPeriods];
+                                            indoorPeriods[index] = { ...period, [key]: event.target.value };
+                                            setPresentation({ ...value.pricingPresentation, indoorPeriods });
+                                        }}
+                                        placeholder={placeholder}
+                                        className={fieldClass}
+                                    />
+                                ))}
+                            </>
+                        }
+                        onDelete={() =>
+                            setPresentation({
+                                ...value.pricingPresentation,
+                                indoorPeriods: value.pricingPresentation.indoorPeriods.filter((_, itemIndex) => itemIndex !== index),
+                            })
+                        }
+                    />
+                ))}
+                <AddRowButton
+                    label="Tambah Periode Tampilan"
+                    onClick={() =>
+                        setPresentation({
+                            ...value.pricingPresentation,
+                            indoorPeriods: [
+                                ...value.pricingPresentation.indoorPeriods,
+                                { label: "", wargaPrice: "", umumPrice: "" },
+                            ],
+                        })
+                    }
+                />
+            </div>
+        </SubSection>
+    ) : context === "class" ? (
+        <>
+            <SubSection
+                label="Tarif yang tampil di Kelas"
+                count={value.pricingPresentation.classRates.length}
+                open={open.pricing}
+                onToggle={() => setOpen((state) => ({ ...state, pricing: !state.pricing }))}
+                hint="Tampilan halaman pricing; harga transaksi tetap dikelola terpisah."
+            >
+                <div className="flex flex-col gap-2">
+                    {value.pricingPresentation.classRates.map((rate, index) => (
+                        <RowInput
+                            key={index}
+                            fields={
+                                <>
+                                    {([
+                                        ["level", "Level kelas", "Beginner"],
+                                        ["wargaPrice", "Tarif Warga UB", "25K"],
+                                        ["umumPrice", "Tarif Umum", "35K"],
+                                    ] as const).map(([key, label, placeholder]) => (
+                                        <input
+                                            key={key}
+                                            type="text"
+                                            aria-label={`${label} ${index + 1}`}
+                                            value={rate[key]}
+                                            onChange={(event) => {
+                                                const classRates = [...value.pricingPresentation.classRates];
+                                                classRates[index] = { ...rate, [key]: event.target.value };
+                                                setPresentation({ ...value.pricingPresentation, classRates });
+                                            }}
+                                            placeholder={placeholder}
+                                            className={fieldClass}
+                                        />
+                                    ))}
+                                </>
+                            }
+                            onDelete={() =>
+                                setPresentation({
+                                    ...value.pricingPresentation,
+                                    classRates: value.pricingPresentation.classRates.filter((_, itemIndex) => itemIndex !== index),
+                                })
+                            }
+                        />
+                    ))}
+                    <AddRowButton
+                        label="Tambah Tarif Tampilan"
+                        onClick={() =>
+                            setPresentation({
+                                ...value.pricingPresentation,
+                                classRates: [
+                                    ...value.pricingPresentation.classRates,
+                                    { level: "", wargaPrice: "", umumPrice: "" },
+                                ],
+                            })
+                        }
+                    />
+                </div>
+            </SubSection>
+            <SubSection
+                label="Persewaan yang tampil di Kelas"
+                count={value.pricingPresentation.classRentals.length}
+                open={open.rentals}
+                onToggle={() => setOpen((state) => ({ ...state, rentals: !state.rentals }))}
+            >
+                <div className="flex flex-col gap-2">
+                    {value.pricingPresentation.classRentals.map((rental, index) => (
+                        <RowInput
+                            key={index}
+                            fields={
+                                <>
+                                    {([
+                                        ["label", "Nama persewaan", "Sewa Ruang Yoga"],
+                                        ["value", "Tarif atau catatan", "Warga UB 100K · Umum 150K"],
+                                    ] as const).map(([key, label, placeholder]) => (
+                                        <input
+                                            key={key}
+                                            type="text"
+                                            aria-label={`${label} ${index + 1}`}
+                                            value={rental[key]}
+                                            onChange={(event) => {
+                                                const classRentals = [...value.pricingPresentation.classRentals];
+                                                classRentals[index] = { ...rental, [key]: event.target.value };
+                                                setPresentation({ ...value.pricingPresentation, classRentals });
+                                            }}
+                                            placeholder={placeholder}
+                                            className={fieldClass}
+                                        />
+                                    ))}
+                                </>
+                            }
+                            onDelete={() =>
+                                setPresentation({
+                                    ...value.pricingPresentation,
+                                    classRentals: value.pricingPresentation.classRentals.filter((_, itemIndex) => itemIndex !== index),
+                                })
+                            }
+                        />
+                    ))}
+                    <AddRowButton
+                        label="Tambah Persewaan Tampilan"
+                        onClick={() =>
+                            setPresentation({
+                                ...value.pricingPresentation,
+                                classRentals: [
+                                    ...value.pricingPresentation.classRentals,
+                                    { label: "", value: "" },
+                                ],
+                            })
+                        }
+                    />
+                </div>
+            </SubSection>
+        </>
+    ) : context === "outdoor" ? (
+        <SubSection
+            label="Tarif yang tampil di Arena Luar"
+            count={value.pricingPresentation.outdoorRates.length}
+            open={open.pricing}
+            onToggle={() => setOpen((state) => ({ ...state, pricing: !state.pricing }))}
+            hint="Tampilan halaman pricing; harga transaksi tetap dikelola terpisah."
+        >
+            <div className="flex flex-col gap-2">
+                {value.pricingPresentation.outdoorRates.map((rate, index) => (
+                    <RowInput
+                        key={index}
+                        fields={
+                            <>
+                                {([
+                                    ["label", "Nama tarif", "Harga Sewa"],
+                                    ["value", "Nilai tarif", "1750K / 2 Jam"],
+                                ] as const).map(([key, label, placeholder]) => (
+                                    <input
+                                        key={key}
+                                        type="text"
+                                        aria-label={`${label} ${index + 1}`}
+                                        value={rate[key]}
+                                        onChange={(event) => {
+                                            const outdoorRates = [...value.pricingPresentation.outdoorRates];
+                                            outdoorRates[index] = { ...rate, [key]: event.target.value };
+                                            setPresentation({ ...value.pricingPresentation, outdoorRates });
+                                        }}
+                                        placeholder={placeholder}
+                                        className={fieldClass}
+                                    />
+                                ))}
+                            </>
+                        }
+                        onDelete={() =>
+                            setPresentation({
+                                ...value.pricingPresentation,
+                                outdoorRates: value.pricingPresentation.outdoorRates.filter((_, itemIndex) => itemIndex !== index),
+                            })
+                        }
+                    />
+                ))}
+                <AddRowButton
+                    label="Tambah Tarif Tampilan"
+                    onClick={() =>
+                        setPresentation({
+                            ...value.pricingPresentation,
+                            outdoorRates: [
+                                ...value.pricingPresentation.outdoorRates,
+                                { label: "", value: "" },
+                            ],
+                        })
+                    }
+                />
+            </div>
+        </SubSection>
+    ) : null;
 
     return (
         <div className="flex flex-col gap-3">
+            <div className="rounded-2xl border border-[#B9DCEB] bg-[#F2FAFD] p-4 sm:flex sm:items-center sm:justify-between sm:gap-5">
+                <div>
+                    <p className="font-clash text-sm font-semibold text-[#123B4E]">
+                        Harga transaksi tetap aman dan terpisah
+                    </p>
+                    <p className="mt-1 max-w-2xl font-bdo text-[11px] leading-relaxed text-[#456878]">
+                        Pengaturan Harga dipakai untuk booking dan pembayaran.
+                        Form di bawah hanya mengatur susunan konten yang terlihat
+                        pada halaman pricing publik.
+                    </p>
+                </div>
+                {pricingHref ? (
+                    <Link
+                        href={pricingHref}
+                        className="mt-3 inline-flex shrink-0 items-center justify-center rounded-[5px] bg-[#15678D] px-4 py-2.5 font-clash text-xs font-semibold text-white transition-colors hover:bg-[#125875] sm:mt-0"
+                    >
+                        Buka Pengaturan Harga
+                    </Link>
+                ) : (
+                    <span className="mt-3 inline-flex rounded-[5px] bg-white px-3 py-2 font-bdo text-[10px] font-semibold text-[#456878] sm:mt-0">
+                        Simpan fasilitas dahulu
+                    </span>
+                )}
+            </div>
 
             {/* ── Periode Waktu ── */}
-            <SubSection
-                label="Periode Waktu"
-                count={value.periods.length}
-                open={open.periods}
-                onToggle={() => setOpen((s) => ({ ...s, periods: !s.periods }))}
-                hint="(e.g. Pagi / Siang / Malam)"
-            >
-                <div className="flex flex-col gap-2">
-                    {value.periods.length === 0 && (
-                        <p className="rounded-2xl bg-slate-50 py-3 text-center font-bdo text-[11px] text-slate-400">Belum ada periode. Tambahkan di bawah.</p>
-                    )}
-                    {value.periods.map((p, i) => (
-                        <RowInput
-                            key={i}
-                            fields={
-                                <>
-                                    <input
-                                        type="text"
-                                        aria-label={`Label periode ${i + 1}`}
-                                        value={p.label}
-                                        onChange={(e) => {
-                                            const next = [...value.periods];
-                                            next[i] = { ...p, label: e.target.value };
-                                            setPeriods(next);
-                                        }}
-                                        placeholder="Label (e.g. Pagi)"
-                                        className={fieldClass}
-                                    />
-                                    <input
-                                        type="text"
-                                        aria-label={`Harga periode ${i + 1}`}
-                                        value={p.harga}
-                                        onChange={(e) => {
-                                            const next = [...value.periods];
-                                            next[i] = { ...p, harga: e.target.value };
-                                            setPeriods(next);
-                                        }}
-                                        placeholder="Harga (e.g. Rp 50.000/Jam)"
-                                        className={fieldClass}
-                                    />
-                                </>
-                            }
-                            onDelete={() => setPeriods(value.periods.filter((_, j) => j !== i))}
-                        />
-                    ))}
-                    <AddRowButton label="Tambah Periode" onClick={() => setPeriods([...value.periods, { label: "", harga: "" }])} />
-                </div>
-            </SubSection>
-
             {/* ── Daftar Harga (Kolom Kiri / Kanan) ── */}
-            <SubSection
-                label="Daftar Harga (Dual Column)"
-                count={value.daftarHarga.left.length + value.daftarHarga.right.length}
-                open={open.daftarHarga}
-                onToggle={() => setOpen((s) => ({ ...s, daftarHarga: !s.daftarHarga }))}
-                hint="(e.g. Yoga: warga_ub / umum)"
-            >
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    {/* Left column */}
-                    <div>
-                        <p className="font-clash text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
-                            Kolom Kiri
-                        </p>
-                        <div className="flex flex-col gap-2">
-                            {value.daftarHarga.left.map((item, i) => (
-                                <RowInput
-                                    key={i}
-                                    fields={
-                                        <>
-                                            <input
-                                                type="text"
-                                                aria-label={`Label harga kolom kiri ${i + 1}`}
-                                                value={item.label}
-                                                onChange={(e) => {
-                                                    const next = [...value.daftarHarga.left];
-                                                    next[i] = { ...item, label: e.target.value };
-                                                    setDH({ ...value.daftarHarga, left: next });
-                                                }}
-                                                placeholder="Label"
-                                                className={fieldClass}
-                                            />
-                                            <input
-                                                type="text"
-                                                aria-label={`Harga kolom kiri ${i + 1}`}
-                                                value={item.harga}
-                                                onChange={(e) => {
-                                                    const next = [...value.daftarHarga.left];
-                                                    next[i] = { ...item, harga: e.target.value };
-                                                    setDH({ ...value.daftarHarga, left: next });
-                                                }}
-                                                placeholder="Harga"
-                                                className={fieldClass}
-                                            />
-                                        </>
-                                    }
-                                    onDelete={() => setDH({ ...value.daftarHarga, left: value.daftarHarga.left.filter((_, j) => j !== i) })}
-                                />
-                            ))}
-                            <AddRowButton label="+ Kiri" onClick={() => setDH({ ...value.daftarHarga, left: [...value.daftarHarga.left, { label: "", harga: "" }] })} />
-                        </div>
-                    </div>
-
-                    {/* Right column */}
-                    <div>
-                        <p className="font-clash text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
-                            Kolom Kanan
-                        </p>
-                        <div className="flex flex-col gap-2">
-                            {value.daftarHarga.right.map((item, i) => (
-                                <RowInput
-                                    key={i}
-                                    fields={
-                                        <>
-                                            <input
-                                                type="text"
-                                                aria-label={`Label harga kolom kanan ${i + 1}`}
-                                                value={item.label}
-                                                onChange={(e) => {
-                                                    const next = [...value.daftarHarga.right];
-                                                    next[i] = { ...item, label: e.target.value };
-                                                    setDH({ ...value.daftarHarga, right: next });
-                                                }}
-                                                placeholder="Label"
-                                                className={fieldClass}
-                                            />
-                                            <input
-                                                type="text"
-                                                aria-label={`Harga kolom kanan ${i + 1}`}
-                                                value={item.harga}
-                                                onChange={(e) => {
-                                                    const next = [...value.daftarHarga.right];
-                                                    next[i] = { ...item, harga: e.target.value };
-                                                    setDH({ ...value.daftarHarga, right: next });
-                                                }}
-                                                placeholder="Harga"
-                                                className={fieldClass}
-                                            />
-                                        </>
-                                    }
-                                    onDelete={() => setDH({ ...value.daftarHarga, right: value.daftarHarga.right.filter((_, j) => j !== i) })}
-                                />
-                            ))}
-                            <AddRowButton label="+ Kanan" onClick={() => setDH({ ...value.daftarHarga, right: [...value.daftarHarga.right, { label: "", harga: "" }] })} />
-                        </div>
-                    </div>
-                </div>
-            </SubSection>
-
             {/* ── Additional Details ── */}
+            {presentationEditor}
+
             <SubSection
-                label="Detail Tambahan"
+                label={guidance.title}
                 count={value.additionalDetails.length}
                 open={open.details}
                 onToggle={() => setOpen((s) => ({ ...s, details: !s.details }))}
-                hint="(key-value pairs)"
+                hint={guidance.hint}
             >
                 <div className="flex flex-col gap-2">
                     {value.additionalDetails.length === 0 && (
-                        <p className="rounded-2xl bg-slate-50 py-3 text-center font-bdo text-[11px] text-slate-400">Belum ada detail. Tambahkan di bawah.</p>
+                        <p className="rounded-2xl bg-slate-50 px-4 py-3 text-center font-bdo text-[11px] leading-relaxed text-slate-400">
+                            Belum ada informasi tambahan. Bagian ini opsional.
+                        </p>
                     )}
                     {value.additionalDetails.map((d, i) => (
                         <RowInput
@@ -745,7 +1043,7 @@ function MetadataBuilder({
                                             next[i] = { ...d, key: e.target.value };
                                             setDetails(next);
                                         }}
-                                        placeholder="Key (e.g. Kapasitas)"
+                                        placeholder={guidance.keyPlaceholder}
                                         className={fieldClass}
                                     />
                                     <input
@@ -757,7 +1055,7 @@ function MetadataBuilder({
                                             next[i] = { ...d, value: e.target.value };
                                             setDetails(next);
                                         }}
-                                        placeholder="Value (e.g. 20 orang)"
+                                        placeholder={guidance.valuePlaceholder}
                                         className={fieldClass}
                                     />
                                 </>
@@ -765,7 +1063,15 @@ function MetadataBuilder({
                             onDelete={() => setDetails(value.additionalDetails.filter((_, j) => j !== i))}
                         />
                     ))}
-                    <AddRowButton label="Tambah Detail" onClick={() => setDetails([...value.additionalDetails, { key: "", value: "" }])} />
+                    <AddRowButton
+                        label="Tambah Informasi"
+                        onClick={() =>
+                            setDetails([
+                                ...value.additionalDetails,
+                                { key: "", value: "" },
+                            ])
+                        }
+                    />
                 </div>
             </SubSection>
         </div>
@@ -802,6 +1108,16 @@ export default function FacilityForm() {
         class_code:       facility?.class_code ?? "",
         rating:           facility?.rating ?? 5.0,
         display_metadata: facility?.display_metadata ? JSON.stringify(facility.display_metadata) : "",
+        reservation_method:
+            facility?.reservation_method === "website" ||
+            facility?.reservation_method === "external"
+                ? facility.reservation_method
+                : "whatsapp",
+        reservation_url: facility?.reservation_url ?? "",
+        reservation_phone: facility?.reservation_phone ?? "6285280809080",
+        reservation_message:
+            facility?.reservation_message ??
+            "Halo UB Sport Center 👋\n\nSaya ingin melakukan reservasi *{facility_name}* di lokasi *{location}*.\n\nMohon bantuannya untuk informasi jadwal yang tersedia, harga, dan langkah reservasi selanjutnya.\n\nTerima kasih.",
         is_active:        facility?.is_active ?? true,
         sort_order:       facility?.sort_order ?? 0,
         hero:             null,
@@ -837,11 +1153,28 @@ export default function FacilityForm() {
     const existingHeroUrl   = facility?.hero?.url ?? null;
     const existingGallery: ExistingMedia[] = facility?.gallery ?? [];
     const selectedCategory = categories.find((category) => category.id === data.facility_category_id);
+    const selectedCategoryName = selectedCategory?.name ?? "";
+    const pricingContext:
+        | "indoor"
+        | "outdoor"
+        | "class"
+        | "general" = /kelas|kebugaran|fitness/i.test(selectedCategoryName)
+        ? "class"
+        : isOutdoorFacility({
+              category: selectedCategoryName,
+              venue_type: data.venue_type,
+              class_code: data.class_code,
+          })
+          ? "outdoor"
+          : selectedCategoryName === "Lapangan & Arena"
+            ? "indoor"
+            : "general";
     const metadataCount =
-        metadata.periods.length +
-        metadata.daftarHarga.left.length +
-        metadata.daftarHarga.right.length +
-        metadata.additionalDetails.length;
+        metadata.additionalDetails.length +
+        metadata.pricingPresentation.indoorPeriods.length +
+        metadata.pricingPresentation.classRates.length +
+        metadata.pricingPresentation.classRentals.length +
+        metadata.pricingPresentation.outdoorRates.length;
     const scheduleLabel = useWeeklySchedule ? "Jadwal khusus" : "Jadwal otomatis";
 
     return (
@@ -1182,8 +1515,8 @@ export default function FacilityForm() {
                         <SectionCard
                             icon={<Image size={15} />}
                             accentColor="terracotta"
-                            title="Media"
-                            subtitle="Gambar utama dan galeri foto"
+                            title="Media Reservasi"
+                            subtitle="Satu sumber untuk gambar utama dan slider halaman booking"
                             animDelay="delay-200"
                         >
                             <div className="flex flex-col gap-6">
@@ -1207,10 +1540,17 @@ export default function FacilityForm() {
                                 <div className="section-divider" />
                                 <div className="rounded-2xl border border-slate-200 bg-white p-3">
                                     <p className="font-bdo text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-3">
-                                        Galeri
+                                        Galeri Slider Reservasi
+                                    </p>
+                                    <p className="mb-3 max-w-xl font-bdo text-[11px] leading-relaxed text-slate-500">
+                                        Gambar di sini otomatis disatukan dengan
+                                        gambar asli seluruh unit aktif menjadi satu
+                                        slider pada daftar reservasi. Urutannya:
+                                        gambar utama, galeri fasilitas, lalu gambar
+                                        unit.
                                     </p>
                                     <MultiDropzone
-                                        label="Galeri"
+                                        label="Gambar slider"
                                         existing={existingGallery}
                                         onFilesChange={(files) => setData("gallery", files)}
                                         onRemoveExisting={(id) => {
@@ -1317,13 +1657,161 @@ export default function FacilityForm() {
 
                 {/* ═══ FULL-WIDTH ROW 3 — Display Metadata Builder ═══ */}
                 <SectionCard
+                    icon={<CalendarCheck2 size={15} />}
+                    accentColor="terracotta"
+                    title="Tujuan Reservasi"
+                    subtitle="Atur ke mana pengunjung diarahkan ketika fasilitas dipilih"
+                    animDelay="delay-300"
+                >
+                    <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
+                        <div>
+                            <label
+                                htmlFor="reservation_method"
+                                className="mb-1.5 block font-bdo text-[11px] font-bold uppercase tracking-wider text-slate-500"
+                            >
+                                Jalur Reservasi
+                            </label>
+                            <select
+                                id="reservation_method"
+                                name="reservation_method"
+                                value={data.reservation_method}
+                                onChange={(event) =>
+                                    setData(
+                                        "reservation_method",
+                                        event.target.value as FormData["reservation_method"],
+                                    )
+                                }
+                                className="input-field"
+                            >
+                                <option value="website">Booking di website</option>
+                                <option value="whatsapp">WhatsApp manual</option>
+                                <option value="external">Link eksternal / Google Form</option>
+                            </select>
+                            {errors.reservation_method && (
+                                <p className="mt-1.5 font-bdo text-[11px] text-rose-500">
+                                    {errors.reservation_method}
+                                </p>
+                            )}
+
+                            <div className="mt-3 rounded-2xl border border-[#B9DCEB] bg-[#F2FAFD] p-3 font-bdo text-[11px] leading-relaxed text-[#456878]">
+                                {data.reservation_method === "website" ? (
+                                    "Fasilitas aktif akan masuk BookingSection dan pengunjung langsung membuka panel fasilitas ini."
+                                ) : data.reservation_method === "whatsapp" ? (
+                                    "Fasilitas tetap tampil di situs, tetapi tidak masuk BookingSection. WhatsApp terbuka dengan pesan siap kirim."
+                                ) : (
+                                    "Fasilitas tidak masuk BookingSection. Pengunjung membuka URL eksternal pada tab baru."
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col gap-4">
+                            {data.reservation_method === "external" ? (
+                                <div>
+                                    <label
+                                        htmlFor="reservation_url"
+                                        className="mb-1.5 block font-bdo text-[11px] font-bold uppercase tracking-wider text-slate-500"
+                                    >
+                                        URL Eksternal
+                                    </label>
+                                    <input
+                                        id="reservation_url"
+                                        name="reservation_url"
+                                        type="url"
+                                        value={data.reservation_url}
+                                        onChange={(event) =>
+                                            setData("reservation_url", event.target.value)
+                                        }
+                                        placeholder="https://forms.google.com/..."
+                                        className="input-field"
+                                    />
+                                    {errors.reservation_url && (
+                                        <p className="mt-1.5 font-bdo text-[11px] text-rose-500">
+                                            {errors.reservation_url}
+                                        </p>
+                                    )}
+                                </div>
+                            ) : data.reservation_method !== "website" ? (
+                                <>
+                                    <div>
+                                        <label
+                                            htmlFor="reservation_phone"
+                                            className="mb-1.5 block font-bdo text-[11px] font-bold uppercase tracking-wider text-slate-500"
+                                        >
+                                            Nomor WhatsApp
+                                        </label>
+                                        <input
+                                            id="reservation_phone"
+                                            name="reservation_phone"
+                                            type="text"
+                                            inputMode="tel"
+                                            value={data.reservation_phone}
+                                            onChange={(event) =>
+                                                setData("reservation_phone", event.target.value)
+                                            }
+                                            placeholder="6285280809080"
+                                            className="input-field mono"
+                                        />
+                                        {errors.reservation_phone && (
+                                            <p className="mt-1.5 font-bdo text-[11px] text-rose-500">
+                                                {errors.reservation_phone}
+                                            </p>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <label
+                                            htmlFor="reservation_message"
+                                            className="mb-1.5 block font-bdo text-[11px] font-bold uppercase tracking-wider text-slate-500"
+                                        >
+                                            Template Pesan
+                                        </label>
+                                        <textarea
+                                            id="reservation_message"
+                                            name="reservation_message"
+                                            rows={7}
+                                            value={data.reservation_message}
+                                            onChange={(event) =>
+                                                setData("reservation_message", event.target.value)
+                                            }
+                                            className="input-field resize-y leading-relaxed"
+                                        />
+                                        <p className="mt-1.5 font-bdo text-[10px] leading-relaxed text-slate-400">
+                                            Variabel yang tersedia:{" "}
+                                            <code>{"{facility_name}"}</code>,{" "}
+                                            <code>{"{location}"}</code>, dan{" "}
+                                            <code>{"{class_code}"}</code>.
+                                        </p>
+                                        {errors.reservation_message && (
+                                            <p className="mt-1.5 font-bdo text-[11px] text-rose-500">
+                                                {errors.reservation_message}
+                                            </p>
+                                        )}
+                                    </div>
+                                </>
+                            ) : null}
+                        </div>
+                    </div>
+                </SectionCard>
+
+                <SectionCard
                     icon={<Database size={15} />}
                     accentColor="terracotta"
                     title="Detail Tampilan Publik"
-                    subtitle="Harga per periode, daftar harga, dan detail tambahan untuk UI publik"
+                    subtitle="Informasi pelengkap; harga dikelola terpisah agar selalu konsisten"
                     animDelay="delay-300"
                 >
-                    <MetadataBuilder value={metadata} onChange={setMetadata} />
+                    <MetadataBuilder
+                        value={metadata}
+                        onChange={setMetadata}
+                        context={pricingContext}
+                        pricingHref={
+                            isEdit
+                                ? route(
+                                      "admin.facilities.pricing",
+                                      facility!.id,
+                                  )
+                                : undefined
+                        }
+                    />
 
                     {hasMetaContent(metadata) && (
                         <details className="mt-4">

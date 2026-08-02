@@ -2,7 +2,13 @@
 
 return [
     'timezone' => env('GALLERY_TIMEZONE', 'Asia/Jakarta'),
-    'canonical_origin' => rtrim(env('GALLERY_CANONICAL_ORIGIN', 'https://ubsportcenter.co.id'), '/'),
+    'canonical_origin' => rtrim(
+        env(
+            'SEO_CANONICAL_ORIGIN',
+            env('GALLERY_CANONICAL_ORIGIN', 'https://ubsportcenter.co.id'),
+        ),
+        '/',
+    ),
 
     'originals_disk' => env('GALLERY_ORIGINALS_DISK', 'local'),
     'staging_disk' => env('GALLERY_STAGING_DISK', 'local'),

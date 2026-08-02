@@ -8,6 +8,9 @@ use App\Http\Resources\Public\FacilityResource;
 use App\Models\Facility;
 use App\Models\FacilityCategory;
 use App\Services\Gallery\GalleryPublicService;
+use App\Support\PublicSeo;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -26,7 +29,7 @@ class PublicFacilityController extends Controller
         ]);
     }
 
-    public function show(string $slug): Response
+    public function show(Request $request, string $slug): Response|RedirectResponse
     {
         $slugCandidates = $this->slugCandidates($slug);
         $facility = Facility::active()
@@ -38,6 +41,14 @@ class PublicFacilityController extends Controller
 
         abort_unless($facility, 404);
 
+        if ($slug !== $facility->slug) {
+            return redirect()->route(
+                'facilities.show',
+                ['slug' => $facility->slug],
+                301,
+            );
+        }
+
         $similarFacilities = Facility::active()
             ->with(['category', 'media'])
             ->whereKeyNot($facility->id)
@@ -47,9 +58,12 @@ class PublicFacilityController extends Controller
             ->map(fn (Facility $item): array => $this->cardPayload($item))
             ->values();
 
+        $facilityItem = $this->detailPayload($facility);
+
         return Inertia::render('Facilities/Show', [
-            'facilityItem' => $this->detailPayload($facility),
+            'facilityItem' => $facilityItem,
             'similarFacilities' => $similarFacilities,
+            'seo' => PublicSeo::facility($request, $facilityItem),
         ]);
     }
 
