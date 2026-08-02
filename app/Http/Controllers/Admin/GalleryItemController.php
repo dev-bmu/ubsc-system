@@ -175,7 +175,7 @@ class GalleryItemController extends Controller
 
         $cache->invalidate();
 
-        return back()->with('success', 'Media galeri berhasil diperbarui.');
+        return back()->with('success', 'Media Gallery berhasil diperbarui.');
     }
 
     public function retry(Request $request, GalleryItem $galleryItem): RedirectResponse

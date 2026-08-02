@@ -8,6 +8,16 @@
     to { transform: translate3d(0, 0, 0); opacity: 1; }
 }
 
+@keyframes gallery-admin-shine {
+    0% { background-position: -160% center; }
+    100% { background-position: 220% center; }
+}
+
+@keyframes gallery-admin-pulse-dot {
+    0%, 100% { opacity: .78; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.18); }
+}
+
 .gallery-admin-enter {
     animation: gallery-admin-enter 420ms cubic-bezier(.16, 1, .3, 1) both;
 }
@@ -18,6 +28,63 @@
 
 .gallery-admin-dialog {
     animation: gallery-admin-enter 260ms cubic-bezier(.16, 1, .3, 1) both;
+    border-radius: 1.5rem;
+    overflow: hidden;
+}
+
+.gallery-admin-title-shine {
+    background: linear-gradient(120deg, #0f172a 35%, #cbd5e1 50%, #0f172a 65%);
+    background-size: 200% auto;
+    color: transparent;
+    -webkit-background-clip: text;
+    background-clip: text;
+    animation: gallery-admin-shine 3s linear infinite;
+}
+
+.gallery-admin-live-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: #e35336;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, .8), 0 0 14px rgba(227, 83, 54, .34);
+    animation: gallery-admin-pulse-dot 2.8s ease-in-out infinite;
+}
+
+.gallery-admin-card-glint {
+    position: relative;
+}
+
+.gallery-admin-card-glint::before {
+    content: "";
+    position: absolute;
+    left: 20px;
+    right: 20px;
+    top: 0;
+    z-index: 2;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .96), transparent);
+    pointer-events: none;
+}
+
+.gallery-admin-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(227, 83, 54, .32) transparent;
+}
+
+.gallery-admin-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.gallery-admin-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.gallery-admin-scrollbar::-webkit-scrollbar-thumb {
+    border: 1px solid rgba(255, 255, 255, .82);
+    border-radius: 999px;
+    background: rgba(227, 83, 54, .3);
 }
 
 .gallery-admin-input {
@@ -37,7 +104,9 @@
 @media (prefers-reduced-motion: reduce) {
     .gallery-admin-enter,
     .gallery-admin-panel,
-    .gallery-admin-dialog {
+    .gallery-admin-dialog,
+    .gallery-admin-title-shine,
+    .gallery-admin-live-dot {
         animation: none;
     }
 }

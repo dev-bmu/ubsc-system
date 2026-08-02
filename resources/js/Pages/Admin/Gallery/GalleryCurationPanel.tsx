@@ -146,22 +146,23 @@ export default function GalleryCurationPanel({ sections, permissions }: Props) {
     };
 
     return (
-        <section className="border border-slate-200 bg-white" aria-labelledby="gallery-curation-title">
-            <header className="flex flex-col gap-4 border-b border-slate-200 p-4 lg:flex-row lg:items-center lg:justify-between lg:px-5">
+        <section className="gallery-admin-enter gallery-admin-card-glint overflow-hidden rounded-[24px] border border-[#FFE0D8] bg-white shadow-[0_20px_46px_-38px_rgba(185,61,42,.4)]" aria-labelledby="gallery-curation-title">
+            <header className="flex flex-col gap-4 border-b border-[#FFE0D8] bg-[linear-gradient(135deg,#ffffff_0%,#FFF8F6_100%)] p-4 lg:flex-row lg:items-center lg:justify-between lg:px-5">
                 <div>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#e35336]">Public composition</p>
-                    <h2 id="gallery-curation-title" className="mt-1 font-clash text-lg font-semibold text-slate-950">Kurasi halaman fasilitas</h2>
+                    <p className="font-bdo text-[10px] font-bold uppercase tracking-[0.16em] text-[#B93D2A]">Tampilan publik</p>
+                    <h2 id="gallery-curation-title" className="mt-1 font-clash text-lg font-semibold text-slate-950">Atur media unggulan</h2>
+                    <p className="mt-1 font-bdo text-xs font-medium text-slate-400">Pilih media dan susun urutannya seperti yang akan dilihat pengunjung.</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                    <div className="flex rounded border border-slate-200 bg-slate-50 p-1" role="tablist" aria-label="Section galeri">
+                    <div className="gallery-admin-scrollbar flex max-w-full overflow-x-auto rounded-[16px] border border-slate-200 bg-slate-50 p-1" role="tablist" aria-label="Bagian Gallery">
                         {sections.map((item) => (
-                            <button key={item.key} type="button" role="tab" aria-selected={item.key === section.key} onClick={() => setActiveKey(item.key)} className={`h-8 rounded px-3 text-[11px] font-bold transition ${item.key === section.key ? "bg-white text-slate-950 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>
+                            <button key={item.key} type="button" role="tab" aria-selected={item.key === section.key} onClick={() => setActiveKey(item.key)} className={`h-9 shrink-0 rounded-[12px] px-3 font-bdo text-[11px] font-bold transition ${item.key === section.key ? "bg-white text-[#B93D2A] shadow-sm ring-1 ring-[#F8B5A8]/60" : "text-slate-500 hover:text-slate-800"}`}>
                                 {item.name}
                             </button>
                         ))}
                     </div>
                     {permissions.publish && (
-                        <button type="button" onClick={toggleActive} disabled={activationBusy || (!section.is_active && !complete)} className={`flex h-10 items-center gap-2 rounded border px-3 text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-40 ${section.is_active ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 text-slate-700 hover:border-slate-400"}`}>
+                        <button type="button" onClick={toggleActive} disabled={activationBusy || (!section.is_active && !complete)} className={`flex h-10 items-center gap-2 rounded-[13px] border px-3 font-bdo text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-40 ${section.is_active ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-white text-slate-700 hover:border-[#F8B5A8] hover:text-[#B93D2A]"}`}>
                             {activationBusy ? <LoaderCircle size={14} className="animate-spin" /> : section.is_active ? <PowerOff size={14} /> : <Power size={14} />}
                             {section.is_active ? "Nonaktifkan" : "Aktifkan"}
                         </button>
@@ -183,7 +184,7 @@ export default function GalleryCurationPanel({ sections, permissions }: Props) {
                             return item ? (
                                 <SortableSlot key={item.uuid} item={item} index={index} total={slots.length} canManage={permissions.manage} onMove={move} onRemove={remove} />
                             ) : (
-                                <div key={`empty-${index}`} className="grid min-h-[82px] place-items-center border border-dashed border-slate-250 bg-slate-50 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+                                <div key={`empty-${index}`} className="grid min-h-[92px] place-items-center rounded-[16px] border border-dashed border-slate-300 bg-slate-50/80 font-bdo text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">
                                     Slot {String(index + 1).padStart(2, "0")}
                                 </div>
                             );
@@ -192,9 +193,9 @@ export default function GalleryCurationPanel({ sections, permissions }: Props) {
                     </SortableContext>
                     </DndContext>
                     <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
-                        <p className="text-[11px] leading-4 text-slate-500">Section publik hanya aktif saat seluruh slot berisi media berstatus Published.</p>
+                        <p className="font-bdo text-[11px] font-medium leading-4 text-slate-500">Bagian publik dapat diaktifkan setelah seluruh slot terisi media yang sudah terbit.</p>
                         {permissions.manage && (
-                            <button type="button" onClick={save} disabled={saving} className="flex h-9 shrink-0 items-center gap-2 rounded bg-slate-950 px-3 text-xs font-bold text-white hover:bg-[#e35336] disabled:opacity-40">
+                            <button type="button" onClick={save} disabled={saving} className="flex h-10 shrink-0 items-center gap-2 rounded-[13px] bg-[#E35336] px-4 font-bdo text-xs font-bold text-white shadow-sm transition hover:bg-[#B93D2A] disabled:opacity-40">
                                 {saving ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />}Simpan urutan
                             </button>
                         )}
@@ -202,10 +203,10 @@ export default function GalleryCurationPanel({ sections, permissions }: Props) {
                 </div>
 
                 <aside className="p-4 lg:p-5">
-                    <p className="text-xs font-bold text-slate-800">Media terbit di {section.name}</p>
+                    <p className="font-clash text-sm font-semibold text-slate-800">Media tersedia di {section.name}</p>
                     <label className="relative mt-3 block">
                         <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                        <input value={query} onChange={(event) => setQuery(event.target.value)} className="h-9 w-full rounded border-slate-200 pl-9 pr-8 text-xs focus:border-[#e35336] focus:ring-[#e35336]" placeholder="Cari kandidat" />
+                        <input value={query} onChange={(event) => setQuery(event.target.value)} className="h-10 w-full rounded-[13px] border-slate-200 pl-9 pr-8 font-bdo text-xs font-semibold shadow-sm focus:border-[#F8B5A8] focus:ring-4 focus:ring-[#E35336]/10" placeholder="Cari media yang sudah terbit..." />
                         {searching && <LoaderCircle size={14} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-slate-400" />}
                     </label>
                     <div className="mt-3 max-h-64 divide-y divide-slate-100 overflow-y-auto border-y border-slate-100">
@@ -228,7 +229,7 @@ function SortableSlot({ item, index, total, canManage, onMove, onRemove }: { ite
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.uuid, disabled: !canManage });
 
     return (
-        <article ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 10 : undefined }} className={`group grid min-h-[82px] grid-cols-[68px_minmax(0,1fr)] border bg-white ${isDragging ? "border-[#e35336] shadow-lg" : "border-slate-200"}`}>
+        <article ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 10 : undefined }} className={`group grid min-h-[92px] grid-cols-[76px_minmax(0,1fr)] overflow-hidden rounded-[16px] border bg-white shadow-sm ${isDragging ? "border-[#e35336] shadow-lg ring-2 ring-[#E35336]/10" : "border-slate-200"}`}>
             <div className="relative bg-slate-100">
                 {item.thumbnail && <img src={item.thumbnail} alt="" className="h-full w-full object-cover" loading="lazy" />}
                 <span className="absolute left-1.5 top-1.5 grid size-5 place-items-center rounded-full bg-black/75 text-[9px] font-bold text-white">{index + 1}</span>

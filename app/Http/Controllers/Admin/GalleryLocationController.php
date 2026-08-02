@@ -30,7 +30,7 @@ class GalleryLocationController extends Controller
             'is_active' => true,
         ]);
 
-        return back()->with('success', 'Lokasi galeri ditambahkan.');
+        return back()->with('success', 'Lokasi Gallery ditambahkan.');
     }
 
     public function update(Request $request, GalleryLocation $galleryLocation): RedirectResponse
@@ -51,7 +51,7 @@ class GalleryLocationController extends Controller
             'is_active' => $data['is_active'],
         ]);
 
-        return back()->with('success', 'Lokasi galeri diperbarui.');
+        return back()->with('success', 'Lokasi Gallery diperbarui.');
     }
 
     private function uniqueSlug(string $base, ?int $ignoreId = null): string

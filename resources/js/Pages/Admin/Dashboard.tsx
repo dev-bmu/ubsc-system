@@ -2498,7 +2498,7 @@ function DashBannerModal({ state, onClose }: { state: BannerModalState; onClose:
                             rows={3}
                             maxLength={255}
                             required
-                            placeholder="Contoh: UB Sport Center Buka Setiap Hari: 06.00 - 21.00 WIB"
+                            placeholder="Contoh: UB Sport Center Buka Setiap Hari: 06.00 - 22.00 WIB"
                             className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-bdo text-sm text-slate-800 placeholder-slate-400 focus:border-[#F08C78] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#FFD5CD] transition-all duration-150"
                         />
                         <p className="text-right font-bdo text-[10px] text-slate-400 tabular-nums">{data.message.length}/255</p>

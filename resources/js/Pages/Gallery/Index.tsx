@@ -1,3 +1,4 @@
+import SeoHead from "@/Components/SeoHead";
 import { Head, Link, router } from "@inertiajs/react";
 import {
     Listbox,
@@ -392,33 +393,19 @@ export default function GalleryArchive({
         }
     };
 
-    const safeJsonLd = useMemo(
-        () => JSON.stringify(seo.json_ld).replace(/</g, "\\u003c"),
-        [seo.json_ld],
-    );
     const mastheadImage =
         seo.image ??
         "/assets/images/fasilitas-tenis-ub-sport-center.avif";
 
     return (
         <>
+            <SeoHead seo={seo} />
             <Head>
-                <title>{seo.title}</title>
-                <meta name="description" content={seo.description} />
-                <meta name="robots" content={seo.robots} />
-                <link rel="canonical" href={seo.canonical} />
-                {seo.previous && <link rel="prev" href={seo.previous} />}
-                {seo.next && <link rel="next" href={seo.next} />}
-                <meta property="og:type" content="website" />
-                <meta property="og:title" content={seo.title} />
-                <meta property="og:description" content={seo.description} />
-                <meta property="og:url" content={seo.canonical} />
-                {seo.image && <meta property="og:image" content={seo.image} />}
-                <meta name="twitter:card" content="summary_large_image" />
-                <link rel="preload" as="image" href={mastheadImage} />
-                <script
-                    type="application/ld+json"
-                    dangerouslySetInnerHTML={{ __html: safeJsonLd }}
+                <link
+                    head-key="gallery-masthead-preload"
+                    rel="preload"
+                    as="image"
+                    href={mastheadImage}
                 />
             </Head>
 
@@ -505,6 +492,7 @@ export default function GalleryArchive({
                     <nav
                         className="public-gallery__sections"
                         aria-label="Kategori galeri"
+                        data-lenis-prevent-touch=""
                     >
                         <Link
                             href={route("gallery.index")}
@@ -788,11 +776,12 @@ export default function GalleryArchive({
                                                             ? "eager"
                                                             : "lazy"
                                                     }
-                                                    fetchPriority={
-                                                        index === 0
-                                                            ? "high"
-                                                            : "low"
-                                                    }
+                                                    {...{
+                                                        fetchpriority:
+                                                            index === 0
+                                                                ? "high"
+                                                                : "low",
+                                                    }}
                                                     decoding="async"
                                                 />
                                             ) : item.poster ? (

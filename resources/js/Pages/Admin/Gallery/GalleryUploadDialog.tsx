@@ -401,7 +401,7 @@ export default function GalleryUploadDialog({
                     <div>
                         <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-[#e35336]">Media intake</p>
                         <h2 id="gallery-upload-title" className="font-clash text-2xl font-semibold text-slate-950">
-                            Upload galeri
+                            Tambah Media Gallery
                         </h2>
                         <p className="mt-1 text-xs text-slate-500">Maksimum {config.max_batch_files} file per album. Pemrosesan berjalan di queue.</p>
                     </div>
