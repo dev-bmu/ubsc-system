@@ -1,6 +1,18 @@
-import { motion, AnimatePresence } from "framer-motion";
-import FacilityBadge from "@/Components/Landing/FacilityBadge";
-import ReservasiButton from "@/Components/Landing/ReservasiButton";
+import { motion, useReducedMotion } from "framer-motion";
+import { LoaderCircle, Minus, Plus } from "lucide-react";
+import {
+    useMemo,
+    type PointerEventHandler,
+    type SyntheticEvent,
+} from "react";
+import type { BookingAvailabilityLoadState } from "./BookingDiscoveryBar";
+import type {
+    BookingFacilityAvailabilityStatus,
+    BookingUnitAvailability,
+} from "./useBookingAvailability";
+import BookingFacilityGallery, {
+    type BookingGalleryImage,
+} from "./BookingFacilityGallery";
 
 interface TimeSlot {
     start_time: string;
@@ -8,8 +20,10 @@ interface TimeSlot {
     time: string;
     price: string;
     status: "available" | "selected" | "booked";
+    reason?: "elapsed" | "fully_booked" | null;
     facilityUnitId?: number | null;
     priceAmount?: number;
+    remaining?: number;
 }
 
 interface FacilityUnitOption {
@@ -18,17 +32,41 @@ interface FacilityUnitOption {
     image: string;
 }
 
+export interface BookingSlotFilter {
+    minimumMinutes: number;
+    maximumMinutes: number;
+    startTimes: string[];
+    availableOnly: boolean;
+}
+
+export interface BookingFacilityAvailabilityView {
+    state: BookingAvailabilityLoadState;
+    status: BookingFacilityAvailabilityStatus | null;
+    reason: string | null;
+    availableSlotCount: number;
+    totalSlotCount: number;
+    availableStartTimes: string[];
+    nextAvailableAt: string | null;
+    units: BookingUnitAvailability[];
+    stale: boolean;
+}
+
 export interface BookingFacility {
     id: string;
     facilityId: number;
     title: string;
     code: string;
     image: string;
+    gallery: BookingGalleryImage[];
+    sport: string;
+    filterCategory: string;
+    category: string;
     badgeLocation: string;
     badgeType: string;
     units: FacilityUnitOption[];
     selectedUnitId: number | null;
     availableSlots: TimeSlot[];
+    availability: BookingFacilityAvailabilityView;
 }
 
 export interface PublicSlotCartItem {
@@ -47,28 +85,116 @@ export interface PublicSlotCartItem {
 interface Props {
     item: BookingFacility;
     isOpen: boolean;
-    onToggle: () => void;
+    onToggle: (trigger: HTMLButtonElement) => void;
     onUnitChange: (unitId: number) => void;
     selectedDate: string;
     selectedSlotKeys: string[];
     onToggleSlot: (slot: PublicSlotCartItem) => void;
     loadingSlots?: boolean;
     slotError?: string | null;
+    slotFilter: BookingSlotFilter;
+    selectedSlotCount: number;
+    selectedUnitSlotCount: number;
+    onRetrySlots: () => void;
+    onPreviewPointerEnter?: PointerEventHandler<HTMLButtonElement>;
+    onPreviewPointerMove?: PointerEventHandler<HTMLButtonElement>;
+    onPreviewPointerLeave?: PointerEventHandler<HTMLButtonElement>;
+    onPreviewPointerDown?: PointerEventHandler<HTMLButtonElement>;
 }
 
 const EASE = [0.76, 0, 0.24, 1] as const;
+const FALLBACK_IMAGE = "/assets/images/comingsoon.avif";
 
-const ChevronDown = () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M6 9l6 6 6-6" />
-    </svg>
-);
+function applyImageFallback(event: SyntheticEvent<HTMLImageElement>) {
+    const image = event.currentTarget;
 
-const XIcon = () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-        <path d="M18 6L6 18M6 6l12 12" />
-    </svg>
-);
+    if (image.dataset.fallbackApplied === "true") {
+        image.style.visibility = "hidden";
+        return;
+    }
+
+    image.dataset.fallbackApplied = "true";
+    image.src = FALLBACK_IMAGE;
+}
+
+function timeToMinutes(value: string): number {
+    const [hours, minutes] = value.slice(0, 5).split(":").map(Number);
+    return hours * 60 + minutes;
+}
+
+function formatBookingDate(value: string): string {
+    const [year, month, day] = value.split("-").map(Number);
+    return new Intl.DateTimeFormat("id-ID", {
+        weekday: "long",
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+    }).format(new Date(year, month - 1, day));
+}
+
+function availabilityStateLabel(
+    availability: BookingFacilityAvailabilityView,
+    selectedCount: number,
+): { primary: string; secondary: string | null } {
+    if (selectedCount > 0) {
+        return {
+            primary: `${String(selectedCount).padStart(2, "0")} dipilih`,
+            secondary:
+                availability.availableSlotCount > 0
+                    ? `${availability.availableSlotCount} jadwal tersedia`
+                    : null,
+        };
+    }
+
+    if (availability.state === "loading" && !availability.status) {
+        return { primary: "Memeriksa jadwal", secondary: null };
+    }
+
+    if (availability.state === "error" && !availability.status) {
+        return { primary: "Tidak dapat diperbarui", secondary: "Periksa lagi" };
+    }
+
+    switch (availability.status) {
+        case "available":
+        case "limited":
+            return {
+                primary: `${String(availability.availableSlotCount).padStart(2, "0")} jadwal tersedia`,
+                secondary: availability.nextAvailableAt
+                    ? `Mulai ${availability.nextAvailableAt.replace(":", ".")}`
+                    : null,
+            };
+        case "full":
+            if (availability.reason === "elapsed") {
+                return {
+                    primary: "Jadwal hari ini berakhir",
+                    secondary: "Pilih tanggal berikutnya",
+                };
+            }
+            return {
+                primary:
+                    availability.reason === "fully_booked"
+                        ? "Semua jadwal dipesan"
+                        : "Jadwal penuh",
+                secondary: null,
+            };
+        case "closed":
+            return { primary: "Tutup pada tanggal ini", secondary: null };
+        case "no_schedule":
+            return { primary: "Belum ada jadwal", secondary: null };
+        default:
+            break;
+    }
+
+    switch (availability.state) {
+        case "loading":
+        case "refreshing":
+            return { primary: "Memeriksa jadwal", secondary: null };
+        case "error":
+            return { primary: "Tidak dapat diperbarui", secondary: "Periksa lagi" };
+        default:
+            return { primary: "Ketersediaan langsung", secondary: null };
+    }
+}
 
 function CalendarUI({
     item,
@@ -81,6 +207,9 @@ function CalendarUI({
     onToggleSlot,
     loading,
     slotError,
+    slotFilter,
+    selectedSlotCount,
+    onRetry,
 }: {
     item: BookingFacility;
     selectedDate: string;
@@ -92,100 +221,241 @@ function CalendarUI({
     onToggleSlot: (slot: PublicSlotCartItem) => void;
     loading?: boolean;
     slotError?: string | null;
+    slotFilter: BookingSlotFilter;
+    selectedSlotCount: number;
+    onRetry: () => void;
 }) {
+    const visibleSlots = useMemo(
+        () =>
+            slots.filter((slot) => {
+                const startTime = slot.start_time.slice(0, 5);
+                const startMinutes = timeToMinutes(startTime);
+                const matchesRange =
+                    startMinutes >= slotFilter.minimumMinutes &&
+                    startMinutes < slotFilter.maximumMinutes;
+                const matchesExact =
+                    slotFilter.startTimes.length === 0 ||
+                    slotFilter.startTimes.includes(startTime);
+                const matchesAvailability =
+                    !slotFilter.availableOnly || slot.status !== "booked";
+
+                return matchesRange && matchesExact && matchesAvailability;
+            }),
+        [slotFilter, slots],
+    );
+    const visibleAvailableSlots = useMemo(
+        () => visibleSlots.filter((slot) => slot.status !== "booked"),
+        [visibleSlots],
+    );
+    const selectedUnit = units.find((unit) => unit.id === selectedUnitId);
+    const selectedUnitAvailability =
+        selectedUnitId === null
+            ? null
+            : item.availability.units.find(
+                  (unit) => unit.facility_unit_id === selectedUnitId,
+              );
+    const selectedAvailabilityReason =
+        selectedUnitAvailability?.reason ?? item.availability.reason;
     return (
-        <div className="rounded-2xl border border-gray-200 p-6 xl:p-8">
+        <div className="booking-schedule" aria-busy={loading}>
+            <header className="booking-schedule__header">
+                <span>(Jadwal)</span>
+                <span>
+                    <strong>{formatBookingDate(selectedDate)}</strong>
+                    <small>
+                        {selectedUnit?.name ??
+                            item.title.replace(/^\/+/, "")}
+                    </small>
+                </span>
+                <span>
+                    {loading ? (
+                        <>Memeriksa jadwal</>
+                    ) : (
+                        <>
+                            {String(visibleAvailableSlots.length).padStart(
+                                2,
+                                "0",
+                            )}{" "}
+                            tersedia /{" "}
+                            {String(visibleSlots.length).padStart(2, "0")} total
+                        </>
+                    )}
+                </span>
+            </header>
+
+            <div
+                className="booking-schedule__journey"
+                aria-label="Status langkah reservasi"
+            >
+                <span className={selectedUnitId ? "is-complete" : ""}>
+                    <b>01</b>
+                    <em>Unit</em>
+                </span>
+                <span
+                    className={
+                        visibleAvailableSlots.length > 0 ? "is-complete" : ""
+                    }
+                >
+                    <b>02</b>
+                    <em>Waktu</em>
+                </span>
+                <span className={selectedSlotCount > 0 ? "is-complete" : ""}>
+                    <b>03</b>
+                    <em>Keranjang</em>
+                </span>
+            </div>
+
             {units.length > 0 && (
-                <div className="mb-6 rounded-2xl border border-[#F8B5A8]/70 bg-[#FFF7F5]/70 p-3 sm:p-4">
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                        <div>
-                            <p className="font-bdo text-sm font-semibold text-slate-800">
-                                Pilih Unit
-                            </p>
-                            <p className="font-bdo text-xs text-slate-500">
-                                Jadwal dihitung per lapangan/ruang yang dipilih.
-                            </p>
-                        </div>
-                        <span className="rounded-full bg-white px-3 py-1 font-bdo text-[11px] font-bold text-[#B93D2A] ring-1 ring-[#F8B5A8]/70">
-                            {units.length} unit
-                        </span>
+                <section
+                    className="booking-unit-selector"
+                    aria-labelledby={`booking-unit-${item.id}`}
+                >
+                    <div className="booking-unit-selector__heading">
+                        <span id={`booking-unit-${item.id}`}>(Pilih Unit)</span>
+                        <span>{String(units.length).padStart(2, "0")}</span>
                     </div>
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                        {units.map((unit) => {
+
+                    <div
+                        className="booking-unit-selector__list"
+                        role="radiogroup"
+                        aria-label={`Pilih unit ${item.title.replace(/^\/+/, "")}`}
+                    >
+                        {units.map((unit, index) => {
                             const active = selectedUnitId === unit.id;
+                            const unitAvailability =
+                                item.availability.units.find(
+                                    (summary) =>
+                                        summary.facility_unit_id === unit.id,
+                                );
+                            const unitState = !unitAvailability
+                                ? "Memeriksa"
+                                : unitAvailability.status === "closed"
+                                  ? "Tutup"
+                                  : unitAvailability.status === "no_schedule"
+                                    ? "Belum dijadwalkan"
+                                    : unitAvailability.reason === "elapsed"
+                                      ? "Waktu berlalu"
+                                    : unitAvailability.available_slot_count > 0
+                                      ? `${unitAvailability.available_slot_count} jadwal`
+                                      : unitAvailability.reason ===
+                                          "fully_booked"
+                                        ? "Sudah dipesan"
+                                        : "Penuh";
                             return (
                                 <button
                                     key={unit.id}
                                     type="button"
                                     onClick={() => onUnitChange(unit.id)}
-                                    className={`group flex items-center gap-3 rounded-2xl border p-2 text-left transition-all ${
-                                        active
-                                            ? "border-[#E35336] bg-white shadow-[0_18px_30px_-24px_rgba(227,83,54,.8)]"
-                                            : "border-white bg-white/70 hover:border-[#F8B5A8] hover:bg-white"
-                                    }`}
-                                    aria-pressed={active}
+                                    className={`booking-unit-option${active ? " is-active" : ""}`}
+                                    role="radio"
+                                    aria-checked={active}
                                 >
-                                    <span className="relative h-14 w-16 shrink-0 overflow-hidden rounded-xl bg-slate-100">
+                                    <span className="booking-unit-option__index">
+                                        {String(index + 1).padStart(2, "0")}
+                                    </span>
+                                    <span className="booking-unit-option__image">
                                         <img
-                                            src={unit.image || "/assets/images/comingsoon.avif"}
-                                            alt={unit.name}
-                                            className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                                            src={
+                                                unit.image ||
+                                                FALLBACK_IMAGE
+                                            }
+                                            alt=""
+                                            loading="lazy"
+                                            decoding="async"
+                                            onError={applyImageFallback}
                                         />
                                     </span>
-                                    <span className="min-w-0 flex-1">
-                                        <span className="block truncate font-bdo text-sm font-semibold text-slate-800">
-                                            {unit.name}
-                                        </span>
-                                        <span className={`mt-1 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 font-bdo text-[10px] font-bold ${
-                                            active
-                                                ? "bg-[#FFF7F5] text-[#B93D2A]"
-                                                : "bg-slate-50 text-slate-400"
-                                        }`}>
-                                            <span className={`h-1.5 w-1.5 rounded-full ${active ? "bg-[#E35336]" : "bg-slate-300"}`} />
-                                            {active ? "Dipilih" : "Pilih"}
-                                        </span>
+                                    <strong>{unit.name}</strong>
+                                    <span className="booking-unit-option__state">
+                                        {active ? `Terpilih · ${unitState}` : unitState}
+                                    </span>
+                                    <span
+                                        className="booking-unit-option__mark"
+                                        aria-hidden="true"
+                                    >
+                                        {active ? <Minus /> : <Plus />}
                                     </span>
                                 </button>
                             );
                         })}
                     </div>
-                </div>
+                </section>
             )}
 
-            {/* Loading state */}
-            {loading && (
-                <div className="flex items-center justify-center py-12 text-gray-400">
-                    <svg className="animate-spin h-6 w-6 mr-3" viewBox="0 0 24 24" fill="none">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
-                    <span className="font-bdo text-sm">Memuat jadwal…</span>
+            <section
+                className="booking-slot-section"
+                aria-labelledby={`booking-slot-${item.id}`}
+            >
+                <div className="booking-slot-section__heading">
+                    <span id={`booking-slot-${item.id}`}>(Waktu Tersedia)</span>
+                    <span>
+                        {loading
+                            ? "Memuat"
+                            : `${String(visibleAvailableSlots.length).padStart(2, "0")} tersedia`}
+                    </span>
                 </div>
-            )}
 
-            {/* Error state */}
-            {!loading && slotError && (
-                <div className="flex items-center justify-center py-10">
-                    <p className="font-bdo text-sm text-rose-500 text-center">{slotError}</p>
-                </div>
-            )}
+                {loading && (
+                    <div className="booking-schedule-state" role="status">
+                        <LoaderCircle
+                            className="booking-schedule-state__spinner"
+                            aria-hidden="true"
+                        />
+                        <span>Memuat jadwal...</span>
+                    </div>
+                )}
 
-            {/* Empty state */}
-            {!loading && !slotError && slots.length === 0 && (
-                <div className="flex items-center justify-center py-10">
-                    <p className="font-bdo text-sm text-gray-400 text-center">Tidak ada jadwal tersedia untuk tanggal ini.</p>
-                </div>
-            )}
+                {!loading && slotError && (
+                    <div
+                        className="booking-schedule-state booking-schedule-state--error"
+                        role={
+                            slotError === "Gagal memuat jadwal. Coba lagi."
+                                ? "alert"
+                                : "status"
+                        }
+                    >
+                        <p>{slotError}</p>
+                        {slotError === "Gagal memuat jadwal. Coba lagi." && (
+                            <button type="button" onClick={onRetry}>
+                                Muat ulang jadwal
+                                <i aria-hidden="true" />
+                            </button>
+                        )}
+                    </div>
+                )}
 
-            {/* Slot grid */}
-            {!loading && !slotError && slots.length > 0 && (
-                <>
-                    <p className="font-bdo font-medium text-base text-gray-600 mb-4">
-                        Waktu Yang Tersedia
-                    </p>
-                    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
-                        {slots.map((slot, i) => {
+                {!loading && !slotError && slots.length === 0 && (
+                    <div className="booking-schedule-state" role="status">
+                        <p>
+                            {selectedAvailabilityReason === "elapsed"
+                                ? "Seluruh waktu reservasi hari ini telah berlalu."
+                                : selectedAvailabilityReason ===
+                                    "fully_booked"
+                                  ? "Seluruh jadwal untuk unit ini telah dipesan."
+                                  : "Tidak ada jadwal tersedia untuk tanggal ini."}
+                        </p>
+                    </div>
+                )}
+
+                {!loading &&
+                    !slotError &&
+                    slots.length > 0 &&
+                    visibleSlots.length === 0 && (
+                        <div className="booking-schedule-state" role="status">
+                            <p>
+                                Tidak ada slot yang sesuai dengan filter waktu.
+                            </p>
+                        </div>
+                    )}
+
+                {!loading && !slotError && visibleSlots.length > 0 && (
+                    <div className="booking-slot-grid">
+                        {visibleSlots.map((slot, index) => {
                             const isBooked = slot.status === "booked";
+                            const bookedStateLabel =
+                                slot.reason === "elapsed"
+                                    ? "Waktu berlalu"
+                                    : "Penuh";
                             const slotKey = [
                                 item.facilityId,
                                 slot.facilityUnitId ?? "parent",
@@ -193,60 +463,70 @@ function CalendarUI({
                                 slot.start_time,
                                 slot.end_time,
                             ].join("|");
-                            const isSelected = selectedSlotKeys.includes(slotKey);
-                            const selectedUnit = units.find((unit) => unit.id === selectedUnitId);
+                            const isSelected =
+                                !isBooked &&
+                                selectedSlotKeys.includes(slotKey);
+
                             return (
                                 <button
-                                    key={i}
+                                    key={slotKey}
                                     type="button"
                                     disabled={isBooked}
+                                    aria-pressed={isSelected}
+                                    aria-label={`${slot.time}, ${isBooked ? bookedStateLabel.toLocaleLowerCase("id-ID") : slot.price}${isSelected ? ", dipilih" : ""}`}
                                     onClick={() => {
                                         if (isBooked) return;
                                         onToggleSlot({
                                             facility_id: item.facilityId,
-                                            facility_unit_id: slot.facilityUnitId ?? selectedUnitId ?? null,
-                                            facility_name: item.title.replace(/^\/+/, ""),
-                                            facility_unit_name: selectedUnit?.name ?? null,
+                                            facility_unit_id:
+                                                slot.facilityUnitId ??
+                                                selectedUnitId ??
+                                                null,
+                                            facility_name: item.title.replace(
+                                                /^\/+/,
+                                                "",
+                                            ),
+                                            facility_unit_name:
+                                                selectedUnit?.name ?? null,
                                             booking_date: selectedDate,
                                             start_time: slot.start_time,
                                             end_time: slot.end_time,
                                             label: slot.time,
                                             price: slot.price,
-                                            price_amount: slot.priceAmount ?? 0,
+                                            price_amount:
+                                                slot.priceAmount ?? 0,
                                         });
                                     }}
-                                    className={`relative flex flex-col items-center py-4 px-2 rounded-xl text-sm transition-colors ${
-                                        isBooked
-                                            ? "bg-rose-50 text-rose-300 pointer-events-none opacity-40 cursor-not-allowed"
-                                            : isSelected
-                                            ? "border border-[#0B4A72] bg-[#0B4A72] text-white shadow-[0_16px_28px_-22px_rgba(11,74,114,.85)]"
-                                            : "border border-transparent bg-gray-50 text-gray-400 hover:border-[#0B4A72]/25 hover:bg-white hover:text-gray-700"
-                                    }`}
+                                    className={`booking-slot${isBooked ? " is-booked" : ""}${isSelected ? " is-selected" : ""}`}
                                 >
-                                    {isBooked && (
-                                        <span className="absolute -top-2 left-1/2 -translate-x-1/2 rounded-full bg-rose-500 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white">
-                                            Penuh
-                                        </span>
-                                    )}
-                                    {isSelected && (
-                                        <span className="absolute -top-2 right-2 rounded-full bg-white px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#0B4A72]">
-                                            Dipilih
-                                        </span>
-                                    )}
-                                    <span className="font-bdo font-medium text-xs xl:text-sm">
-                                        {slot.time}
+                                    <span
+                                        className="booking-slot__index"
+                                        aria-hidden="true"
+                                    >
+                                        {String(index + 1).padStart(2, "0")}
                                     </span>
-                                    {!isBooked && (
-                                        <span className="font-bdo font-light text-xs opacity-70 mt-1">
-                                            {slot.price}
-                                        </span>
-                                    )}
+                                    <strong>{slot.time}</strong>
+                                    <span className="booking-slot__price">
+                                        {isBooked
+                                            ? bookedStateLabel
+                                            : slot.price}
+                                    </span>
+                                    <span
+                                        className="booking-slot__mark"
+                                        aria-hidden="true"
+                                    >
+                                        {isBooked
+                                            ? "—"
+                                            : isSelected
+                                              ? "Dipilih"
+                                              : "+"}
+                                    </span>
                                 </button>
                             );
                         })}
                     </div>
-                </>
-            )}
+                )}
+            </section>
         </div>
     );
 }
@@ -261,85 +541,126 @@ export default function BookingListItem({
     onToggleSlot,
     loadingSlots,
     slotError,
+    slotFilter,
+    selectedSlotCount,
+    selectedUnitSlotCount,
+    onRetrySlots,
+    onPreviewPointerEnter,
+    onPreviewPointerMove,
+    onPreviewPointerLeave,
+    onPreviewPointerDown,
 }: Props) {
-    return (
-        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] xl:grid-cols-[320px_1fr] gap-6 xl:gap-8 py-6 border-b border-gray-200 w-full items-start">
+    const reduceMotion = useReducedMotion();
+    const triggerId = `booking-arena-trigger-${item.id}`;
+    const panelId = `booking-arena-panel-${item.id}`;
+    const availabilityLabel = availabilityStateLabel(
+        item.availability,
+        selectedSlotCount,
+    );
+    const availabilityClass = item.availability.status
+        ? ` is-availability-${item.availability.status.replace("_", "-")}`
+        : "";
+    const loadingClass =
+        item.availability.state === "loading" &&
+        !item.availability.status
+            ? " is-availability-loading"
+            : "";
+    const staleClass = item.availability.stale
+        ? " is-availability-stale"
+        : "";
 
-            <div className="relative w-full aspect-[16/9] rounded-xl overflow-hidden">
-                <img
-                    src={item.image}
-                    alt={item.title}
-                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 hover:scale-105"
-                />
-                {!isOpen && (
-                    <div className="absolute bottom-3 left-3">
-                        <FacilityBadge
-                            location={item.badgeLocation}
-                            category={item.badgeType}
+    return (
+        <article
+            className={`booking-directory-item${isOpen ? " is-open" : ""}${availabilityClass}${loadingClass}${staleClass}`}
+        >
+            <button
+                id={triggerId}
+                type="button"
+                onClick={(event) => onToggle(event.currentTarget)}
+                onPointerEnter={onPreviewPointerEnter}
+                onPointerMove={onPreviewPointerMove}
+                onPointerLeave={onPreviewPointerLeave}
+                onPointerDown={onPreviewPointerDown}
+                aria-expanded={isOpen}
+                aria-controls={panelId}
+                className="booking-directory-item__trigger"
+            >
+                <span className="booking-directory-item__code">
+                    {item.code.replace(/\//g, "")}
+                </span>
+                <strong className="booking-directory-item__title">
+                    {item.title}
+                </strong>
+                <span className="booking-directory-item__meta">
+                    <strong>{item.sport}</strong>
+                    <small>{item.badgeLocation}</small>
+                </span>
+                <span className="booking-directory-item__status">
+                    <strong>{availabilityLabel.primary}</strong>
+                    {availabilityLabel.secondary && (
+                        <small>{availabilityLabel.secondary}</small>
+                    )}
+                </span>
+                <span className="booking-directory-item__thumb">
+                    <img
+                        src={item.image}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                        onError={applyImageFallback}
+                    />
+                </span>
+                <span
+                    className="booking-directory-item__toggle"
+                    aria-hidden="true"
+                >
+                    {isOpen ? <Minus /> : <Plus />}
+                </span>
+            </button>
+
+            {isOpen && (
+                <motion.div
+                    id={panelId}
+                    role="region"
+                    aria-labelledby={triggerId}
+                    initial={reduceMotion ? false : { opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{
+                        duration: reduceMotion ? 0 : 0.28,
+                        ease: EASE,
+                    }}
+                    className="booking-directory-item__body"
+                >
+                    <div className="booking-directory-item__workspace">
+                        <figure className="booking-directory-item__visual">
+                            <BookingFacilityGallery
+                                facilityName={item.title.replace(/^\/+/, "")}
+                                images={item.gallery}
+                            />
+                            <figcaption>
+                                <span>{item.badgeLocation}</span>
+                                <span>{item.badgeType}</span>
+                            </figcaption>
+                        </figure>
+
+                        <CalendarUI
+                            item={item}
+                            selectedDate={selectedDate}
+                            slots={item.availableSlots}
+                            units={item.units}
+                            selectedUnitId={item.selectedUnitId}
+                            onUnitChange={onUnitChange}
+                            selectedSlotKeys={selectedSlotKeys}
+                            onToggleSlot={onToggleSlot}
+                            loading={loadingSlots}
+                            slotError={slotError}
+                            slotFilter={slotFilter}
+                            selectedSlotCount={selectedUnitSlotCount}
+                            onRetry={onRetrySlots}
                         />
                     </div>
-                )}
-            </div>
-
-            <div className="flex flex-col w-full min-w-0">
-
-                <div
-                    onClick={onToggle}
-                    role="button"
-                    aria-expanded={isOpen}
-                    className="flex w-full items-center justify-between cursor-pointer pb-2 gap-4"
-                >
-                    <span className="flex-grow font-bdo font-light text-[clamp(1.25rem,1.67vw,32px)] text-black leading-tight">
-                        {item.title}
-                    </span>
-                    <span className="hidden sm:block font-bdo font-medium text-sm text-gray-400 whitespace-nowrap">
-                        {item.code}
-                    </span>
-                    <div
-                        className={`flex-shrink-0 flex size-10 xl:size-11 items-center justify-center rounded-full transition-colors ${
-                            isOpen ? "bg-accent-red text-white" : "bg-black text-white"
-                        }`}
-                    >
-                        {isOpen ? <XIcon /> : <ChevronDown />}
-                    </div>
-                </div>
-
-                <AnimatePresence initial={false}>
-                    {isOpen && (
-                        <motion.div
-                            key="body"
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: "auto", opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            transition={{ duration: 0.45, ease: EASE }}
-                            className="overflow-hidden"
-                        >
-                            <div className="mt-6">
-                                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-8">
-                                    <ReservasiButton label="Mulai Reservasi" href="#" />
-                                    <FacilityBadge
-                                        location={item.badgeLocation}
-                                        category={item.badgeType}
-                                    />
-                                </div>
-
-                                <CalendarUI
-                                    item={item}
-                                    selectedDate={selectedDate}
-                                    slots={item.availableSlots}
-                                    units={item.units}
-                                    selectedUnitId={item.selectedUnitId}
-                                    onUnitChange={onUnitChange}
-                                    selectedSlotKeys={selectedSlotKeys}
-                                    onToggleSlot={onToggleSlot}
-                                    loading={loadingSlots}
-                                    slotError={slotError}
-                                />
-                            </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-            </div>
-        </div>
+                </motion.div>
+            )}
+        </article>
     );
 }
