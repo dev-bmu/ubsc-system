@@ -1,7 +1,127 @@
+#pricing-info[data-pricing-info-motion="ready"]
+    [data-pricing-info-reveal] {
+    opacity: 0;
+}
+
+#pricing-info[data-pricing-info-in-view="true"]
+    [data-pricing-info-reveal]:not([data-pricing-info-revealed="true"]) {
+    will-change: opacity, transform;
+}
+
+#pricing-info[data-pricing-info-motion="ready"]
+    [data-pricing-info-reveal] {
+    transform: translate3d(0, 0.9rem, 0);
+    transition:
+        opacity 620ms cubic-bezier(0.16, 1, 0.3, 1),
+        transform 780ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+#pricing-info[data-pricing-info-motion="ready"]
+    [data-pricing-info-reveal="divider"] {
+    transform: translate3d(0, 0.55rem, 0);
+}
+
+#pricing-info[data-pricing-info-motion="ready"]
+    [data-pricing-info-reveal="label"] {
+    transition-delay: 35ms;
+}
+
+#pricing-info[data-pricing-info-motion="ready"]
+    [data-pricing-info-reveal="headline"] {
+    transition-delay: 55ms;
+}
+
+#pricing-info[data-pricing-info-motion="ready"]
+    [data-pricing-info-reveal="card"] {
+    transform: translate3d(0, 1.05rem, 0) scale(0.992);
+    transform-origin: 50% 25%;
+    transition-delay: 45ms;
+}
+
+#pricing-info[data-pricing-info-motion="ready"]
+    [data-pricing-info-reveal="cta"] {
+    transition-delay: 65ms;
+}
+
+#pricing-info[data-pricing-info-motion="ready"]
+    [data-pricing-info-reveal="results"] {
+    transform: translate3d(0.75rem, 0, 0);
+    transition-delay: 45ms;
+}
+
+#pricing-info[data-pricing-info-motion="ready"]
+    [data-pricing-info-reveal="summary"] {
+    transition-delay: 70ms;
+}
+
+#pricing-info[data-pricing-info-motion="ready"]
+    [data-pricing-info-reveal][data-pricing-info-revealed="true"] {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    will-change: auto;
+}
+
+/* Keep the price strike dormant until the card and its price have settled. */
+#pricing-info
+    [data-pricing-info-reveal="card"]
+    .membership-plan-price-origin__value.is-visible
+    .ubsc-text-reveal__block::after {
+    animation: none;
+}
+
+#pricing-info
+    [data-pricing-info-reveal="card"][data-pricing-info-revealed="true"]
+    .membership-plan-price-origin__value.is-visible
+    .ubsc-text-reveal__block::after {
+    animation:
+        membership-plan-price-origin-strike 860ms
+            calc(
+                var(--ubsc-text-delay, 0ms) +
+                    var(--ubsc-text-duration, 860ms) + 120ms
+            )
+            cubic-bezier(0.16, 1, 0.3, 1) both,
+        membership-plan-price-origin-gloss 3.8s
+            calc(
+                var(--ubsc-text-delay, 0ms) +
+                    var(--ubsc-text-duration, 860ms) + 1.12s
+            )
+            cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+#pricing-info[data-pricing-info-in-view="false"]
+    .membership-plan-favorite::before,
+#pricing-info[data-pricing-info-in-view="false"]
+    .membership-plan-cta__accent::after,
+#pricing-info[data-pricing-info-in-view="false"]
+    .membership-plan-price-origin__value
+    .ubsc-text-reveal__block::after {
+    animation-play-state: paused !important;
+}
+
 .pricing-membership__heading {
     position: relative;
     z-index: 1;
     display: block;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    margin: 0;
+    color: #0b0c0d;
+    font-family: "BDO Grotesk", Arial, sans-serif;
+    font-size: clamp(2.05rem, 8.15vw, 2.82rem);
+    font-style: normal;
+    font-weight: 500;
+    letter-spacing: -0.058em;
+    line-height: 1.01;
+    text-align: left;
+}
+
+.pricing-membership__heading--dark {
+    color: #fff;
+}
+
+.pricing-membership__heading--light {
+    color: #0b0c0d;
 }
 
 .pricing-membership__heading-reveal {
@@ -12,31 +132,114 @@
     margin-bottom: -0.14em;
     padding-right: 0.08em;
     padding-bottom: 0.14em;
+    overflow-wrap: normal;
+    text-wrap: wrap;
     white-space: normal;
+    word-break: normal;
 }
 
-.pricing-membership__heading-reveal > .ubsc-text-reveal__line-ghost,
-.pricing-membership__heading-reveal > .ubsc-text-reveal__line-measure {
+.pricing-membership__heading-reveal>.ubsc-text-reveal__line-ghost,
+.pricing-membership__heading-reveal>.ubsc-text-reveal__line-measure {
     width: 100%;
     max-width: 100%;
     white-space: normal;
     text-indent: var(--pricing-membership-heading-indent);
 }
 
-.pricing-membership__heading-reveal > .ubsc-text-reveal__line-ghost {
+.pricing-membership__heading-reveal>.ubsc-text-reveal__line-ghost {
     display: block;
 }
 
 .pricing-membership__results {
+    position: relative;
+    grid-template-columns: minmax(13.75rem, 0.36fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    column-gap: clamp(2.25rem, 4vw, 4.75rem);
+    align-items: stretch;
     max-width: 70rem;
 }
 
-.pricing-membership__results-table {
-    border-top: 1px solid #181818;
+.pricing-membership__desktop-content {
+    position: relative;
+    min-width: 0;
+}
+
+.pricing-membership__overview-group {
+    --pricing-membership-overview-offset: 0px;
+    grid-row: 1;
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: minmax(13.75rem, 0.36fr) minmax(0, 1fr);
+    column-gap: clamp(2.25rem, 4vw, 4.75rem);
+    align-self: center;
+    min-width: 0;
+    transform: translate3d(
+        0,
+        var(--pricing-membership-overview-offset),
+        0
+    );
+}
+
+.pricing-membership__results-label {
+    grid-row: 1;
+    grid-column: 1;
+    display: inline-flex;
+    min-height: clamp(3.35rem, 3.65vw, 4rem);
+    align-self: start;
+    align-items: center;
+    gap: 0.7rem;
+}
+
+.pricing-membership__results-label-mark {
+    width: 0.38rem;
+    height: 0.38rem;
+    flex: 0 0 auto;
+    background: #ff1111;
+    transform: rotate(45deg);
+}
+
+.pricing-membership__results-label-title {
+    color: #17191c;
+    font-size: clamp(0.78rem, 0.82vw, 0.9rem);
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.pricing-membership__results-label--mobile {
+    min-height: auto;
+    margin-bottom: 0.8rem;
+    align-self: flex-start;
+}
+
+.pricing-membership__cta {
+    grid-row: 2;
+    grid-column: 1;
+    display: flex;
+    align-self: end;
+    align-items: flex-end;
+}
+
+.pricing-membership__results-list {
+    grid-row: 1;
+    grid-column: 2;
+    border-top: 1px solid #dfe2e6;
 }
 
 .pricing-membership__result-row {
-    border-bottom-color: #dde0e4;
+    display: grid;
+    min-height: clamp(3.35rem, 3.65vw, 4rem);
+    grid-template-columns: 1.9rem minmax(0, 1fr) max-content;
+    align-items: center;
+    column-gap: clamp(0.7rem, 1vw, 1rem);
+    border-bottom-color: #dfe2e6;
+}
+
+.pricing-membership__result-index {
+    color: #9ca2aa;
+    font-size: clamp(0.62rem, 0.64vw, 0.7rem);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    transition: color 280ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .pricing-membership__result-label,
@@ -47,24 +250,192 @@
         transform 280ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+.pricing-membership__result-label {
+    color: #262a30;
+    font-size: clamp(0.84rem, 0.88vw, 0.98rem);
+}
+
 .pricing-membership__result-value {
-    color: #646b76;
+    color: #606874;
+    font-size: clamp(0.9rem, 0.96vw, 1.04rem);
+    white-space: nowrap;
 }
 
 .pricing-membership__summary {
-    line-height: 1.52;
-    color: #666d77;
+    grid-row: 2;
+    grid-column: 2;
+    width: 100%;
+    margin-top: 0;
+    margin-left: auto;
+    align-self: end;
+    padding-top: 0;
+    font-size: clamp(0.86rem, 0.9vw, 0.98rem);
+    line-height: 1.36;
+    color: #646c77;
+}
+
+@media (max-width: 639px) {
+    .pricing-membership__card--mobile .membership-plan-card__media {
+        height: 4.625rem;
+    }
+
+    .pricing-membership__card--mobile .membership-plan-card__shell {
+        margin-top: 0.625rem;
+    }
+
+    .pricing-membership__card--mobile .membership-plan-card__main {
+        min-height: 0;
+        margin: 0.5rem;
+        padding: 0.75rem;
+    }
+
+    .pricing-membership__card--mobile .membership-plan-card__header {
+        gap: 0.5rem;
+    }
+
+    .pricing-membership__card--mobile .membership-plan-card__purchase {
+        gap: 0.875rem;
+        margin-top: 1rem;
+    }
+
+    .pricing-membership__card--mobile .membership-plan-card__savings {
+        margin-top: 0.75rem;
+    }
+
+    .pricing-membership__card--mobile .membership-plan-cta {
+        height: 2.625rem;
+    }
+
+    .pricing-membership__card--mobile .membership-plan-features {
+        gap: 0.5rem;
+        padding: 0.875rem 1rem 1rem;
+    }
+
+    .pricing-membership__card--mobile .membership-plan-feature {
+        padding-block: 0.625rem;
+    }
 }
 
 @media (hover: hover) and (pointer: fine) {
-    .pricing-membership__result-row:hover .pricing-membership__result-label {
-        transform: translateX(0.2rem);
+    .pricing-membership__result-row:hover .pricing-membership__result-index {
+        color: #ff1111;
     }
 
     .pricing-membership__result-row:hover .pricing-membership__result-value {
-        color: #181818;
+        color: #111820;
+        transform: translateX(-0.15rem);
     }
 }
+
+@media (min-width: 640px) {
+    .pricing-membership__heading-reveal {
+        --pricing-membership-heading-indent: clamp(4.25rem, 13vw, 7rem);
+    }
+}
+
+@media (min-width: 768px) {
+    .pricing-membership__heading {
+        font-size: clamp(2.08rem, 4.5vw, 2.6rem);
+    }
+
+    .pricing-membership__heading-reveal {
+        --pricing-membership-heading-indent: clamp(5.25rem, 13vw, 8.75rem);
+    }
+}
+
+@media (min-width: 1024px) {
+    .pricing-membership__heading {
+        font-size: clamp(2.2rem, 3.8vw, 2.7rem);
+    }
+
+    .pricing-membership__heading-reveal {
+        --pricing-membership-heading-indent: clamp(6rem, 13vw, 8.75rem);
+    }
+}
+
+@media (min-width: 1280px) {
+    .pricing-membership__heading {
+        font-size: clamp(2.05rem, 2.38vw, 2.36rem);
+    }
+
+    .pricing-membership__heading-reveal {
+        --pricing-membership-heading-indent: clamp(4.5rem, 7vw, 6.25rem);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    #pricing-info[data-pricing-info-motion="ready"]
+        [data-pricing-info-reveal] {
+        opacity: 1;
+        transform: none;
+        transition: none;
+        will-change: auto;
+    }
+
+    .pricing-membership__result-label,
+    .pricing-membership__result-value,
+    .pricing-membership__result-index {
+        transition: none;
+    }
+
+    #pricing-info
+        [data-pricing-info-reveal="card"]
+        .membership-plan-price-origin__value
+        .ubsc-text-reveal__block::after {
+        animation: none;
+        opacity: 1;
+        transform: rotate(-10deg) translateY(-50%) scaleX(1);
+    }
+}
+
+@media (min-width: 1440px) {
+    .pricing-membership__heading {
+        font-size: clamp(2.45rem, 2.82vw, 2.7rem);
+    }
+
+    .pricing-membership__heading-reveal {
+        --pricing-membership-heading-indent: 8.75rem;
+    }
+}
+
+@media (min-width: 1536px) {
+    .pricing-membership__heading {
+        font-size: clamp(2.7rem, 2.55vw, 3.15rem);
+    }
+}
+
+@keyframes pricing-card-enter {
+    from {
+        opacity: 0;
+        transform: translateY(36px) scale(0.96);
+        filter: blur(4px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        filter: blur(0);
+    }
+}
+
+.pricing-card[data-visible="true"] {
+    animation: pricing-card-enter 800ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.pricing-card[data-visible="true"]:nth-child(2) {
+    animation-delay: 140ms;
+}
+
+.pricing-card[data-visible="true"]:nth-child(3) {
+    animation-delay: 280ms;
+}
+
+.pricing-card[data-visible="true"]:nth-child(4) {
+    animation-delay: 420ms;
+}
+
+/* ── Responsive heading indents ────────────────────────────────────────── */
 
 @media (min-width: 640px) {
     .pricing-membership__heading-reveal {
@@ -90,15 +461,25 @@
     }
 }
 
-@media (prefers-reduced-motion: reduce) {
-    .pricing-membership__result-label,
-    .pricing-membership__result-value {
-        transition: none;
-    }
-}
-
 @media (min-width: 1440px) {
     .pricing-membership__heading-reveal {
         --pricing-membership-heading-indent: 8.75rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    .pricing-membership__result-label,
+    .pricing-membership__result-value,
+    .pricing-membership__result-index {
+        transition: none;
+    }
+
+    .pricing-card[data-visible="true"] {
+        animation: none;
+    }
+
+    .pricing-card__feature {
+        transition: none;
     }
 }
