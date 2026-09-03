@@ -46,7 +46,8 @@ return [
         // Fail closed outside explicitly configured local/test environments.
         'mock' => env('PAYMENT_GATEWAY_MOCK', false),
         'transaction_fee' => (int) env('BOOKING_TRANSACTION_FEE', 6000),
-        'hold_minutes' => (int) env('BOOKING_PAYMENT_WINDOW_MINUTES', 30),
+        'hold_minutes' => (int) env('BOOKING_PAYMENT_WINDOW_MINUTES', 15),
+        'submission_safety_seconds' => (int) env('BOOKING_PAYMENT_SAFETY_SECONDS', 3),
         'booking_max_items' => (int) env('BOOKING_CHECKOUT_MAX_ITEMS', 8),
         'booking_max_open_holds' => (int) env('BOOKING_MAX_OPEN_HOLDS', 2),
         'currency' => env('PAYMENT_CURRENCY', 'IDR'),

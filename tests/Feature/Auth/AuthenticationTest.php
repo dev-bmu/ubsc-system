@@ -70,6 +70,7 @@ class AuthenticationTest extends TestCase
         $this->assertAuthenticated();
         $this->assertNotSame($sessionIdBeforeLogin, session()->getId());
         $response->assertRedirect('/');
+        $response->assertCookieNotExpired((string) config('session.cookie'));
         $response->assertSessionHas('inertia.clear_history', true);
 
         $pageResponse = $this->get('/');
@@ -277,11 +278,6 @@ class AuthenticationTest extends TestCase
 
     public function test_a_retired_session_cannot_be_written_back_by_a_late_tab_response(): void
     {
-        Route::middleware('web')->get(
-            '/_test/auth-session-race',
-            fn () => response()->json(['ok' => true]),
-        );
-
         $sessionId = str_repeat('a', 40);
         $store = app('session')->driver();
         $store->setId($sessionId);
@@ -289,7 +285,16 @@ class AuthenticationTest extends TestCase
         $store->put('race', 'old-tab');
         $store->save();
 
-        app(AuthSessionCoordinator::class)->retire($sessionId);
+        Route::middleware('web')->get(
+            '/_test/auth-session-race',
+            function () use ($sessionId) {
+                // This request began while the ID was still current. Another
+                // tab retires it before the response returns.
+                app(AuthSessionCoordinator::class)->retire($sessionId);
+
+                return response()->json(['ok' => true]);
+            },
+        );
 
         $response = $this
             ->withCookie((string) config('session.cookie'), $sessionId)
@@ -302,6 +307,73 @@ class AuthenticationTest extends TestCase
             ->assertCookieMissing('XSRF-TOKEN');
 
         $this->assertSame('', $store->getHandler()->read($sessionId));
+    }
+
+    public function test_a_browser_with_a_retired_cookie_receives_a_fresh_csrf_session(): void
+    {
+        $cookieName = (string) config('session.cookie');
+        $retiredSessionId = str_repeat('c', 40);
+        $store = app('session')->driver();
+        $store->setId($retiredSessionId);
+        $store->start();
+        $store->put('_token', 'retired-csrf-token');
+        $store->save();
+
+        app(AuthSessionCoordinator::class)->retire($retiredSessionId);
+
+        Route::middleware('web')->get(
+            '/_test/auth-session-recovery',
+            fn (Request $request) => response()->json([
+                'session_id' => $request->session()->getId(),
+                'csrf_token' => $request->session()->token(),
+            ]),
+        );
+        Route::middleware('web')->post(
+            '/_test/auth-session-recovery',
+            fn () => response()->json(['accepted' => true]),
+        );
+
+        $recovery = $this
+            ->withCookie($cookieName, $retiredSessionId)
+            ->get('/_test/auth-session-recovery')
+            ->assertOk();
+        $freshSessionId = (string) $recovery->json('session_id');
+        $freshCsrfToken = (string) $recovery->json('csrf_token');
+
+        $this->assertNotSame($retiredSessionId, $freshSessionId);
+        $this->assertNotSame('retired-csrf-token', $freshCsrfToken);
+        $recovery->assertCookieNotExpired($cookieName);
+
+        $this
+            ->withCookie($cookieName, $freshSessionId)
+            ->withHeader('X-CSRF-TOKEN', $freshCsrfToken)
+            ->post('/_test/auth-session-recovery')
+            ->assertOk()
+            ->assertExactJson(['accepted' => true]);
+    }
+
+    public function test_session_state_probe_can_heal_a_retired_browser_cookie(): void
+    {
+        $cookieName = (string) config('session.cookie');
+        $retiredSessionId = str_repeat('d', 40);
+        $store = app('session')->driver();
+        $store->setId($retiredSessionId);
+        $store->start();
+        $store->save();
+
+        app(AuthSessionCoordinator::class)->retire($retiredSessionId);
+
+        $this
+            ->withCredentials()
+            ->withCookie($cookieName, $retiredSessionId)
+            ->getJson('/auth/session-state')
+            ->assertOk()
+            ->assertExactJson([
+                'authenticated' => false,
+                'user_id' => null,
+            ])
+            ->assertCookieNotExpired($cookieName)
+            ->assertCookieNotExpired('XSRF-TOKEN');
     }
 
     public function test_auth_session_boundary_retires_the_exact_previous_id(): void

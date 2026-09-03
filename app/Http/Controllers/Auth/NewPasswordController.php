@@ -3,13 +3,14 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Services\CredentialSecurity;
+use App\Support\AuthenticationIdentity;
 use App\Support\PublicReturnPath;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
-use Illuminate\Support\Str;
+use Illuminate\Support\Timebox;
 use Illuminate\Validation\Rules;
 use Illuminate\Validation\ValidationException;
 
@@ -38,8 +39,14 @@ class NewPasswordController extends Controller
      *
      * @throws \Illuminate\Validation\ValidationException
      */
-    public function store(Request $request): RedirectResponse
-    {
+    public function store(
+        Request $request,
+        CredentialSecurity $credentials,
+    ): RedirectResponse {
+        $request->merge([
+            'email' => AuthenticationIdentity::normalizeEmail($request->input('email')),
+        ]);
+
         $request->validate([
             'token' => 'required',
             'email' => 'required|email',
@@ -55,16 +62,19 @@ class NewPasswordController extends Controller
         // Here we will attempt to reset the user's password. If it is successful we
         // will update the password on an actual user model and persist it to the
         // database. Otherwise we will parse the error and return the response.
-        $status = Password::reset(
-            $request->only('email', 'password', 'password_confirmation', 'token'),
-            function ($user) use ($request) {
-                $user->forceFill([
-                    'password' => Hash::make($request->password),
-                    'remember_token' => Str::random(60),
-                ])->save();
+        $status = (new Timebox)->call(
+            fn () => Password::reset(
+                $request->only('email', 'password', 'password_confirmation', 'token'),
+                function ($user) use ($request, $credentials) {
+                    $credentials->replacePassword(
+                        $user,
+                        (string) $request->password,
+                    );
 
-                event(new PasswordReset($user));
-            }
+                    event(new PasswordReset($user));
+                },
+            ),
+            $this->enumerationTimeboxMicroseconds(),
         );
 
         // If the password was successfully reset, we will redirect the user back to
@@ -78,11 +88,19 @@ class NewPasswordController extends Controller
                     'auth' => 'login',
                     'password_reset' => '1',
                 ]))
-                ->with('status', __($status));
+                ->with('status', __('passwords.reset'));
         }
 
         throw ValidationException::withMessages([
-            'email' => [trans($status)],
+            'email' => [__('passwords.token')],
         ]);
+    }
+
+    private function enumerationTimeboxMicroseconds(): int
+    {
+        return max(
+            300,
+            min(3000, (int) config('security.password_recovery.timebox_ms', 1000)),
+        ) * 1000;
     }
 }

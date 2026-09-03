@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Support\AuthenticationIdentity;
 use App\Support\PublicReturnPath;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Timebox;
 use Throwable;
 
 class PasswordResetLinkController extends Controller
@@ -29,12 +31,19 @@ class PasswordResetLinkController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        $request->merge([
+            'email' => AuthenticationIdentity::normalizeEmail($request->input('email')),
+        ]);
+
         $request->validate([
             'email' => 'required|email',
         ]);
 
         try {
-            Password::sendResetLink($request->only('email'));
+            (new Timebox)->call(
+                fn () => Password::sendResetLink($request->only('email')),
+                $this->enumerationTimeboxMicroseconds(),
+            );
         } catch (Throwable $exception) {
             report($exception);
         }
@@ -44,6 +53,14 @@ class PasswordResetLinkController extends Controller
          * addresses. Besides protecting member privacy, this keeps transport
          * failures from turning the endpoint into an account-existence oracle.
          */
-        return back()->with('status', __(Password::RESET_LINK_SENT));
+        return back()->with('status', __('passwords.sent'));
+    }
+
+    private function enumerationTimeboxMicroseconds(): int
+    {
+        return max(
+            300,
+            min(3000, (int) config('security.password_recovery.timebox_ms', 1000)),
+        ) * 1000;
     }
 }

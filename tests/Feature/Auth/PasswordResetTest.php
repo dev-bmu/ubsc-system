@@ -4,7 +4,10 @@ namespace Tests\Feature\Auth;
 
 use App\Models\User;
 use App\Notifications\Auth\ResetPasswordNotification;
+use Illuminate\Contracts\Queue\ShouldBeEncrypted;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Password;
 use Tests\TestCase;
@@ -45,7 +48,12 @@ class PasswordResetTest extends TestCase
             ->assertSessionHas('status', __(Password::RESET_LINK_SENT))
             ->assertSessionHasNoErrors();
 
-        Notification::assertSentTo($user, ResetPasswordNotification::class);
+        Notification::assertSentTo(
+            $user,
+            ResetPasswordNotification::class,
+            fn (ResetPasswordNotification $notification): bool => $notification instanceof ShouldQueue
+                && $notification instanceof ShouldBeEncrypted,
+        );
     }
 
     public function test_reset_link_preserves_the_safe_page_that_started_recovery(): void
@@ -68,10 +76,45 @@ class PasswordResetTest extends TestCase
             function (ResetPasswordNotification $notification) use ($user, $returnTo) {
                 $mail = $notification->toMail($user);
                 $query = parse_url((string) $mail->actionUrl, PHP_URL_QUERY);
+                $fragment = parse_url((string) $mail->actionUrl, PHP_URL_FRAGMENT);
                 parse_str((string) $query, $parameters);
+                parse_str((string) $fragment, $credentials);
 
-                return ($parameters['email'] ?? null) === $user->email
-                    && ($parameters['return_to'] ?? null) === $returnTo;
+                return ($parameters['auth'] ?? null) === 'reset'
+                    && ($parameters['return_to'] ?? null) === $returnTo
+                    && ($credentials['email'] ?? null) === $user->email
+                    && ($credentials['token'] ?? null) === $notification->token
+                    && ! str_contains(
+                        (string) parse_url((string) $mail->actionUrl, PHP_URL_PATH),
+                        $notification->token,
+                    )
+                    && ! str_contains((string) $query, $notification->token);
+            },
+        );
+    }
+
+    public function test_reset_token_never_appears_in_the_http_request_target(): void
+    {
+        Notification::fake();
+        $user = User::factory()->create(['email' => 'member@example.test']);
+
+        $this->post('/forgot-password', ['email' => $user->email]);
+
+        Notification::assertSentTo(
+            $user,
+            ResetPasswordNotification::class,
+            function (ResetPasswordNotification $notification) use ($user): bool {
+                $url = (string) $notification->toMail($user)->actionUrl;
+                $requestTarget = (string) parse_url($url, PHP_URL_PATH)
+                    .((string) parse_url($url, PHP_URL_QUERY) !== ''
+                        ? '?'.parse_url($url, PHP_URL_QUERY)
+                        : '');
+                parse_str((string) parse_url($url, PHP_URL_FRAGMENT), $fragment);
+
+                return ! str_contains($requestTarget, $notification->token)
+                    && ! str_contains($requestTarget, $user->email)
+                    && ($fragment['token'] ?? null) === $notification->token
+                    && ($fragment['email'] ?? null) === $user->email;
             },
         );
     }
@@ -168,5 +211,65 @@ class PasswordResetTest extends TestCase
 
             return true;
         });
+    }
+
+    public function test_invalid_reset_user_and_token_return_the_same_generic_error(): void
+    {
+        $user = User::factory()->create(['email' => 'known@example.test']);
+        $messages = [];
+
+        foreach ([$user->email, 'unknown@example.test'] as $email) {
+            $this->from('/')->post('/reset-password', [
+                'token' => 'invalid-token',
+                'email' => $email,
+                'password' => 'A-secure-password-2026!',
+                'password_confirmation' => 'A-secure-password-2026!',
+            ])->assertSessionHasErrors('email');
+            $messages[] = session('errors')->get('email')[0];
+        }
+
+        $this->assertSame([
+            __('passwords.token'),
+            __('passwords.token'),
+        ], $messages);
+    }
+
+    public function test_password_reset_revokes_existing_sessions_and_admin_session_version(): void
+    {
+        config(['session.driver' => 'database']);
+
+        Notification::fake();
+        $user = User::factory()->create(['email' => 'staff@example.test']);
+        $setting = $user->adminMfaSetting()->create([
+            'version' => 4,
+            'enabled_at' => now(),
+        ]);
+        DB::table('sessions')->insert([
+            'id' => 'existing-session-id',
+            'user_id' => $user->getKey(),
+            'ip_address' => '127.0.0.1',
+            'user_agent' => 'Test browser',
+            'payload' => base64_encode('test'),
+            'last_activity' => now()->timestamp,
+        ]);
+
+        $this->post('/forgot-password', ['email' => $user->email]);
+        Notification::assertSentTo(
+            $user,
+            ResetPasswordNotification::class,
+            function (ResetPasswordNotification $notification) use ($user): bool {
+                $this->post('/reset-password', [
+                    'token' => $notification->token,
+                    'email' => $user->email,
+                    'password' => 'A-new-secure-password-2026!',
+                    'password_confirmation' => 'A-new-secure-password-2026!',
+                ])->assertSessionHasNoErrors();
+
+                return true;
+            },
+        );
+
+        $this->assertDatabaseMissing('sessions', ['id' => 'existing-session-id']);
+        $this->assertSame(5, $setting->fresh()->version);
     }
 }

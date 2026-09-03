@@ -101,10 +101,18 @@ class GoogleAuthController extends Controller
 
             return redirect()->to($returnTo ?? '/');
         } catch (Throwable $exception) {
-            Log::error('Google login failed.', [
-                'message' => $exception->getMessage(),
-                'code' => $exception->getCode(),
-            ]);
+            try {
+                Log::error('Google login failed.', [
+                    'exception' => $exception::class,
+                    'fingerprint' => hash(
+                        'sha256',
+                        $exception::class.'|'.$exception->getMessage(),
+                    ),
+                ]);
+            } catch (Throwable) {
+                // Authentication fallback must not fail because a log sink is
+                // unavailable. No credential-bearing detail is exposed.
+            }
 
             return $this->failedRedirect($request);
         }

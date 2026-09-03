@@ -6,7 +6,6 @@ use App\Http\Requests\ProfileUpdateRequest;
 use App\Services\AuthSessionCoordinator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -29,7 +28,11 @@ class ProfileController extends Controller
 
         $user->name = $validated['name'];
 
-        if (array_key_exists('email', $validated)) {
+        // Never mutate a privileged login identity through the general admin
+        // profile endpoint. The request validation gives immediate feedback;
+        // this guard is the defense-in-depth boundary for future callers.
+        if (! $request->routeIs('admin.account.profile.update')
+            && array_key_exists('email', $validated)) {
             $user->email = $validated['email'];
         }
 
@@ -64,19 +67,17 @@ class ProfileController extends Controller
     public function destroy(
         Request $request,
         AuthSessionCoordinator $sessions,
-    ): RedirectResponse
-    {
+    ): RedirectResponse {
         $request->validate([
             'password' => ['required', 'current_password'],
         ]);
 
         $user = $request->user();
 
-        Auth::logout();
+        $sessions->logoutAndInvalidate($request);
 
         $user->delete();
 
-        $sessions->invalidate($request);
         Inertia::clearHistory();
 
         return Redirect::to('/');

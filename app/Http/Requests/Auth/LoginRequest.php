@@ -2,11 +2,14 @@
 
 namespace App\Http\Requests\Auth;
 
-use Illuminate\Auth\Events\Lockout;
+use App\Models\User;
+use App\Services\AuthenticationRateLimiter;
+use App\Support\AuthenticationIdentity;
+use Illuminate\Auth\Events\Failed;
+use Illuminate\Contracts\Auth\UserProvider;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Support\Str;
+use Illuminate\Support\Timebox;
 use Illuminate\Validation\ValidationException;
 
 class LoginRequest extends FormRequest
@@ -27,10 +30,17 @@ class LoginRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'email' => ['required', 'string', 'email'],
-            'password' => ['required', 'string'],
+            'email' => ['required', 'string', 'email', 'max:255'],
+            'password' => ['required', 'string', 'max:4096'],
             'return_to' => ['nullable', 'string', 'max:2048'],
         ];
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $this->merge([
+            'email' => AuthenticationIdentity::normalizeEmail($this->input('email')),
+        ]);
     }
 
     /**
@@ -38,19 +48,59 @@ class LoginRequest extends FormRequest
      *
      * @throws \Illuminate\Validation\ValidationException
      */
-    public function authenticate(): void
-    {
-        $this->ensureIsNotRateLimited();
+    public function authenticate(
+        bool $allowRemember = true,
+        ?callable $authorize = null,
+    ): void {
+        $limiter = app(AuthenticationRateLimiter::class);
+        $email = AuthenticationIdentity::normalizeEmail($this->input('email'));
+        $limiter->beginLogin($this, $email);
 
-        if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
-            RateLimiter::hit($this->throttleKey());
+        $credentials = [
+            'email' => $email,
+            'password' => (string) $this->input('password'),
+        ];
+        $guard = Auth::guard('web');
+        /** @var UserProvider $provider */
+        $provider = $guard->getProvider();
+        $user = (new Timebox)->call(function () use (
+            $authorize,
+            $credentials,
+            $provider,
+        ): ?User {
+            $candidate = $provider->retrieveByCredentials($credentials);
+            $candidate = $candidate instanceof User ? $candidate : null;
+            $valid = $candidate !== null
+                && $provider->validateCredentials($candidate, $credentials)
+                && ($authorize === null || (bool) $authorize($candidate));
+
+            if (! $valid) {
+                return null;
+            }
+
+            if (method_exists($provider, 'rehashPasswordIfRequired')) {
+                $provider->rehashPasswordIfRequired($candidate, $credentials);
+            }
+
+            return $candidate;
+        }, $this->loginTimeboxMicroseconds());
+
+        if (! $user instanceof User) {
+            $limiter->loginFailed($this, $email);
+            event(new Failed('web', null, [
+                'identity' => AuthenticationIdentity::opaque($email, 'failed-public-login'),
+            ]));
 
             throw ValidationException::withMessages([
                 'email' => trans('auth.failed'),
             ]);
         }
 
-        RateLimiter::clear($this->throttleKey());
+        $guard->login(
+            $user,
+            $allowRemember && $this->boolean('remember'),
+        );
+        $limiter->loginSucceeded($this, $email);
     }
 
     /**
@@ -60,20 +110,10 @@ class LoginRequest extends FormRequest
      */
     public function ensureIsNotRateLimited(): void
     {
-        if (! RateLimiter::tooManyAttempts($this->throttleKey(), 5)) {
-            return;
-        }
-
-        event(new Lockout($this));
-
-        $seconds = RateLimiter::availableIn($this->throttleKey());
-
-        throw ValidationException::withMessages([
-            'email' => trans('auth.throttle', [
-                'seconds' => $seconds,
-                'minutes' => ceil($seconds / 60),
-            ]),
-        ]);
+        app(AuthenticationRateLimiter::class)->beginLogin(
+            $this,
+            AuthenticationIdentity::normalizeEmail($this->input('email')),
+        );
     }
 
     /**
@@ -81,6 +121,17 @@ class LoginRequest extends FormRequest
      */
     public function throttleKey(): string
     {
-        return Str::transliterate(Str::lower($this->string('email')).'|'.$this->ip());
+        return app(AuthenticationRateLimiter::class)->loginKeys(
+            $this,
+            AuthenticationIdentity::normalizeEmail($this->input('email')),
+        )['account_burst'];
+    }
+
+    private function loginTimeboxMicroseconds(): int
+    {
+        return max(
+            300,
+            min(3000, (int) config('security.admin_mfa.login.timebox_ms', 1000)),
+        ) * 1000;
     }
 }

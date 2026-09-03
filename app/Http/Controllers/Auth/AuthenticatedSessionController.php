@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Services\AuthSessionCoordinator;
+use App\Support\AdminAccess;
 use App\Support\PublicReturnPath;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -51,19 +52,21 @@ class AuthenticatedSessionController extends Controller
         LoginRequest $request,
         AuthSessionCoordinator $sessions,
     ): RedirectResponse {
-        $request->authenticate();
-
-        $user = Auth::user();
-
-        // GATE 2: Staff accounts must use the staff portal
-        if ($user->hasAnyRole(['Administrator', 'Manager', 'Finance', 'Staff Central', 'Staff Front Office'])) {
-            Auth::logout();
-            $sessions->invalidate($request);
+        // Keep staff accounts out of the public guard inside Laravel's timed
+        // credential check. A valid staff password never creates a temporary
+        // public session or a distinguishable response.
+        try {
+            $request->authenticate(
+                authorize: static fn ($user): bool => ! AdminAccess::allows($user),
+            );
+        } catch (ValidationException $exception) {
+            // Apply the same history handling to every failed credential path.
+            // This prevents a rejected staff account from leaving a stale
+            // authenticated page in browser history without creating a role
+            // or account-existence oracle.
             Inertia::clearHistory();
 
-            throw ValidationException::withMessages([
-                'email' => trans('auth.failed'),
-            ]);
+            throw $exception;
         }
 
         $sessions->regenerate($request);
@@ -88,9 +91,7 @@ class AuthenticatedSessionController extends Controller
             $request->input('return_to'),
         ) ?? '/';
 
-        Auth::guard('web')->logout();
-
-        $sessions->invalidate($request);
+        $sessions->logoutAndInvalidate($request);
         Inertia::clearHistory();
 
         return redirect()->to($returnTo);

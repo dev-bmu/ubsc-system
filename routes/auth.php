@@ -15,7 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::get('auth/session-state', [AuthenticatedSessionController::class, 'state'])
-    ->middleware('throttle:auth-state')
+    ->middleware(['auth.session', 'throttle:auth-state'])
     ->name('auth.session-state');
 
 Route::middleware('guest')->group(function () {
@@ -29,7 +29,8 @@ Route::middleware('guest')->group(function () {
     })
         ->name('register');
 
-    Route::post('register', [RegisteredUserController::class, 'store']);
+    Route::post('register', [RegisteredUserController::class, 'store'])
+        ->middleware('throttle:public-registration');
 
     Route::get('login', function (Request $request) {
         $returnTo = PublicReturnPath::resolveForRequest(
@@ -41,28 +42,33 @@ Route::middleware('guest')->group(function () {
     })
         ->name('login');
 
-    Route::post('login', [AuthenticatedSessionController::class, 'store']);
+    Route::post('login', [AuthenticatedSessionController::class, 'store'])
+        ->middleware('throttle:public-login-edge');
 
     Route::get('auth/google', [GoogleAuthController::class, 'redirectToGoogle'])
+        ->middleware('throttle:oauth-entry')
         ->name('google.login');
 
     Route::get('auth/google/callback', [GoogleAuthController::class, 'handleGoogleCallback'])
+        ->middleware('throttle:oauth-entry')
         ->name('google.callback');
 
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])
         ->name('password.request');
 
     Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])
+        ->middleware('throttle:password-recovery')
         ->name('password.email');
 
     Route::get('reset-password/{token}', [NewPasswordController::class, 'create'])
         ->name('password.reset');
 
     Route::post('reset-password', [NewPasswordController::class, 'store'])
+        ->middleware('throttle:password-reset')
         ->name('password.store');
 });
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'auth.session'])->group(function () {
     Route::get('verify-email', EmailVerificationPromptController::class)
         ->name('verification.notice');
 
