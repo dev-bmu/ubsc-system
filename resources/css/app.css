@@ -1056,28 +1056,29 @@ html.lenis {
     position: relative;
     isolation: isolate;
     overflow: hidden;
-    background: linear-gradient(110deg, #f4f4f2 0%, #fff 47%, #ececea 100%);
+    background: linear-gradient(110deg,
+            #e8e9e7 0%,
+            #f3f4f2 48%,
+            #dedfdd 100%);
     box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.96),
-        inset 0 -1px 0 rgba(0, 0, 0, 0.06),
+        inset 0 1px 0 rgba(255, 255, 255, 0.82),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.09),
         0 7px 22px rgba(0, 0, 0, 0.16);
 }
 
 .reels-sport-badge::before {
     position: absolute;
     z-index: -1;
-    top: -80%;
-    bottom: -80%;
-    left: -48%;
-    width: 34%;
+    inset: -1px auto -1px -34%;
+    width: 28%;
     content: "";
     background: linear-gradient(90deg,
-            transparent,
-            rgba(255, 255, 255, 0.92),
-            transparent);
-    filter: blur(1px);
-    transform: translate3d(-180%, 0, 0) skewX(-18deg);
-    animation: reels-badge-satin 5.8s cubic-bezier(0.45, 0, 0.2, 1) infinite;
+            transparent 0%,
+            rgba(255, 255, 255, 0.44) 48%,
+            transparent 100%);
+    opacity: 0.64;
+    transform: translate3d(0, 0, 0);
+    animation: footer-divider-sheen 5.8s linear infinite;
 }
 
 .reels-sport-badge::after {
@@ -1086,11 +1087,11 @@ html.lenis {
     inset: 1px;
     border-radius: inherit;
     content: "";
-    background: radial-gradient(circle at 28% 15%,
-            rgba(255, 255, 255, 0.86),
-            transparent 42%);
-    opacity: 0.42;
-    animation: reels-badge-breathe 5.8s ease-in-out infinite;
+    border: 1px solid rgba(255, 255, 255, 0.48);
+    background: linear-gradient(180deg,
+            rgba(255, 255, 255, 0.18),
+            rgba(255, 255, 255, 0.02));
+    opacity: 1;
 }
 
 .reels-sport-badge__label {
@@ -3143,6 +3144,74 @@ html.lenis {
     will-change: transform;
 }
 
+.section-two-slide-progress {
+    --section-two-progress-active: linear-gradient(90deg, #15678d, #173859);
+    --section-two-progress-idle: linear-gradient(
+        90deg,
+        rgba(21, 103, 141, 0.2),
+        rgba(23, 56, 89, 0.2)
+    );
+    display: flex;
+    width: min(46%, 168px);
+    gap: 4px;
+}
+
+.section-two-slide-progress--images {
+    --section-two-progress-active: linear-gradient(90deg, #ff0000, #790a0a);
+    --section-two-progress-idle: linear-gradient(
+        90deg,
+        rgba(255, 0, 0, 0.18),
+        rgba(121, 10, 10, 0.2)
+    );
+}
+
+.section-two-slide-progress button {
+    position: relative;
+    height: 16px;
+    min-width: 6px;
+    flex: 1 1 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    cursor: pointer;
+    outline: none;
+}
+
+.section-two-slide-progress button::before {
+    position: absolute;
+    top: 50%;
+    right: 0;
+    left: 0;
+    height: 2px;
+    background: var(--section-two-progress-idle);
+    content: "";
+    transform: translateY(-50%);
+    transform-origin: center;
+    transition:
+        filter 180ms ease,
+        opacity 180ms ease,
+        transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.section-two-slide-progress button:hover::before,
+.section-two-slide-progress button:focus-visible::before {
+    filter: saturate(1.16) brightness(0.86);
+    opacity: 0.82;
+}
+
+.section-two-slide-progress button:focus-visible {
+    outline: 1px solid rgba(17, 17, 17, 0.34);
+    outline-offset: 2px;
+}
+
+.section-two-slide-progress button.is-active::before {
+    background: var(--section-two-progress-active);
+    box-shadow: 0 4px 12px -6px rgba(15, 23, 42, 0.48);
+    opacity: 1;
+    transform: translateY(-50%) scaleY(1.5);
+}
+
 @media (hover: none) and (pointer: coarse) {
     .home-hero-section-reveal.is-curtain-transitioning
         .ubsc-hero-settled
@@ -3226,6 +3295,8 @@ html.lenis {
 }
 
 .home-post-section-two-flow {
+    position: relative;
+    z-index: 19;
     overflow-anchor: none;
 }
 
@@ -3293,11 +3364,17 @@ html.lenis {
     right: 0;
     bottom: 100%;
     left: 0;
+    height: 100vh;
+    height: 100svh;
     z-index: 0;
     overflow: hidden;
     overflow-anchor: none;
     pointer-events: none;
-    transform: translate3d(0, 0, 0);
+    transform: translate3d(0, 0, 0) scaleY(0);
+    transform-origin: bottom center;
+    contain: layout paint style;
+    will-change: transform;
+    backface-visibility: hidden;
 }
 
 .section-four-curtain-edge__shape {
@@ -3306,6 +3383,7 @@ html.lenis {
     display: block;
     background: #ffffff;
     transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
 }
 
 .section-four-curtain-content {
@@ -3314,6 +3392,14 @@ html.lenis {
     background: #252525;
     overflow-anchor: none;
     transform: translate3d(0, 0, 0);
+}
+
+@media (max-width: 63.999rem) {
+    .section-four-reservation-action .reservasi-btn {
+        width: 172px;
+        max-width: 100%;
+        padding-right: 14px;
+    }
 }
 
 .facility-text-marquee__word {
@@ -3533,7 +3619,7 @@ html.lenis {
 }
 
 .home-section-two-headline-reveal {
-    --home-section-two-heading-indent: clamp(3rem, 13vw, 4.85rem);
+    --home-section-two-heading-indent: clamp(1.4rem, 7vw, 2.275rem);
     display: block;
     width: 100%;
     max-width: 100%;
@@ -3541,6 +3627,23 @@ html.lenis {
     padding-right: 0.08em;
     padding-bottom: 0.14em;
     white-space: normal;
+}
+
+@media (max-width: 639.98px) {
+    .section-two-membership-cta .reservasi-btn {
+        width: 175px;
+        max-width: 175px;
+        padding-right: 5px;
+    }
+
+    .home-section-two-headline-reveal--mobile-natural {
+        text-indent: var(--home-section-two-heading-indent);
+    }
+
+    .home-section-two-headline-reveal--mobile-natural>.ubsc-text-reveal__word-clip,
+    .home-section-two-headline-reveal--mobile-natural>.ubsc-text-reveal__word-clip>.ubsc-text-reveal__word {
+        text-indent: 0;
+    }
 }
 
 .home-section-two-headline-reveal>.ubsc-text-reveal__line-ghost,

@@ -329,6 +329,7 @@ const Map = forwardRef<MapRef, MapProps>(function Map(
     let notified = false;
     let firstFrame = 0;
     let stableFrame = 0;
+    let readinessFallback = 0;
 
     const notifyReady = () => {
       if (cancelled || notified) return;
@@ -355,9 +356,15 @@ const Map = forwardRef<MapRef, MapProps>(function Map(
       mapInstance.once("idle", handleIdle);
     }
 
+    // A slow or failed third-party tile must never leave the map hidden behind
+    // its skeleton forever. After the style is ready, reveal the live canvas in
+    // a bounded time and let any remaining tiles continue painting progressively.
+    readinessFallback = window.setTimeout(notifyReady, 3200);
+
     return () => {
       cancelled = true;
       mapInstance.off("idle", handleIdle);
+      window.clearTimeout(readinessFallback);
       window.cancelAnimationFrame(firstFrame);
       window.cancelAnimationFrame(stableFrame);
     };

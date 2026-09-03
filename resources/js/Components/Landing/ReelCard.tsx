@@ -2,7 +2,6 @@ import {
     type CSSProperties,
     useCallback,
     useEffect,
-    useLayoutEffect,
     useRef,
     useState,
 } from "react";
@@ -41,6 +40,12 @@ export interface ReelItem {
     isActive?: boolean;
 }
 
+type WebkitFullscreenVideo = HTMLVideoElement & {
+    webkitDisplayingFullscreen?: boolean;
+    webkitEnterFullscreen?: () => void;
+    webkitExitFullscreen?: () => void;
+};
+
 interface ReelCardProps {
     item: ReelItem;
     featured?: boolean;
@@ -50,6 +55,10 @@ interface ReelCardProps {
     dateLabel?: string;
     dateYear?: string | null;
     onActivate?: () => void;
+    onMove?: (direction: number) => void;
+    playRequest?: number;
+    interactionReady?: boolean;
+    fluidSize?: boolean;
 }
 
 function fmt(sec: number): string {
@@ -68,13 +77,17 @@ export default function ReelCard({
     dateLabel,
     dateYear,
     onActivate,
+    onMove,
+    playRequest = 0,
+    interactionReady = true,
+    fluidSize = false,
 }: ReelCardProps) {
 
     /* ── state ─────────────────────────────────────────────────────── */
     const [blobSrc,      setBlobSrc]      = useState<string | null>(null);
     const [isLoading,    setIsLoading]    = useState(false); // fetching blob
     const [isPlaying,    setIsPlaying]    = useState(false);
-    const [isMuted,      setIsMuted]      = useState(true);
+    const [isMuted,      setIsMuted]      = useState(false);
     const [isBuffering,  setIsBuffering]  = useState(false);
     const [progress,     setProgress]     = useState(0);     // 0–100
     const [currentTime,  setCurrentTime]  = useState(0);
@@ -88,22 +101,23 @@ export default function ReelCard({
     const videoRef     = useRef<HTMLVideoElement>(null);
     const cardRef      = useRef<HTMLDivElement>(null);
     const scrubBarRef  = useRef<HTMLDivElement>(null);
-    const previousRectRef = useRef<DOMRect | null>(null);
-    const previousLayoutActiveRef = useRef(active);
-    const layoutAnimationRef = useRef<Animation | null>(null);
+    const playbackSequenceRef = useRef(0);
+    const handledPlayRequestRef = useRef(0);
 
     const hasStartedRef       = useRef(false); // true after first tap
+    const shouldPlayWhenReadyRef = useRef(false);
     const scrubbingRef        = useRef(false);
     const wasPlayingRef       = useRef(false); // was playing before scrub
     const suppressClickRef    = useRef(false);
     const pendingSeekRef      = useRef(0);     // seek delta to apply after metadata loads
     const prevActiveRef       = useRef(active);
     const abortRef            = useRef<AbortController | null>(null);
+    const pointerStartRef     = useRef<{ x: number; y: number } | null>(null);
+    const dragResetTimerRef   = useRef<number>(0);
 
     const hideTimer      = useRef<number>(0);
     const tapTimer       = useRef<number>(0);
     const seekFlashTmr   = useRef<number>(0);
-    const activationTimer = useRef<number>(0);
     const lastTapTime    = useRef(0);
     const lastTapX       = useRef(0);
 
@@ -125,63 +139,10 @@ export default function ReelCard({
             window.clearTimeout(hideTimer.current);
             window.clearTimeout(tapTimer.current);
             window.clearTimeout(seekFlashTmr.current);
-            window.clearTimeout(activationTimer.current);
+            window.clearTimeout(dragResetTimerRef.current);
             abortRef.current?.abort();
-            layoutAnimationRef.current?.cancel();
         };
     }, []);
-
-    useLayoutEffect(() => {
-        const card = cardRef.current;
-        if (!card) return;
-
-        const nextRect = card.getBoundingClientRect();
-        const previousRect = previousRectRef.current;
-        const activeChanged = previousLayoutActiveRef.current !== active;
-        previousRectRef.current = nextRect;
-        previousLayoutActiveRef.current = active;
-
-        if (
-            !previousRect ||
-            !activeChanged ||
-            window.matchMedia("(prefers-reduced-motion: reduce)").matches
-        ) {
-            return;
-        }
-
-        const scaleX = previousRect.width / nextRect.width;
-        const scaleY = previousRect.height / nextRect.height;
-        const changed =
-            Math.abs(scaleX - 1) > 0.002 ||
-            Math.abs(scaleY - 1) > 0.002;
-
-        if (!changed) return;
-
-        layoutAnimationRef.current?.cancel();
-        const animation = card.animate(
-            [
-                {
-                    transform: `translate3d(0, 0, 0) scale(${scaleX}, ${scaleY})`,
-                    transformOrigin: "left bottom",
-                },
-                {
-                    transform: "translate3d(0, 0, 0) scale(1, 1)",
-                    transformOrigin: "left bottom",
-                },
-            ],
-            {
-                duration: 620,
-                easing: "cubic-bezier(0.22, 1, 0.36, 1)",
-                fill: "none",
-            },
-        );
-        layoutAnimationRef.current = animation;
-        animation.onfinish = () => {
-            if (layoutAnimationRef.current === animation) {
-                layoutAnimationRef.current = null;
-            }
-        };
-    }, [active]);
 
     useEffect(() => {
         return () => {
@@ -194,9 +155,18 @@ export default function ReelCard({
     /* ── revoke blob URL on unmount ─────────────────────────────────── */
     /* ── fullscreen sync ──────────────────────────────────────────── */
     useEffect(() => {
+        const video = videoRef.current;
         const sync = () => setIsFullscreen(document.fullscreenElement === cardRef.current);
+        const beginWebkitFullscreen = () => setIsFullscreen(true);
+        const endWebkitFullscreen = () => setIsFullscreen(false);
         document.addEventListener("fullscreenchange", sync);
-        return () => document.removeEventListener("fullscreenchange", sync);
+        video?.addEventListener("webkitbeginfullscreen", beginWebkitFullscreen);
+        video?.addEventListener("webkitendfullscreen", endWebkitFullscreen);
+        return () => {
+            document.removeEventListener("fullscreenchange", sync);
+            video?.removeEventListener("webkitbeginfullscreen", beginWebkitFullscreen);
+            video?.removeEventListener("webkitendfullscreen", endWebkitFullscreen);
+        };
     }, []);
 
     /* ── deactivation ─────────────────────────────────────────────── */
@@ -204,19 +174,36 @@ export default function ReelCard({
         const was = prevActiveRef.current;
         prevActiveRef.current = active;
         if (was && !active) {
-            window.clearTimeout(activationTimer.current);
+            const fullscreenVideo = videoRef.current as WebkitFullscreenVideo | null;
+            if (document.fullscreenElement === cardRef.current) {
+                void document.exitFullscreen?.();
+            } else if (fullscreenVideo?.webkitDisplayingFullscreen) {
+                fullscreenVideo.webkitExitFullscreen?.();
+            }
             abortRef.current?.abort();
             abortRef.current = null;
+            shouldPlayWhenReadyRef.current = false;
+            playbackSequenceRef.current += 1;
+            window.clearTimeout(tapTimer.current);
+            lastTapTime.current = 0;
             if (!blobSrc) {
                 hasStartedRef.current = false;
                 setIsLoading(false);
                 setIsBuffering(false);
             }
-            const t = window.setTimeout(() => {
-                videoRef.current?.pause();
-                setThumbVisible(true);
-            }, 220);
-            return () => window.clearTimeout(t);
+            const video = videoRef.current;
+            video?.pause();
+            if (video) {
+                try {
+                    video.currentTime = 0;
+                } catch {
+                    // The element may not have loaded metadata yet.
+                }
+            }
+            setCurrentTime(0);
+            setProgress(0);
+            setIsPlaying(false);
+            setThumbVisible(true);
         }
     }, [active, blobSrc]);
 
@@ -234,21 +221,37 @@ export default function ReelCard({
 
     const runAfterCardTransition = useCallback(
         (task: () => void) => {
-            onActivate?.();
-            window.clearTimeout(activationTimer.current);
-            if (active) {
-                task();
-                return;
-            }
-            activationTimer.current = window.setTimeout(task, 640);
+            const sequence = ++playbackSequenceRef.current;
+            requestAnimationFrame(() => {
+                const run = () => {
+                    if (sequence === playbackSequenceRef.current && active) task();
+                };
+                const card = cardRef.current;
+                if (!card) return;
+                const animations = card
+                    .getAnimations()
+                    .filter((animation) => animation.playState !== "finished");
+
+                if (animations.length === 0) {
+                    run();
+                    return;
+                }
+
+                void Promise.all(
+                    animations.map((animation) =>
+                        animation.finished.catch(() => undefined),
+                    ),
+                ).then(run);
+            });
         },
-        [active, onActivate],
+        [active],
     );
 
     /* ═══════════════════════════════════════════════════════════════
        START VIDEO — fetch as blob, then play from blob URL
        ═══════════════════════════════════════════════════════════════ */
     const startVideo = useCallback(() => {
+        shouldPlayWhenReadyRef.current = true;
         if (hasStartedRef.current) {
             // Already loaded → just resume
             runAfterCardTransition(() => {
@@ -289,14 +292,30 @@ export default function ReelCard({
 
     /* ── auto-play once blobSrc is set ───────────────────────────── */
     useEffect(() => {
-        if (!blobSrc) return;
+        if (!blobSrc || !shouldPlayWhenReadyRef.current) return;
         const vid = videoRef.current;
         if (!vid) return;
         const t = window.setTimeout(() => {
-            void vid.play().catch(() => setIsBuffering(false));
+            if (active && shouldPlayWhenReadyRef.current) {
+                void vid.play().catch(() => setIsBuffering(false));
+            }
         }, 60);
         return () => window.clearTimeout(t);
-    }, [blobSrc]);
+    }, [active, blobSrc]);
+
+    useEffect(() => {
+        if (
+            !playRequest ||
+            playRequest === handledPlayRequestRef.current
+        ) {
+            return;
+        }
+        handledPlayRequestRef.current = playRequest;
+        const video = videoRef.current;
+        if (video) video.muted = false;
+        setIsMuted(false);
+        startVideo();
+    }, [playRequest, startVideo]);
 
     /* ═══════════════════════════════════════════════════════════════
        SEEK — guaranteed to work because blob is fully in memory
@@ -314,7 +333,10 @@ export default function ReelCard({
 
     const seekBySeconds = useCallback((delta: number) => {
         const vid = videoRef.current;
-        if (!vid) return;
+        if (!vid || !isFinite(vid.duration) || vid.duration <= 0) {
+            pendingSeekRef.current += delta;
+            return;
+        }
         seekToTime(vid.currentTime + delta);
     }, [seekToTime]);
 
@@ -374,6 +396,11 @@ export default function ReelCard({
 
     /* ── toggle play/pause ────────────────────────────────────────── */
     const togglePlayback = useCallback(() => {
+        if (!interactionReady) {
+            onActivate?.();
+            revealControls();
+            return;
+        }
         if (!hasStartedRef.current) { startVideo(); return; }
         const vid = videoRef.current;
         if (!vid) return;
@@ -389,70 +416,69 @@ export default function ReelCard({
             vid.pause();
         }
         revealControls();
-    }, [active, revealControls, startVideo]);
+    }, [active, interactionReady, onActivate, revealControls, startVideo]);
 
     /* ── fullscreen ───────────────────────────────────────────────── */
-    const toggleFullscreen = useCallback((e: React.MouseEvent) => {
-        e.stopPropagation();
+    const toggleFullscreenFromCard = useCallback(() => {
         const card = cardRef.current;
-        const vid = videoRef.current as (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null;
+        const vid = videoRef.current as WebkitFullscreenVideo | null;
         if (document.fullscreenElement === card) void document.exitFullscreen?.();
+        else if (vid?.webkitDisplayingFullscreen) vid.webkitExitFullscreen?.();
         else if (card?.requestFullscreen) void card.requestFullscreen();
         else vid?.webkitEnterFullscreen?.();
         revealControls();
     }, [revealControls]);
 
-    /* ── single / double tap ──────────────────────────────────────── */
-    const handleCardTap = useCallback((clientX: number) => {
-        const now  = Date.now();
-        const diff = now - lastTapTime.current;
+    const toggleFullscreen = useCallback((e: React.MouseEvent) => {
+        e.stopPropagation();
+        toggleFullscreenFromCard();
+    }, [toggleFullscreenFromCard]);
 
-        if (diff < 280 && Math.abs(clientX - lastTapX.current) < 120) {
-            // DOUBLE TAP → ±10s
+    const handleCardTap = useCallback((clientX: number) => {
+        const now = Date.now();
+
+        if (!active || !interactionReady) {
+            lastTapTime.current = 0;
+            onActivate?.();
+            return;
+        }
+
+        if (now - lastTapTime.current < 280 && Math.abs(clientX - lastTapX.current) < 120) {
             window.clearTimeout(tapTimer.current);
             lastTapTime.current = 0;
             const rect = cardRef.current?.getBoundingClientRect();
-            const isRight = rect ? clientX > rect.left + rect.width / 2 : true;
-            const delta = isRight ? 10 : -10;
+            const isRight = rect ? clientX > rect.left + (rect.width * 0.65) : true;
+            const isLeft = rect ? clientX < rect.left + (rect.width * 0.35) : false;
 
-            if (!hasStartedRef.current) {
-                pendingSeekRef.current = delta;
-                startVideo();
-            } else {
-                seekBySeconds(delta);
+            if (!isLeft && !isRight) {
+                toggleFullscreenFromCard();
+                return;
             }
+
+            const delta = isRight ? 10 : -10;
+            seekBySeconds(delta);
+            if (!hasStartedRef.current) startVideo();
             flashSeek(isRight ? "right" : "left");
             return;
         }
 
-        // SINGLE TAP (debounced)
         lastTapTime.current = now;
-        lastTapX.current    = clientX;
+        lastTapX.current = clientX;
         window.clearTimeout(tapTimer.current);
-        tapTimer.current = window.setTimeout(togglePlayback, 280);
-    }, [flashSeek, seekBySeconds, startVideo, togglePlayback]);
+        tapTimer.current = window.setTimeout(() => {
+            lastTapTime.current = 0;
+            togglePlayback();
+        }, 280);
+    }, [active, flashSeek, interactionReady, onActivate, seekBySeconds, startVideo, toggleFullscreenFromCard, togglePlayback]);
 
+    /* ── single / double tap ──────────────────────────────────────── */
     /* ── keyboard ─────────────────────────────────────────────────── */
     const handleKeyboard = useCallback((e: React.KeyboardEvent) => {
         if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
             e.preventDefault(); e.stopPropagation();
-            const dir = e.key === "ArrowRight" ? 1 : -1;
-            seekBySeconds(dir * 10);
-            flashSeek(dir > 0 ? "right" : "left");
-            return;
+            onMove?.(e.key === "ArrowRight" ? 1 : -1);
         }
-        if (e.key === " " || e.key.toLowerCase() === "k") {
-            e.preventDefault(); e.stopPropagation();
-            togglePlayback();
-            return;
-        }
-        if (e.key.toLowerCase() === "m") {
-            e.preventDefault(); e.stopPropagation();
-            const vid = videoRef.current;
-            if (vid) { vid.muted = !vid.muted; setIsMuted(vid.muted); }
-            revealControls();
-        }
-    }, [flashSeek, revealControls, seekBySeconds, togglePlayback]);
+    }, [onMove]);
 
     /* ── mute ─────────────────────────────────────────────────────── */
     const toggleMute = useCallback((e: React.MouseEvent) => {
@@ -502,17 +528,44 @@ export default function ReelCard({
     }, [revealControls]);
     const onPause    = useCallback(() => { setIsPlaying(false); revealControls(); }, [revealControls]);
     const onEnded    = useCallback(() => {
-        setIsPlaying(false);
         const vid = videoRef.current;
+        if (active && vid) {
+            vid.currentTime = 0;
+            setCurrentTime(0);
+            setProgress(0);
+            void vid.play().catch(() => setIsPlaying(false));
+            return;
+        }
+        setIsPlaying(false);
         if (vid) { setCurrentTime(vid.duration); setProgress(100); }
         setShowControls(true);
         window.clearTimeout(hideTimer.current);
+    }, [active]);
+
+    useEffect(() => {
+        const releasePointer = () => {
+            pointerStartRef.current = null;
+            if (!suppressClickRef.current) return;
+            window.clearTimeout(dragResetTimerRef.current);
+            dragResetTimerRef.current = window.setTimeout(() => {
+                suppressClickRef.current = false;
+            }, 0);
+        };
+
+        window.addEventListener("pointerup", releasePointer, true);
+        window.addEventListener("pointercancel", releasePointer, true);
+        return () => {
+            window.removeEventListener("pointerup", releasePointer, true);
+            window.removeEventListener("pointercancel", releasePointer, true);
+        };
     }, []);
 
     /* ── size ──────────────────────────────────────────────────────── */
-    const sizeClass = active
-        ? "h-[283px] w-[165px] sm:h-[598px] sm:w-[345px] xl:h-[604px] xl:w-[360px]"
-        : "h-[238px] w-[140px] sm:h-[486px] sm:w-[280px] xl:h-[551px] xl:w-[328px]";
+    const sizeClass = fluidSize
+        ? "h-full w-full"
+        : active
+          ? "h-[283px] w-[165px] sm:h-[598px] sm:w-[345px] xl:h-[604px] xl:w-[360px]"
+          : "h-[238px] w-[140px] sm:h-[486px] sm:w-[280px] xl:h-[551px] xl:w-[328px]";
 
     const ctrlVisible = showControls || !isPlaying;
 
@@ -522,11 +575,13 @@ export default function ReelCard({
             ref={cardRef}
             tabIndex={0}
             role="group"
-            aria-label={`${item.title}. Tekan ← → untuk mundur/maju 10 detik.`}
+            aria-label={`${item.title}. Tekan panah kiri atau kanan untuk memilih video lain.`}
             className={[
                 "reels-reveal reels-reveal--card group relative flex-shrink-0 cursor-pointer select-none",
                 "overflow-hidden rounded-[5px] bg-neutral-900 xl:rounded-[10px]",
-                "transition-[box-shadow,border-radius] duration-500 ease-out",
+                fluidSize
+                    ? "transition-[box-shadow,border-radius] duration-500 ease-out"
+                    : "transition-[width,height,box-shadow,border-radius] duration-[620ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
                 sizeClass,
             ].join(" ")}
             style={{
@@ -545,10 +600,26 @@ export default function ReelCard({
                 ) {
                     return;
                 }
-                if (cardRef.current) {
-                    previousRectRef.current =
-                        cardRef.current.getBoundingClientRect();
+                pointerStartRef.current = { x: event.clientX, y: event.clientY };
+            }}
+            onPointerMoveCapture={(event) => {
+                const start = pointerStartRef.current;
+                if (!start) return;
+                if (Math.hypot(event.clientX - start.x, event.clientY - start.y) > 8) {
+                    suppressClickRef.current = true;
                 }
+            }}
+            onPointerUpCapture={() => {
+                pointerStartRef.current = null;
+                if (!suppressClickRef.current) return;
+                window.clearTimeout(dragResetTimerRef.current);
+                dragResetTimerRef.current = window.setTimeout(() => {
+                    suppressClickRef.current = false;
+                }, 0);
+            }}
+            onPointerCancelCapture={() => {
+                pointerStartRef.current = null;
+                suppressClickRef.current = false;
             }}
             onMouseMove={revealControls}
             onMouseEnter={revealControls}
@@ -599,7 +670,7 @@ export default function ReelCard({
 
             {/* ── Date label ── */}
             {dateLabel && (
-                <div className="pointer-events-none absolute left-[12px] top-[12px] z-20 font-bdo text-[8px] uppercase tracking-[0.08em] text-white/55 sm:left-[14px] sm:top-[14px] sm:text-[9px]">
+                <div className="pointer-events-none absolute bottom-[12px] right-[12px] z-20 text-right font-bdo text-[8px] uppercase tracking-[0.08em] text-white/55 sm:bottom-[14px] sm:right-[14px] sm:text-[9px]">
                     {dateLabel}
                     {dateYear && <span className="ml-1 font-light text-white/30">{dateYear}</span>}
                 </div>

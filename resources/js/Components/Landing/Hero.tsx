@@ -439,6 +439,7 @@ export default function Hero({
             <section
                 ref={heroSectionRef}
                 id="home"
+                data-navbar-surface="dark"
                 className={heroClassName}
             >
                 <img

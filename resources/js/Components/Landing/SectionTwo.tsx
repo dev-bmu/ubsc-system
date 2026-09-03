@@ -552,20 +552,32 @@ function SectionTwoCurtainEdge() {
 
 function SectionTwoHeadline() {
     const headline =
-        "Area gym ini dirancang sebagai ruang latihan yang nyaman dan fungsional untuk mendukung, latihan kekuatan, dan kardio bagi seluruh pengguna UB Sport Center\u00ae.";
+        "Area gym ini dirancang sebagai ruang latihan yang sangat nyaman dan fungsional untuk mendukung, latihan kekuatan, dan kardio bagi seluruh pengguna di UB Sport Center\u00ae.";
 
     return (
         <h2
             className="home-section-heading home-section-two-headline section-two-headline-weight max-w-[1100px] text-left font-bdo text-[clamp(2.05rem,8.15vw,2.82rem)] font-medium leading-[1.01] tracking-[-0.058em] text-black md:text-[clamp(2.08rem,4.5vw,2.6rem)] lg:text-[clamp(2.2rem,3.8vw,2.7rem)] xl:max-w-[980px] xl:text-[clamp(2.05rem,2.38vw,2.36rem)] min-[1440px]:text-[clamp(2.45rem,2.82vw,2.7rem)] 2xl:max-w-[1120px] 2xl:text-[clamp(2.7rem,2.55vw,3.15rem)]"
         >
-            <ScrollTextReveal
-                split="lines"
-                delay={110}
-                stagger={95}
-                className="home-section-two-headline-reveal"
-            >
-                {headline}
-            </ScrollTextReveal>
+            <span className="block md:hidden">
+                <ScrollTextReveal
+                    split="words"
+                    delay={110}
+                    stagger={16}
+                    className="home-section-two-headline-reveal home-section-two-headline-reveal--mobile-natural"
+                >
+                    {headline}
+                </ScrollTextReveal>
+            </span>
+            <span className="hidden md:block">
+                <ScrollTextReveal
+                    split="lines"
+                    delay={110}
+                    stagger={95}
+                    className="home-section-two-headline-reveal"
+                >
+                    {headline}
+                </ScrollTextReveal>
+            </span>
         </h2>
     );
 }
@@ -677,28 +689,22 @@ export function MembershipPlanCarousel({
 
             {snapCount > 1 && (
                 <div className="mt-2.5 flex items-center justify-center">
-                    <div className="inline-flex items-center gap-1">
+                    <div className="section-two-slide-progress section-two-slide-progress--membership">
                         {Array.from({ length: snapCount }).map((_, index) => (
                             <button
                                 key={index}
                                 type="button"
                                 onClick={() => emblaApi?.scrollTo(index)}
-                                className="group relative flex h-3 w-3 items-center justify-center rounded-full outline-none transition"
+                                className={
+                                    selectedIndex === index
+                                        ? "is-active"
+                                        : undefined
+                                }
                                 aria-label={`Lihat paket ${index + 1}`}
-                            >
-                                <span
-                                    className={`absolute inset-0 rounded-full transition duration-500 ${selectedIndex === index
-                                        ? "scale-95 bg-[#FF0000]/12 shadow-[0_0_12px_rgba(255,0,0,0.16)]"
-                                        : "scale-75 bg-transparent"
-                                        }`}
-                                />
-                                <span
-                                    className={`relative rounded-full transition duration-500 ${selectedIndex === index
-                                        ? "h-2 w-2 scale-100 bg-[#FF0000] shadow-[0_0_9px_rgba(255,0,0,0.38)]"
-                                        : "h-1.5 w-1.5 scale-90 bg-slate-400/70 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.8),0_2px_7px_rgba(15,23,42,0.11)] group-hover:scale-100 group-hover:bg-slate-500/80"
-                                        }`}
-                                />
-                            </button>
+                                aria-current={
+                                    selectedIndex === index ? "true" : undefined
+                                }
+                            />
                         ))}
                     </div>
                 </div>
@@ -749,7 +755,7 @@ const MembershipPlanCard = memo(function MembershipPlanCard({
             data-membership-text-static={staticText ? "true" : "false"}
             aria-label={`${plan.name}, ${formattedCompareAtPrice ? `harga normal Rp ${formattedCompareAtPrice}, ` : ""}harga membership Rp ${formattedPrice} per ${durationSuffix(plan.duration_months)}`}
         >
-            <div className="membership-plan-card__media relative h-[78px] overflow-hidden rounded-[5px] bg-slate-100 sm:h-[140px] md:h-[152px] xl:h-[78px]">
+            <div className="membership-plan-card__media relative h-[72px] overflow-hidden rounded-[5px] bg-slate-100 sm:h-[140px] md:h-[152px] xl:h-[78px]">
                 <img
                     src={image}
                     alt={plan.name}
@@ -763,14 +769,14 @@ const MembershipPlanCard = memo(function MembershipPlanCard({
             </div>
 
             <div
-                className="membership-plan-card__shell mt-3 overflow-hidden rounded-[5px] text-white transition-[box-shadow,transform] duration-500 ease-out group-hover:-translate-y-0.5 xl:mt-3"
+                className="membership-plan-card__shell mt-[10px] overflow-hidden rounded-[5px] text-white transition-[box-shadow,transform] duration-500 ease-out group-hover:-translate-y-0.5 sm:mt-3 xl:mt-3"
             >
-                <div className="membership-plan-card__main relative m-2.5 min-h-[218px] overflow-hidden rounded-[5px] bg-white px-3.5 py-3.5 text-black shadow-[0_18px_45px_rgba(0,0,0,0.16)] sm:m-3 sm:min-h-[232px] sm:px-5 sm:py-[18px] md:min-h-[240px] md:px-6 xl:m-[10px] xl:min-h-[202px] xl:px-5 xl:py-[14px]">
+                <div className="membership-plan-card__main relative m-2.5 min-h-[190px] overflow-hidden rounded-[5px] bg-white px-3.5 py-3.5 text-black shadow-[0_18px_45px_rgba(0,0,0,0.16)] sm:m-3 sm:min-h-[232px] sm:px-5 sm:py-[18px] md:min-h-[240px] md:px-6 xl:m-[10px] xl:min-h-[202px] xl:px-5 xl:py-[14px]">
                     <span
                         aria-hidden="true"
                         className="membership-plan-card__accent absolute left-0 top-0 h-[2px] w-[clamp(3rem,18%,4.5rem)]"
                     />
-                    <div className="membership-plan-card__header relative flex flex-col gap-3 sm:block sm:pr-32 xl:pr-[84px]">
+                    <div className="membership-plan-card__header relative flex flex-col gap-[10px] sm:block sm:pr-32 xl:pr-[84px]">
                         <div className="max-w-[360px] xl:max-w-[280px]">
                             <ScrollTextReveal
                                 as="p"
@@ -810,9 +816,9 @@ const MembershipPlanCard = memo(function MembershipPlanCard({
                     </div>
 
                     <div
-                        className={`membership-plan-card__purchase flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between xl:gap-3 ${discount
-                            ? "mt-5 sm:mt-7 xl:mt-8"
-                            : "mt-7 sm:mt-9 xl:mt-12"
+                        className={`membership-plan-card__purchase flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between xl:gap-3 ${discount
+                            ? "mt-3 sm:mt-7 xl:mt-8"
+                            : "mt-[18px] sm:mt-9 xl:mt-12"
                             }`}
                     >
                         <div className="min-w-0 flex-1">
@@ -870,7 +876,7 @@ const MembershipPlanCard = memo(function MembershipPlanCard({
                                     {`/${durationSuffix(plan.duration_months)}`}
                                 </ScrollTextReveal>
                             </div>
-                            <span className="membership-plan-card__savings mt-4 inline-flex rounded-full bg-[#CFFFC9] px-3.5 py-1.5 font-bdo text-[11px] font-semibold text-[#168C3D] shadow-[inset_0_1px_0_rgba(255,255,255,0.72)] sm:mt-5 sm:px-4 sm:py-2 sm:text-xs xl:mt-4 xl:px-3.5 xl:py-1.5 xl:text-[10px]">
+                            <span className="membership-plan-card__savings mt-2 inline-flex rounded-full bg-[#CFFFC9] px-3.5 py-1.5 font-bdo text-[11px] font-semibold text-[#168C3D] shadow-[inset_0_1px_0_rgba(255,255,255,0.72)] sm:mt-5 sm:px-4 sm:py-2 sm:text-xs xl:mt-4 xl:px-3.5 xl:py-1.5 xl:text-[10px]">
                                 <ScrollTextReveal
                                     delay={410}
                                     staticReveal={staticText}
@@ -919,11 +925,11 @@ const MembershipPlanCard = memo(function MembershipPlanCard({
                     </div>
                 </div>
 
-                <div className="membership-plan-features grid min-h-0 grid-cols-1 gap-2.5 border-t border-white/10 px-4 pb-5 pt-4 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-3.5 sm:px-6 sm:pb-7 sm:pt-6 xl:min-h-[139px]">
+                <div className="membership-plan-features grid min-h-0 grid-cols-1 gap-[5px] border-t border-white/10 px-4 pb-[13px] pt-[11px] sm:grid-cols-2 sm:gap-x-6 sm:gap-y-3.5 sm:px-6 sm:pb-7 sm:pt-6 xl:min-h-[139px]">
                     {features.map((feature, index) => (
                         <div
                             key={`${feature}-${index}`}
-                            className="membership-plan-feature relative grid min-w-0 grid-cols-[12px_minmax(0,1fr)] items-center gap-x-2 px-0 py-3 font-bdo text-[11px] font-medium leading-[1.25] text-white after:absolute after:bottom-0 after:left-0 after:right-0 after:h-px after:bg-[linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,0.72)_16%,rgba(148,163,184,0.42)_58%,rgba(255,255,255,0))] last:after:hidden sm:bg-transparent sm:p-0 sm:after:hidden"
+                            className="membership-plan-feature relative grid min-w-0 grid-cols-[12px_minmax(0,1fr)] items-center gap-x-2 px-0 py-[8.5px] font-bdo text-[11px] font-medium leading-[1.25] text-white after:absolute after:bottom-0 after:left-0 after:right-0 after:h-px after:bg-[linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,0.72)_16%,rgba(148,163,184,0.42)_58%,rgba(255,255,255,0))] last:after:hidden sm:bg-transparent sm:p-0 sm:after:hidden"
                         >
                             <Plus className="membership-plan-feature__icon h-2.5 w-2.5 shrink-0" />
                             <ScrollTextReveal
@@ -1037,6 +1043,7 @@ export default function SectionTwo({
         <section
             ref={sectionRef}
             id="about"
+            data-navbar-surface="light"
             className="section-two-curtain relative overflow-x-clip bg-white text-black"
         >
             <SectionTwoCurtainEdge />
@@ -1100,7 +1107,7 @@ export default function SectionTwo({
                             <div className="mt-12 flex flex-col gap-5 md:flex-row md:items-center md:justify-between xl:mt-[4.8rem] xl:max-w-[980px] 2xl:max-w-[1120px]">
                                 <div
                                     data-section-two-reveal
-                                    className="section-two-object-reveal section-two-object-reveal--left"
+                                    className="section-two-object-reveal section-two-object-reveal--left section-two-membership-cta"
                                 >
                                     <ReservasiButton
                                         label="Daftar Sekarang"
@@ -1182,7 +1189,7 @@ export default function SectionTwo({
 
                     <div
                         data-section-two-reveal
-                        className="section-two-object-reveal section-two-object-reveal--media mt-20 xl:mt-[5.6rem]"
+                        className="section-two-object-reveal section-two-object-reveal--media mt-[2.9375rem] md:mt-20 xl:mt-[5.6rem]"
                     >
                         <ImageCarousel images={promos ?? DUMMY_IMAGES} density="compact" />
                     </div>

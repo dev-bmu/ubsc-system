@@ -460,6 +460,7 @@ export default function SectionEight({
         <section
             ref={sectionRef}
             id="about-map"
+            data-navbar-surface="dark"
             data-pricing-loop-region={
                 deferLoopAnimations ? "true" : undefined
             }

@@ -152,6 +152,10 @@ export default function HeroBottomBar({
                 setIsVideoReady(false);
             }
         };
+        const showPosterFallback = () => {
+            frameReadyCommitted = false;
+            setIsVideoReady(false);
+        };
         const canUseVideo = () => !mobileVideoOnly || mobileQuery.matches;
         const syncPlayback = () => {
             if (isDisposed) return;
@@ -215,6 +219,8 @@ export default function HeroBottomBar({
         video.addEventListener("emptied", markWaitingForFrame);
         video.addEventListener("loadeddata", markReady);
         video.addEventListener("canplay", markReady);
+        video.addEventListener("error", showPosterFallback);
+        video.addEventListener("stalled", markWaitingForFrame);
         document.addEventListener("visibilitychange", syncPlayback);
         window.addEventListener("pagehide", handlePageHide);
         window.addEventListener("pageshow", handlePageShow);
@@ -236,6 +242,8 @@ export default function HeroBottomBar({
             video.removeEventListener("emptied", markWaitingForFrame);
             video.removeEventListener("loadeddata", markReady);
             video.removeEventListener("canplay", markReady);
+            video.removeEventListener("error", showPosterFallback);
+            video.removeEventListener("stalled", markWaitingForFrame);
             document.removeEventListener("visibilitychange", syncPlayback);
             window.removeEventListener("pagehide", handlePageHide);
             window.removeEventListener("pageshow", handlePageShow);
@@ -327,26 +335,49 @@ export default function HeroBottomBar({
             }`}
         >
             {showVideo && (variant === "solid" || mobileVideoOnly) && (
-                <video
-                    ref={videoRef}
-                    data-video-ready={isVideoReady ? "true" : "false"}
-                    className={`pointer-events-none absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ease-out ${
-                        isVideoReady ? "opacity-100" : "opacity-0"
-                    } ${mobileVideoOnly ? "md:hidden" : ""}`}
-                    src={mobileVideoOnly ? undefined : "/assets/reels/hero.mp4"}
-                    loop
-                    muted
-                    playsInline
-                    preload="auto"
-                >
-                    {mobileVideoOnly && (
+                <>
+                    <img
+                        src="/assets/hero/Bottom-poster.jpg"
+                        alt=""
+                        aria-hidden="true"
+                        loading="eager"
+                        decoding="async"
+                        className={`pointer-events-none absolute inset-0 h-full w-full object-cover ${
+                            mobileVideoOnly ? "md:hidden" : ""
+                        }`}
+                    />
+                    <video
+                        ref={videoRef}
+                        data-video-ready={isVideoReady ? "true" : "false"}
+                        className={`pointer-events-none absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ease-out ${
+                            isVideoReady ? "opacity-100" : "opacity-0"
+                        } ${mobileVideoOnly ? "md:hidden" : ""}`}
+                        poster="/assets/hero/Bottom-poster.jpg"
+                        loop
+                        muted
+                        playsInline
+                        preload="auto"
+                    >
+                        <source
+                            src="/assets/reels/hero-h264.mp4"
+                            type='video/mp4; codecs="avc1.640028"'
+                            media={
+                                mobileVideoOnly
+                                    ? "(max-width: 47.999rem)"
+                                    : undefined
+                            }
+                        />
                         <source
                             src="/assets/reels/hero.mp4"
-                            type="video/mp4"
-                            media="(max-width: 47.999rem)"
+                            type='video/mp4; codecs="av01.0.05M.08"'
+                            media={
+                                mobileVideoOnly
+                                    ? "(max-width: 47.999rem)"
+                                    : undefined
+                            }
                         />
-                    )}
-                </video>
+                    </video>
+                </>
             )}
 
             {!hideLine && (

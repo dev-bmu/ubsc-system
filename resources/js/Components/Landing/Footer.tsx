@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
-import { usePage } from "@inertiajs/react";
+import { Link, usePage } from "@inertiajs/react";
 import ig from "../../../assets/icons/ig.svg";
 import tiktok from "../../../assets/icons/tiktok.svg";
 
@@ -214,6 +214,7 @@ export default function Footer({
                 setFooterVideoReady(false);
             }
         };
+        const showSurfaceFallback = () => setFooterVideoReady(false);
 
         markReady();
         video.preload = "auto";
@@ -227,17 +228,22 @@ export default function Footer({
         video.addEventListener("emptied", markWaitingForFrame);
         video.addEventListener("loadeddata", markReady);
         video.addEventListener("canplay", markReady);
+        video.addEventListener("error", showSurfaceFallback);
+        video.addEventListener("stalled", markWaitingForFrame);
 
         return () => {
             video.removeEventListener("loadstart", markWaitingForFrame);
             video.removeEventListener("emptied", markWaitingForFrame);
             video.removeEventListener("loadeddata", markReady);
             video.removeEventListener("canplay", markReady);
+            video.removeEventListener("error", showSurfaceFallback);
+            video.removeEventListener("stalled", markWaitingForFrame);
         };
     }, [footerVideoActive]);
 
     return (
         <footer
+            data-navbar-surface="dark"
             data-pricing-loop-region={
                 deferLoopAnimations ? "true" : undefined
             }
@@ -501,13 +507,18 @@ export default function Footer({
                             preload={footerVideoActive ? "auto" : "none"}
                             onLoadedData={() => setFooterVideoReady(true)}
                             onCanPlay={() => setFooterVideoReady(true)}
-                            className={`footer-video-media h-full w-full select-none object-cover object-center transition-opacity duration-500 ease-out ${
+                            onError={() => setFooterVideoReady(false)}
+                            className={`footer-video-media relative z-[1] h-full w-full select-none object-cover object-center transition-opacity duration-500 ease-out ${
                                 footerVideoReady ? "opacity-100" : "opacity-0"
                             }`}
                         >
                             <source
+                                src="/assets/reels/Footer-h264.mp4"
+                                type='video/mp4; codecs="avc1.640028"'
+                            />
+                            <source
                                 src="/assets/reels/Footer.mp4"
-                                type="video/mp4"
+                                type='video/mp4; codecs="av01.0.05M.08"'
                             />
                         </video>
                     </div>
@@ -527,13 +538,14 @@ function FooterNavLink({
     className?: string;
 }) {
     return (
-        <a
+        <Link
             href={link.href}
+            prefetch="hover"
+            cacheFor="30s"
             aria-current={isActive ? "page" : undefined}
             className={`footer-kinetic-nav-link ${
                 isActive ? "is-active" : ""
             } font-clash font-medium ${className}`}
-            onClick={handleFooterAnchorTap}
         >
             <span className="footer-knav-label">
                 <span className="footer-knav-primary">{link.label}</span>
@@ -547,7 +559,7 @@ function FooterNavLink({
                     {link.number}
                 </span>
             </sup>
-        </a>
+        </Link>
     );
 }
 

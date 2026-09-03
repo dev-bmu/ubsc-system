@@ -1,6 +1,8 @@
 "use client";
 
 import {
+    lazy,
+    Suspense,
     useState,
     useEffect,
     useRef,
@@ -17,10 +19,6 @@ import {
 import square from "../../../assets/hero/square.png";
 import InfoBanner from "@/Components/Landing/InfoBanner";
 import { useAuthFlow } from "@/Components/Landing/AuthFlowProvider";
-import ProfileModal from "@/Components/UserDashboard/ProfileModal";
-import PaymentHistoryModal from "@/Components/UserDashboard/PaymentHistoryModal";
-import GymMembershipModal from "@/Components/UserDashboard/GymMembershipModal";
-import ContactUsModal from "@/Components/UserDashboard/ContactUsModal";
 import { Link, router, usePage } from "@inertiajs/react";
 import type { PageProps } from "@/types";
 import { cn } from "@/lib/utils";
@@ -29,6 +27,20 @@ import {
     NAV_MASK_DATA,
     NAVBAR_CRISP_LOGO_MASK,
 } from "./navMaskData";
+
+const loadProfileModal = () =>
+    import("@/Components/UserDashboard/ProfileModal");
+const loadPaymentHistoryModal = () =>
+    import("@/Components/UserDashboard/PaymentHistoryModal");
+const loadGymMembershipModal = () =>
+    import("@/Components/UserDashboard/GymMembershipModal");
+const loadContactUsModal = () =>
+    import("@/Components/UserDashboard/ContactUsModal");
+
+const ProfileModal = lazy(loadProfileModal);
+const PaymentHistoryModal = lazy(loadPaymentHistoryModal);
+const GymMembershipModal = lazy(loadGymMembershipModal);
+const ContactUsModal = lazy(loadContactUsModal);
 
 /* ====================================================================
    TYPES
@@ -62,7 +74,6 @@ const ProfileCtaArrow = () => (
 );
 
 type MemberStatus = 'none' | 'gym_only' | 'booked_only' | 'gym_and_booked';
-
 const MEMBER_STATUS_CONFIG: Record<MemberStatus, { label: string; tone: string }> = {
     none:           { label: 'Pengunjung',                    tone: '116,126,137' },
     gym_only:       { label: 'Member Gym',                    tone: '20,174,121' },
@@ -87,7 +98,6 @@ const NAV_ITEMS: NavItem[] = [
     { label: "Booking", number: "06", href: "/booking" },
 ];
 
-const MOBILE_NAV_FEEDBACK_MS = 420;
 const NAVBAR_LOGO_SRC = "/assets/brand/ubsc-logo-640.webp";
 const LOGOUT_QUERY_KEYS = [
     "auth",
@@ -191,15 +201,22 @@ function KineticNavLink({
     } as CSSProperties;
 
     return (
-        <a
+        <Link
             href={item.href}
+            prefetch={presentationOnly ? false : "hover"}
+            cacheFor="30s"
             className={`kinetic-nav-link ${isActive ? "kinetic-nav-active" : ""} ${motionActive ? "kinetic-nav-motion-active" : ""} font-clash text-[clamp(0.75rem,1vw,16px)] tracking-wide`}
             aria-hidden={presentationOnly || undefined}
             tabIndex={presentationOnly ? -1 : undefined}
-            onMouseEnter={
+            /*
+             * Inertia's hover-prefetch owns onMouseEnter/onMouseLeave on the
+             * rendered anchor. Pointer events keep the visual interaction
+             * independent, so prefetching cannot replace the hover motion.
+             */
+            onPointerEnter={
                 presentationOnly ? undefined : () => onMotionChange?.(true)
             }
-            onMouseLeave={
+            onPointerLeave={
                 presentationOnly ? undefined : () => onMotionChange?.(false)
             }
             onFocus={
@@ -290,7 +307,7 @@ function KineticNavLink({
                     {item.number}
                 </span>
             </sup>
-        </a>
+        </Link>
     );
 }
 
@@ -428,7 +445,7 @@ function PixelCardInk({
                                 <p className="ubsc-pixel-card-title whitespace-nowrap font-clash text-sm font-semibold leading-tight">
                                     Lets Get Started
                                 </p>
-                                <p className="ubsc-guest-card__register ubsc-pixel-card-register font-clash text-[12px] font-medium">
+                                <p className="ubsc-guest-card__register ubsc-pixel-card-register font-clash text-[12px] font-semibold">
                                     Register Now
                                 </p>
                                 <p className="ubsc-pixel-card-guest -mt-0.5 font-clash text-[10px]">
@@ -498,14 +515,31 @@ export default function Navbar({
     const dropdownRef = useRef<HTMLDivElement>(null);
     const mobileAccountDetailRef = useRef<HTMLDivElement>(null);
     const mobileTouchYRef = useRef(0);
-    const mobilePressStartedAtRef = useRef(0);
-    const mobileNavigationTimerRef = useRef<number | null>(null);
 
     /* ── Modal state (from Navbar__1_.tsx) ── */
     const [activeUserModal, setActiveUserModal] = useState<UserModal | null>(
         null,
     );
     const [avatarFailed, setAvatarFailed] = useState(false);
+    const [isIPhoneGlassRuntime, setIsIPhoneGlassRuntime] = useState(false);
+
+    /*
+     * Keep account tooling out of the public navigation critical path. Once a
+     * signed-in visitor deliberately opens the account surface we warm the
+     * four modal chunks, so the eventual click still feels immediate.
+     */
+    useEffect(() => {
+        if (!isLoggedIn || (!dropdownOpen && !mobileAcctOpen)) return;
+
+        void Promise.all([
+            loadProfileModal(),
+            loadPaymentHistoryModal(),
+            loadGymMembershipModal(),
+            loadContactUsModal(),
+        ]).catch(() => {
+            // React.lazy retains its normal retry/error-boundary behaviour.
+        });
+    }, [dropdownOpen, isLoggedIn, mobileAcctOpen]);
 
     const logoutFromCurrentPage = () => {
         if (logoutProcessing) return;
@@ -618,10 +652,6 @@ export default function Navbar({
     /* ── iOS-safe document lock for the mobile navigation ── */
     useEffect(() => {
         if (!mobileOpen) {
-            if (mobileNavigationTimerRef.current !== null) {
-                window.clearTimeout(mobileNavigationTimerRef.current);
-                mobileNavigationTimerRef.current = null;
-            }
             setMobileAcctOpen(false);
             setPressedMobileHref(null);
             return;
@@ -664,15 +694,6 @@ export default function Navbar({
             restore(body, bodySnapshot);
         };
     }, [mobileOpen]);
-
-    useEffect(
-        () => () => {
-            if (mobileNavigationTimerRef.current !== null) {
-                window.clearTimeout(mobileNavigationTimerRef.current);
-            }
-        },
-        [],
-    );
 
     /* The account detail is the only touch-scrollable surface in the drawer. */
     useEffect(() => {
@@ -765,6 +786,34 @@ export default function Navbar({
         setAvatarFailed(false);
     }, [userAvatar]);
 
+    /*
+     * Scope the neutral WebKit optics and monochrome adaptive-logo fallback
+     * to real iPhones; desktop and Android retain their original renderer.
+     */
+    useEffect(() => {
+        const root = document.documentElement;
+        const userAgent = navigator.userAgent;
+        const isIPhoneWebKit =
+            !/Android/i.test(userAgent) &&
+            /\biPhone\b/i.test(userAgent) &&
+            /AppleWebKit/i.test(userAgent) &&
+            navigator.maxTouchPoints > 0;
+
+        setIsIPhoneGlassRuntime(isIPhoneWebKit);
+
+        if (isIPhoneWebKit) {
+            root.dataset.ubscGlassRuntime = "iphone";
+        } else {
+            delete root.dataset.ubscGlassRuntime;
+        }
+
+        return () => {
+            if (root.dataset.ubscGlassRuntime === "iphone") {
+                delete root.dataset.ubscGlassRuntime;
+            }
+        };
+    }, []);
+
     const showNavSurface = showBg && !mobileOpen;
     const navLayerClassName =
         "fixed left-0 right-0 flex items-center justify-between px-8 py-6 lg:px-12";
@@ -790,7 +839,7 @@ export default function Navbar({
                 <InfoBanner deferLoopAnimations={deferLoopAnimations} />
             )}
 
-            {/* Original glass refraction. */}
+            {/* Original desktop glass refraction. */}
             <svg
                 aria-hidden="true"
                 width="0"
@@ -829,7 +878,7 @@ export default function Navbar({
                 </defs>
             </svg>
 
-            {/* Original glass layer; only its dark pigment alpha is reduced. */}
+            {/* Original glass layer. */}
             <div
                 id="ubsc-nav-wrapper"
                 className={cn(
@@ -855,6 +904,17 @@ export default function Navbar({
                     }}
                 >
                     <div className="ubsc-lg-effect" />
+                    {isIPhoneGlassRuntime && (
+                        <>
+                            <i className="ubsc-lg-refract ubsc-lg-refract--1" />
+                            <i className="ubsc-lg-refract ubsc-lg-refract--2" />
+                            <i className="ubsc-lg-refract ubsc-lg-refract--3" />
+                            <i className="ubsc-lg-refract ubsc-lg-refract--4" />
+                            <i className="ubsc-lg-refract ubsc-lg-refract--5" />
+                            <i className="ubsc-lg-refract ubsc-lg-refract--6" />
+                            <i className="ubsc-lg-refract ubsc-lg-refract--7" />
+                        </>
+                    )}
                     <div className="ubsc-lg-tint" />
                     <div className="ubsc-lg-shine" />
                 </div>
@@ -930,8 +990,10 @@ export default function Navbar({
             >
                     {/* ── Logo ── */}
                     <div className="flex items-center gap-2">
-                        <a
+                        <Link
                             href="/"
+                            prefetch="hover"
+                            cacheFor="30s"
                             className="ubsc-logo-wrap"
                         >
                             <img
@@ -947,7 +1009,7 @@ export default function Navbar({
                                 }}
                                 {...{ fetchpriority: "high" }}
                             />
-                        </a>
+                        </Link>
                     </div>
 
                     {/* ── Desktop navigation links ── */}
@@ -1176,7 +1238,7 @@ export default function Navbar({
                                         <p className="font-clash text-sm font-semibold leading-tight text-navy-900/80">
                                             Lets Get Started
                                         </p>
-                                        <p className="ubsc-guest-card__register font-clash text-[12px] font-medium text-navy-900/80">
+                                        <p className="ubsc-guest-card__register font-clash text-[12px] font-semibold text-navy-900/[0.54]">
                                             Register Now
                                         </p>
                                         <p className="-mt-0.5 font-clash text-[10px] text-navy-900/40">
@@ -1258,19 +1320,18 @@ export default function Navbar({
                 <ul className="ubsc-mobile-menu__page-list flex flex-col px-8 pt-0">
                     {NAV_ITEMS.map((item, index) => (
                         <li key={item.number}>
-                            <a
+                            <Link
                                 href={item.href}
+                                prefetch={["hover", "click"]}
+                                cacheFor="30s"
                                 onPointerDown={() => {
-                                    mobilePressStartedAtRef.current = performance.now();
                                     setPressedMobileHref(item.href);
                                 }}
                                 onPointerCancel={() => {
-                                    mobilePressStartedAtRef.current = 0;
                                     setPressedMobileHref(null);
                                 }}
                                 onPointerLeave={(event) => {
                                     if (event.pointerType === "mouse") {
-                                        mobilePressStartedAtRef.current = 0;
                                         setPressedMobileHref(null);
                                     }
                                 }}
@@ -1284,31 +1345,8 @@ export default function Navbar({
                                     ) {
                                         return;
                                     }
-
-                                    event.preventDefault();
                                     setPressedMobileHref(item.href);
-
-                                    if (mobileNavigationTimerRef.current !== null) {
-                                        window.clearTimeout(mobileNavigationTimerRef.current);
-                                    }
-
-                                    const elapsed = mobilePressStartedAtRef.current
-                                        ? performance.now() - mobilePressStartedAtRef.current
-                                        : 0;
-                                    const remainingFeedback = Math.max(
-                                        0,
-                                        MOBILE_NAV_FEEDBACK_MS - elapsed,
-                                    );
-
-                                    mobileNavigationTimerRef.current = window.setTimeout(() => {
-                                        mobileNavigationTimerRef.current = null;
-                                        mobilePressStartedAtRef.current = 0;
-                                        setMobileOpen(false);
-                                        setPressedMobileHref(null);
-                                        router.visit(item.href, {
-                                            preserveScroll: false,
-                                        });
-                                    }, remainingFeedback);
+                                    setMobileOpen(false);
                                 }}
                                 className={cn(
                                     "ubsc-mobile-menu__page-link font-clash flex items-baseline justify-between py-5 text-xl transition-colors",
@@ -1341,7 +1379,7 @@ export default function Navbar({
                                         {item.number}
                                     </span>
                                 </sup>
-                            </a>
+                            </Link>
                             {index < NAV_ITEMS.length - 1 && (
                                 <div className="h-px w-full bg-white/8" />
                             )}
@@ -1520,7 +1558,7 @@ export default function Navbar({
                                 <p className="font-clash text-[clamp(0.75rem,3.5vw,1rem)] font-semibold leading-tight text-navy-900/80">
                                     Lets Get Started
                                 </p>
-                                <p className="ubsc-guest-card__register mt-0.5 font-clash text-[clamp(0.625rem,2.8vw,0.875rem)] text-navy-900/80">
+                                <p className="ubsc-guest-card__register mt-0.5 font-clash text-[clamp(0.625rem,2.8vw,0.875rem)] font-semibold text-navy-900/[0.54]">
                                     Register Now
                                 </p>
                                 <p className="-mt-0.5 font-clash text-[clamp(0.55rem,2.4vw,0.75rem)] text-navy-900/40">
@@ -1548,18 +1586,20 @@ export default function Navbar({
             </div>
 
             {/* ── User Dashboard Modals (authenticated only) ── */}
-            {activeUserModal === "profile" && (
-                <ProfileModal onClose={() => setActiveUserModal(null)} />
-            )}
-            {activeUserModal === "history" && (
-                <PaymentHistoryModal onClose={() => setActiveUserModal(null)} />
-            )}
-            {activeUserModal === "membership" && (
-                <GymMembershipModal onClose={() => setActiveUserModal(null)} />
-            )}
-            {activeUserModal === "contact" && (
-                <ContactUsModal onClose={() => setActiveUserModal(null)} />
-            )}
+            <Suspense fallback={null}>
+                {activeUserModal === "profile" && (
+                    <ProfileModal onClose={() => setActiveUserModal(null)} />
+                )}
+                {activeUserModal === "history" && (
+                    <PaymentHistoryModal onClose={() => setActiveUserModal(null)} />
+                )}
+                {activeUserModal === "membership" && (
+                    <GymMembershipModal onClose={() => setActiveUserModal(null)} />
+                )}
+                {activeUserModal === "contact" && (
+                    <ContactUsModal onClose={() => setActiveUserModal(null)} />
+                )}
+            </Suspense>
         </>
     );
 }

@@ -116,6 +116,7 @@ export default function NewsSection({ news = DUMMY_NEWS }: NewsSectionProps) {
     return (
         <section
             ref={sectionRef}
+            data-navbar-surface="light"
             className="news-entrance-stage w-full bg-[#F3F6F8] pb-20 pt-14 text-black md:pb-24 md:pt-16 xl:pb-[6.4rem] xl:pt-[3.55rem]"
         >
             <div className="mx-auto flex w-full max-w-[1920px] flex-col px-[clamp(1.5rem,4.5vw,5.5rem)]">

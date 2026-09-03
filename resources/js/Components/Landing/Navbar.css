@@ -48,10 +48,11 @@
 }
 
 @media (max-width: 1099px) {
-    .ubsc-logo,
-    .ubsc-pixel-logo-mask {
-        width: 66.744px;
-        height: 33.372px;
+    .ubsc-brand-pixel-layer .ubsc-logo,
+    .ubsc-nav-interaction .ubsc-logo,
+    .ubsc-adaptive-pixel-layer .ubsc-pixel-logo-mask {
+        width: 56.732px;
+        height: 28.366px;
     }
 }
 
@@ -163,9 +164,16 @@
     :is(.ubsc-pixel-card-guest-copy, .ubsc-pixel-card-member-copy) {
     color: rgb(40% 40% 40%);
 }
+.ubsc-pixel-card-ink .ubsc-pixel-card-title,
 .ubsc-pixel-card-ink
-    :is(.ubsc-pixel-card-title, .ubsc-pixel-card-register) {
+    .ubsc-pixel-card-member-copy
+    .ubsc-pixel-card-register {
     color: rgb(72% 72% 72%);
+}
+.ubsc-pixel-card-ink
+    .ubsc-pixel-card-guest-copy
+    .ubsc-pixel-card-register {
+    color: rgb(51.2% 51.2% 51.2%);
 }
 .ubsc-nav-interaction {
     pointer-events: none;
@@ -306,6 +314,11 @@
     filter: url(#ubsc-glass-distortion);
     -webkit-filter: url(#ubsc-glass-distortion);
 }
+
+/* WebKit-only optical planes are inert everywhere else. */
+.ubsc-lg-refract {
+    display: none;
+}
 /* Same glass tint, with only its dark alpha reduced. */
 .ubsc-lg-tint {
     position: absolute;
@@ -375,6 +388,161 @@
         animation: none;
     }
 }
+
+/* iPhone WebKit: neutral refraction from the pre-package glass revision. */
+@supports (-webkit-touch-callout: none) {
+@media (max-width: 1099px) {
+    html[data-ubsc-glass-runtime="iphone"]
+        #ubsc-nav-bg-overlay > .ubsc-lg-effect {
+        -webkit-filter: none;
+        filter: none;
+        background-color: rgba(0, 0, 0, .002);
+        -webkit-backdrop-filter: blur(3px);
+        backdrop-filter: blur(3px);
+    }
+
+    /*
+     * Independent, softly feathered backdrop planes recreate the liquid swell
+     * that was present in this revision without lifting brightness or colour.
+     */
+    html[data-ubsc-glass-runtime="iphone"]
+        #ubsc-nav-bg-overlay > .ubsc-lg-refract {
+        display: block;
+        position: absolute;
+        inset: -12% -7%;
+        z-index: 0;
+        pointer-events: none;
+        background-color: rgba(0, 0, 0, .002);
+        -webkit-backdrop-filter: blur(1.65px);
+        backdrop-filter: blur(1.65px);
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-size: 100% 100%;
+        mask-size: 100% 100%;
+        transform-origin: var(--refract-origin, 50% 50%);
+        transform:
+            translate3d(var(--refract-x, 0), var(--refract-y, 0), 0)
+            scale3d(var(--refract-sx, 1), var(--refract-sy, 1), 1);
+        backface-visibility: hidden;
+    }
+
+    html[data-ubsc-glass-runtime="iphone"]
+        #ubsc-nav-bg-overlay > .ubsc-lg-refract--1 {
+        --refract-x: -10px;
+        --refract-y: 1px;
+        --refract-sx: 1.105;
+        --refract-sy: 1.035;
+        --refract-origin: 8% 46%;
+        -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 8%, rgba(0,0,0,.92) 15%, rgba(0,0,0,.42) 23%, transparent 32%);
+        mask-image: linear-gradient(90deg, #000 0%, #000 8%, rgba(0,0,0,.92) 15%, rgba(0,0,0,.42) 23%, transparent 32%);
+    }
+
+    html[data-ubsc-glass-runtime="iphone"]
+        #ubsc-nav-bg-overlay > .ubsc-lg-refract--2 {
+        --refract-x: 9px;
+        --refract-y: -2px;
+        --refract-sx: 1.13;
+        --refract-sy: 1.055;
+        --refract-origin: 27% 58%;
+        -webkit-mask-image: linear-gradient(90deg, transparent 9%, rgba(0,0,0,.35) 17%, #000 27%, rgba(0,0,0,.88) 36%, transparent 47%);
+        mask-image: linear-gradient(90deg, transparent 9%, rgba(0,0,0,.35) 17%, #000 27%, rgba(0,0,0,.88) 36%, transparent 47%);
+    }
+
+    html[data-ubsc-glass-runtime="iphone"]
+        #ubsc-nav-bg-overlay > .ubsc-lg-refract--3 {
+        --refract-x: -13px;
+        --refract-y: 2px;
+        --refract-sx: 1.09;
+        --refract-sy: 1.075;
+        --refract-origin: 43% 42%;
+        -webkit-mask-image: linear-gradient(90deg, transparent 25%, rgba(0,0,0,.3) 33%, #000 43%, rgba(0,0,0,.82) 51%, transparent 61%);
+        mask-image: linear-gradient(90deg, transparent 25%, rgba(0,0,0,.3) 33%, #000 43%, rgba(0,0,0,.82) 51%, transparent 61%);
+    }
+
+    html[data-ubsc-glass-runtime="iphone"]
+        #ubsc-nav-bg-overlay > .ubsc-lg-refract--4 {
+        --refract-x: 12px;
+        --refract-y: -1px;
+        --refract-sx: 1.145;
+        --refract-sy: 1.045;
+        --refract-origin: 57% 55%;
+        -webkit-mask-image: linear-gradient(90deg, transparent 39%, rgba(0,0,0,.34) 47%, #000 57%, rgba(0,0,0,.86) 65%, transparent 75%);
+        mask-image: linear-gradient(90deg, transparent 39%, rgba(0,0,0,.34) 47%, #000 57%, rgba(0,0,0,.86) 65%, transparent 75%);
+    }
+
+    html[data-ubsc-glass-runtime="iphone"]
+        #ubsc-nav-bg-overlay > .ubsc-lg-refract--5 {
+        --refract-x: -9px;
+        --refract-y: 2px;
+        --refract-sx: 1.105;
+        --refract-sy: 1.065;
+        --refract-origin: 72% 45%;
+        -webkit-mask-image: linear-gradient(90deg, transparent 54%, rgba(0,0,0,.32) 62%, #000 72%, rgba(0,0,0,.86) 80%, transparent 89%);
+        mask-image: linear-gradient(90deg, transparent 54%, rgba(0,0,0,.32) 62%, #000 72%, rgba(0,0,0,.86) 80%, transparent 89%);
+    }
+
+    html[data-ubsc-glass-runtime="iphone"]
+        #ubsc-nav-bg-overlay > .ubsc-lg-refract--6 {
+        --refract-x: 10px;
+        --refract-y: -2px;
+        --refract-sx: 1.125;
+        --refract-sy: 1.04;
+        --refract-origin: 89% 56%;
+        -webkit-mask-image: linear-gradient(90deg, transparent 69%, rgba(0,0,0,.38) 78%, #000 89%, #000 96%, rgba(0,0,0,.82) 100%);
+        mask-image: linear-gradient(90deg, transparent 69%, rgba(0,0,0,.38) 78%, #000 89%, #000 96%, rgba(0,0,0,.82) 100%);
+    }
+
+    html[data-ubsc-glass-runtime="iphone"]
+        #ubsc-nav-bg-overlay > .ubsc-lg-refract--7 {
+        --refract-x: 0;
+        --refract-y: 5px;
+        --refract-sx: 1.035;
+        --refract-sy: 1.12;
+        --refract-origin: 52% 54%;
+        opacity: .72;
+        -webkit-mask-image: radial-gradient(ellipse 70% 78% at 52% 54%, #000 0%, rgba(0,0,0,.86) 44%, rgba(0,0,0,.3) 70%, transparent 100%);
+        mask-image: radial-gradient(ellipse 70% 78% at 52% 54%, #000 0%, rgba(0,0,0,.86) 44%, rgba(0,0,0,.3) 70%, transparent 100%);
+    }
+
+    html[data-ubsc-glass-runtime="iphone"]
+        #ubsc-nav-bg-overlay > .ubsc-lg-effect::before {
+        content: '';
+        position: absolute;
+        inset: -36% -18%;
+        pointer-events: none;
+        opacity: .18;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 200' preserveAspectRatio='none'%3E%3Cfilter id='c' x='-20%25' y='-80%25' width='140%25' height='260%25' color-interpolation-filters='sRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.006 .028' numOctaves='3' seed='42' result='n'/%3E%3CfeGaussianBlur in='n' stdDeviation='2.2' result='s'/%3E%3CfeSpecularLighting in='s' surfaceScale='9' specularConstant='.7' specularExponent='24' lighting-color='white' result='l'%3E%3CfeDistantLight azimuth='225' elevation='48'/%3E%3C/feSpecularLighting%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.011 .019' numOctaves='2' seed='17' result='w'/%3E%3CfeDisplacementMap in='l' in2='w' scale='76' xChannelSelector='R' yChannelSelector='G' result='d'/%3E%3CfeGaussianBlur in='d' stdDeviation='.55'/%3E%3C/filter%3E%3Crect x='-10%25' y='-25%25' width='120%25' height='150%25' fill='white' fill-opacity='.01' filter='url(%23c)'/%3E%3C/svg%3E");
+        background-position: 52% 48%;
+        background-repeat: no-repeat;
+        background-size: 132% 188%;
+        mix-blend-mode: normal;
+        transform: translateZ(0) scale(1.035);
+    }
+
+    html[data-ubsc-glass-runtime="iphone"]
+        #ubsc-nav-bg-overlay > .ubsc-lg-effect::after {
+        content: none;
+    }
+
+    html[data-ubsc-glass-runtime="iphone"]
+        #ubsc-nav-bg-overlay > .ubsc-lg-tint {
+        background: linear-gradient(
+            to bottom,
+            rgba(8,12,28,.075) 0%,
+            rgba(8,12,28,.034) 55%,
+            rgba(8,12,28,.008) 86%,
+            rgba(8,12,28,0) 100%
+        );
+    }
+
+    /* Match the hamburger's pixel-adaptive black/white treatment on iPhone. */
+    html[data-ubsc-glass-runtime="iphone"]
+        .ubsc-brand-pixel-layer .ubsc-logo {
+        opacity: 0;
+    }
+}
+}
+
 /* ==========================================================
    MEMBER SPACE — refined, lightweight account navigation
 ========================================================== */
@@ -922,6 +1090,9 @@
     .ubsc-signal-account--mobile .ubsc-signal-account__status-sub { font-size: 9.5px; }
 }
 @media (prefers-reduced-motion: reduce) {
+    .ubsc-lg-shine::after {
+        animation: none !important;
+    }
     .ubsc-signal-account,
     .ubsc-signal-account__stage::before,
     .ubsc-signal-account__spectrum,

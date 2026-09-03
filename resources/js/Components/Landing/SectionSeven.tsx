@@ -1169,6 +1169,7 @@ export default function SectionSeven({
         <section
             ref={sectionRef}
             id="testimonials"
+            data-navbar-surface="light"
             className="testimonial-entrance-stage w-full bg-white px-[clamp(1.5rem,4.5vw,5.5rem)] py-14 sm:py-16 lg:py-20 xl:py-[5.9rem]"
             onPointerEnter={handlePointerEnter}
             onPointerLeave={handlePointerLeave}

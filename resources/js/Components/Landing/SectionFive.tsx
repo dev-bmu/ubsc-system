@@ -186,11 +186,13 @@ function ImpactLink() {
 
 function ImpactStats({ active }: { active: boolean }) {
     return (
-        <div className="grid grid-cols-2 border-t border-white/15 xl:grid-cols-4 xl:border-t-0">
+        <div className="relative grid grid-cols-2 border-t border-white/15 before:pointer-events-none before:absolute before:bottom-[-23px] before:left-1/2 before:top-0 before:z-[1] before:w-px before:-translate-x-1/2 before:bg-white/15 xl:grid-cols-4 xl:border-t-0 xl:before:hidden">
             {STATS.map((stat, index) => (
                 <article
                     key={stat.value}
-                    className={`impact-stat impact-reveal impact-reveal--stat-${index + 1} min-w-0 -translate-y-[6px] border-white/15 px-0 py-[13px] odd:border-r odd:pr-[14px] even:pl-[16px] xl:translate-y-0 xl:border-r-0 xl:px-0 xl:py-0`}
+                    className={`impact-stat impact-reveal impact-reveal--stat-${index + 1} min-w-0 border-white/15 px-0 py-[13px] odd:pr-[14px] even:pl-[16px] xl:px-0 xl:py-0 ${
+                        index === 2 ? "xl:pl-[clamp(1rem,1.65vw,2rem)]" : ""
+                    } ${index < STATS.length - 1 ? "xl:border-r" : ""}`}
                 >
                     <p className="font-bdo text-[46px] font-normal leading-none tracking-[-0.055em] text-white sm:text-[54px] xl:-translate-y-[14px] xl:text-[clamp(5.5rem,6.4vw,7.7rem)]">
                         <CountUpValue
@@ -417,6 +419,7 @@ export default function SectionFive({
     return (
         <section
             id="impact"
+            data-navbar-surface="dark"
             className="relative z-20 w-full overflow-hidden bg-black pt-0 text-white"
         >
             <ImpactHero />

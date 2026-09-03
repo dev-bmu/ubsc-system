@@ -295,6 +295,7 @@ export default function SectionThree() {
         <section
             ref={sectionRef}
             id="locations"
+            data-navbar-surface="light"
             className="section-three-performance section-three-stage w-full bg-[#F5F7F9] pb-16 pt-12 sm:pb-20 md:pt-14 lg:pt-16 xl:pb-16 xl:pt-14"
         >
             <svg
@@ -427,7 +428,7 @@ export default function SectionThree() {
                     </div>
                 </div>
 
-                <div className="home-section-heading section-three-reveal section-three-reveal--aside mt-9 font-bdo text-[clamp(1.24rem,4vw,1.5rem)] font-medium leading-tight text-black sm:mt-0 xl:hidden">
+                <div className="section-three-reveal section-three-reveal--aside mt-9 font-bdo text-[clamp(1.24rem,4vw,1.5rem)] font-medium leading-tight text-black sm:mt-0 xl:hidden">
                     <ScrollTextReveal
                         as="h2"
                         split="words"

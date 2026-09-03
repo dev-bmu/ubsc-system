@@ -117,6 +117,7 @@ export default function SectionSix({ facilities = [] }: SectionSixProps) {
         <section
             ref={sectionRef}
             id="pricing"
+            data-navbar-surface="light"
             className={`section-six-entrance w-full bg-white pb-12 pt-12 xl:pb-12 ${isVisible ? "is-visible" : ""} ${isComplete ? "is-complete" : ""}`}
         >
             <div className="mx-auto w-full px-6 sm:px-10 xl:px-[55px]">

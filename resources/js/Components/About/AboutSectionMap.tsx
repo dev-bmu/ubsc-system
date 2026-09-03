@@ -1,5 +1,5 @@
-import SectionEight from "@/Components/Landing/SectionEight";
+import DeferredSectionEight from "@/Components/Landing/DeferredSectionEight";
 
 export default function AboutSectionMap() {
-    return <SectionEight />;
+    return <DeferredSectionEight />;
 }

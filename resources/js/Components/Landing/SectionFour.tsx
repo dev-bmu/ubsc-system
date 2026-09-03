@@ -113,24 +113,47 @@ function SectionFourCurtainEdge() {
         if (!root || !section || !content) return;
 
         let frame = 0;
-        let lastHeight = -1;
-        let lastContentOffset = 1;
-        let lastFollowOffset = 1;
+        let disposed = false;
+        let needsMeasure = true;
         let isNearViewport = true;
-        let isPageVisible = document.visibilityState !== "hidden";
+        let viewportWidth = 1;
         let viewportHeight = 1;
+        let sectionTop = 0;
         let maxFollow = 0;
         let contentMaxFollow = 0;
+        let renderedProgress = 0;
+        let hasRenderedProgress = false;
+        let lastFrameTime = 0;
+        let lastCurtainScale = -1;
+        let lastContentOffset = Number.NaN;
+        const measuredSibling = section.previousElementSibling;
+        const isIOSWebKit =
+            /iP(?:hone|ad|od)/.test(navigator.userAgent) ||
+            (navigator.platform === "MacIntel" &&
+                navigator.maxTouchPoints > 1);
 
-        const measureViewport = () => {
-            viewportHeight =
-                window.innerHeight ||
-                document.documentElement.clientHeight ||
-                1;
-            const viewportWidth =
+        // Remove stale inline properties left by the previous layout-driven
+        // implementation during hot reloads. Later sections stay in normal
+        // document flow; only the curtain and its own content are composited.
+        postSectionFlow?.style.removeProperty("transform");
+        postSectionFlow?.style.removeProperty("will-change");
+
+        const measure = () => {
+            viewportWidth =
                 window.innerWidth ||
                 document.documentElement.clientWidth ||
                 1;
+            viewportHeight =
+                root.offsetHeight ||
+                document.documentElement.clientHeight ||
+                window.innerHeight ||
+                1;
+            sectionTop =
+                section.getBoundingClientRect().top +
+                Math.max(
+                    0,
+                    window.scrollY || document.documentElement.scrollTop || 0,
+                );
             const isMobile = viewportWidth < 640;
             const isTabletPortrait =
                 viewportWidth >= 640 &&
@@ -170,107 +193,169 @@ function SectionFourCurtainEdge() {
                 0,
                 maxFollow - contentPaddingReserve,
             );
+
+            // Reserve the final resting geometry once instead of mutating
+            // margin on every scroll frame. The content transform reaches the
+            // same final position as before without forcing repeated reflow.
+            section.style.marginBottom =
+                contentMaxFollow > 0 ? `${-contentMaxFollow}px` : "0px";
+            needsMeasure = false;
         };
 
-        const update = () => {
+        const update = (now = window.performance.now()) => {
             frame = 0;
+            if (!isNearViewport && !needsMeasure) return;
+            if (needsMeasure) measure();
 
-            const rect = section.getBoundingClientRect();
-            const progress = Math.min(
-                1,
-                Math.max(0, (viewportHeight - rect.top) / viewportHeight),
+            const scrollTop = Math.max(
+                0,
+                window.scrollY || document.documentElement.scrollTop || 0,
             );
-            const nextHeight = Math.round(progress * viewportHeight);
+            const sectionViewportTop = sectionTop - scrollTop;
+            const targetProgress = Math.min(
+                1,
+                Math.max(
+                    0,
+                    (viewportHeight - sectionViewportTop) / viewportHeight,
+                ),
+            );
+            let progress = targetProgress;
 
-            if (Math.abs(lastHeight - nextHeight) >= 1) {
-                lastHeight = nextHeight;
-                root.style.height = `${nextHeight}px`;
+            if (isIOSWebKit) {
+                if (!hasRenderedProgress) {
+                    renderedProgress = targetProgress;
+                    hasRenderedProgress = true;
+                } else {
+                    const elapsed =
+                        lastFrameTime > 0 && now - lastFrameTime < 80
+                            ? Math.max(1, now - lastFrameTime)
+                            : 1000 / 60;
+                    const difference = targetProgress - renderedProgress;
+
+                    if (Math.abs(difference) <= 0.00012) {
+                        renderedProgress = targetProgress;
+                    } else {
+                        const response = difference > 0 ? 46 : 40;
+                        const blend =
+                            1 - Math.exp((-response * elapsed) / 1000);
+                        renderedProgress += difference * blend;
+                    }
+                }
+
+                progress = Math.min(1, Math.max(0, renderedProgress));
+            } else {
+                renderedProgress = targetProgress;
+                hasRenderedProgress = true;
+            }
+
+            lastFrameTime = now;
+            const pixelRatio = Math.min(3, window.devicePixelRatio || 1);
+            const visibleHeight = progress * viewportHeight;
+            const curtainScale =
+                Math.round(visibleHeight * pixelRatio) /
+                pixelRatio /
+                viewportHeight;
+
+            if (Math.abs(curtainScale - lastCurtainScale) > 0.00004) {
+                root.style.transform = `translate3d(0, 0, 0) scaleY(${curtainScale})`;
+                lastCurtainScale = curtainScale;
             }
 
             const followEase = progress * progress * (3 - 2 * progress);
-            const followOffset = Math.round(-maxFollow * followEase);
-            const contentFollowOffset = Math.round(-contentMaxFollow * followEase);
+            const rawContentOffset = -contentMaxFollow * followEase;
+            const contentFollowOffset =
+                Math.round(rawContentOffset * pixelRatio) / pixelRatio;
 
-            if (Math.abs(lastContentOffset - contentFollowOffset) >= 1) {
+            if (
+                !Number.isFinite(lastContentOffset) ||
+                Math.abs(lastContentOffset - contentFollowOffset) > 0.05
+            ) {
                 lastContentOffset = contentFollowOffset;
                 content.style.transform = `translate3d(0, ${contentFollowOffset}px, 0)`;
-                content.style.willChange =
-                    contentFollowOffset === 0 ? "auto" : "transform";
-                // Compensate section height gap caused by content transform
-                if (section) {
-                    section.style.marginBottom = `${contentFollowOffset}px`;
+                if (progress > 0.001 && progress < 0.999) {
+                    content.style.willChange = "transform";
+                } else {
+                    content.style.removeProperty("will-change");
                 }
             }
 
-            const postFlowOffset = rect.top > 0 ? followOffset : 0;
-
-            if (Math.abs(lastFollowOffset - postFlowOffset) >= 1) {
-                lastFollowOffset = postFlowOffset;
-
-                if (postSectionFlow) {
-                    postSectionFlow.style.transform = `translate3d(0, ${postFlowOffset}px, 0)`;
-                    postSectionFlow.style.willChange =
-                        postFlowOffset === 0 ? "auto" : "transform";
-                }
+            if (
+                isIOSWebKit &&
+                Math.abs(targetProgress - renderedProgress) > 0.00012
+            ) {
+                frame = window.requestAnimationFrame(update);
+            } else {
+                lastFrameTime = 0;
             }
         };
 
-        const requestUpdate = (force = false) => {
-            if (!isPageVisible || (!force && !isNearViewport)) return;
-            if (frame) return;
+        const requestUpdate = () => {
+            if (disposed || frame) return;
             frame = window.requestAnimationFrame(update);
         };
-        const handleScroll = () => requestUpdate();
-        const handleResize = () => {
-            measureViewport();
+
+        const requestMeasure = () => {
+            if (disposed) return;
+            needsMeasure = true;
             requestUpdate();
         };
-        const handleVisibilityChange = () => {
-            isPageVisible = document.visibilityState !== "hidden";
 
-            if (!isPageVisible) {
-                if (frame) window.cancelAnimationFrame(frame);
-                frame = 0;
-                return;
-            }
+        const requestViewportMeasure = () => {
+            if (disposed) return;
+            const nextWidth =
+                window.innerWidth ||
+                document.documentElement.clientWidth ||
+                1;
 
-            requestUpdate();
+            // Safari changes only the viewport height while its browser chrome
+            // opens and closes. Reusing stable svh geometry prevents shaking.
+            if (isIOSWebKit && Math.abs(nextWidth - viewportWidth) < 1) return;
+            requestMeasure();
         };
+
         const intersectionObserver =
             "IntersectionObserver" in window
                 ? new IntersectionObserver(
                       ([entry]) => {
                           isNearViewport = entry?.isIntersecting ?? true;
-                          // One exact update on both boundaries preserves the
-                          // resting state before pausing offscreen work.
-                          requestUpdate(true);
+                          if (isNearViewport) requestMeasure();
                       },
                       {
-                          rootMargin: "600px 0px 800px",
+                          rootMargin: "100% 0px 100% 0px",
                           threshold: 0,
                       },
                   )
                 : null;
 
-        measureViewport();
-        if (isPageVisible) update();
-        intersectionObserver?.observe(root);
-        window.addEventListener("scroll", handleScroll, { passive: true });
-        window.addEventListener("resize", handleResize);
-        document.addEventListener("visibilitychange", handleVisibilityChange);
+        const resizeObserver =
+            "ResizeObserver" in window
+                ? new ResizeObserver(requestViewportMeasure)
+                : null;
+
+        intersectionObserver?.observe(section);
+        if (measuredSibling instanceof Element) {
+            resizeObserver?.observe(measuredSibling);
+        }
+
+        update();
+        window.addEventListener("scroll", requestUpdate, { passive: true });
+        window.addEventListener("resize", requestViewportMeasure, {
+            passive: true,
+        });
+        window.addEventListener("load", requestMeasure, { once: true });
+        void document.fonts?.ready.then(requestMeasure);
 
         return () => {
+            disposed = true;
             intersectionObserver?.disconnect();
-            window.removeEventListener("scroll", handleScroll);
-            window.removeEventListener("resize", handleResize);
-            document.removeEventListener(
-                "visibilitychange",
-                handleVisibilityChange,
-            );
-            root.style.removeProperty("height");
+            resizeObserver?.disconnect();
+            window.removeEventListener("scroll", requestUpdate);
+            window.removeEventListener("resize", requestViewportMeasure);
+            window.removeEventListener("load", requestMeasure);
+            root.style.removeProperty("transform");
             content.style.removeProperty("transform");
             content.style.removeProperty("will-change");
-            section?.style.removeProperty("margin-bottom");
+            section.style.removeProperty("margin-bottom");
             postSectionFlow?.style.removeProperty("transform");
             postSectionFlow?.style.removeProperty("will-change");
             if (frame) window.cancelAnimationFrame(frame);
@@ -291,15 +376,15 @@ function SectionFourCurtainEdge() {
 function FacilityCategoryBadge() {
     return (
         <div
-            className="gym-traffic-badge gym-traffic-badge--animated gym-traffic-badge--no-hover flex h-[46px] w-full min-w-0 max-w-[192px] overflow-hidden rounded-[7px] bg-black p-[3px] xl:h-16 xl:w-[230px] xl:max-w-none xl:shrink-0 xl:rounded-lg xl:p-1"
+            className="gym-traffic-badge gym-traffic-badge--animated gym-traffic-badge--no-hover flex h-[46px] w-full min-w-0 max-w-[150px] overflow-hidden rounded-[7px] bg-black p-[3px] xl:h-16 xl:w-[210px] xl:max-w-none xl:shrink-0 xl:rounded-lg xl:p-1"
             aria-label="3 kategori fasilitas"
         >
-            <div className="flex min-w-0 items-center justify-center gap-1 bg-black px-2.5 sm:gap-1.5 sm:px-3.5 xl:gap-1.5 xl:px-5">
+            <div className="flex min-w-0 items-center justify-center gap-1 bg-black px-2 sm:gap-1.5 sm:px-2.5 xl:px-3.5">
                 <img
                     src="/assets/icons/branch-court.png"
                     alt=""
                     aria-hidden="true"
-                    className="gym-traffic-spin h-4 w-4 object-contain xl:h-[18px] xl:w-[18px]"
+                    className="h-4 w-4 rotate-90 object-contain xl:h-[18px] xl:w-[18px]"
                 />
                 <span className="font-clash text-sm font-semibold leading-none text-white sm:text-base xl:text-xl">
                     3
@@ -381,6 +466,7 @@ export default function SectionFour({
         <>
         <section
             id="facilities"
+            data-navbar-surface="light"
             className="section-four-curtain w-full bg-white pb-0 pt-12 md:pt-14 lg:pt-16 xl:pt-14"
         >
             <SectionFourCurtainEdge />
@@ -451,10 +537,10 @@ export default function SectionFour({
                         </div>
                     </div>
 
-                    <div className="mt-10 grid grid-cols-2 items-center gap-3 pb-10 sm:gap-6 md:mt-12 xl:mt-16 xl:flex xl:justify-between xl:pb-16">
+                    <div className="mt-10 flex items-center gap-3 pb-10 md:mt-12 md:grid md:grid-cols-2 md:gap-6 xl:mt-16 xl:flex xl:justify-between xl:pb-16">
                         <ScrollObjectReveal
                             delay={360}
-                            className="min-w-0 xl:-ml-1.5"
+                            className="section-four-reservation-action min-w-0 flex-1 md:flex-none xl:-ml-1.5"
                         >
                             <ReservasiButton
                                 label="Mulai Reservasi"
@@ -463,7 +549,7 @@ export default function SectionFour({
                         </ScrollObjectReveal>
                         <ScrollObjectReveal
                             delay={430}
-                            className="flex min-w-0 justify-end"
+                            className="flex w-[150px] min-w-0 shrink-0 justify-end xl:w-[210px]"
                         >
                             <FacilityCategoryBadge />
                         </ScrollObjectReveal>

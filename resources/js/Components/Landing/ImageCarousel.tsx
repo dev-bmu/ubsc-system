@@ -96,30 +96,22 @@ export default function ImageCarousel({
 
             {snapCount > 1 && (
                 <div className="mt-5 flex items-center justify-center xl:mt-5">
-                    <div className="inline-flex items-center gap-2">
+                    <div className="section-two-slide-progress section-two-slide-progress--images">
                         {Array.from({ length: snapCount }).map((_, index) => (
                             <button
                                 key={index}
                                 type="button"
                                 onClick={() => emblaApi?.scrollTo(index)}
-                                className="group relative flex h-3.5 w-3.5 items-center justify-center rounded-full outline-none transition"
+                                className={
+                                    selectedIndex === index
+                                        ? "is-active"
+                                        : undefined
+                                }
                                 aria-label={`Lihat gambar ${index + 1}`}
-                            >
-                                <span
-                                    className={`absolute inset-0 rounded-full transition duration-500 ${
-                                        selectedIndex === index
-                                            ? "scale-100 bg-[#FF0000]/12 shadow-[0_0_14px_rgba(255,0,0,0.18)]"
-                                            : "scale-75 bg-transparent"
-                                    }`}
-                                />
-                                <span
-                                    className={`relative h-2 w-2 rounded-full transition duration-500 ${
-                                        selectedIndex === index
-                                            ? "scale-100 bg-[#FF0000] shadow-[0_0_10px_rgba(255,0,0,0.42)]"
-                                            : "scale-[0.68] bg-slate-400/70 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.8),0_2px_8px_rgba(15,23,42,0.12)] group-hover:scale-90 group-hover:bg-slate-500/80"
-                                    }`}
-                                />
-                            </button>
+                                aria-current={
+                                    selectedIndex === index ? "true" : undefined
+                                }
+                            />
                         ))}
                     </div>
                 </div>
