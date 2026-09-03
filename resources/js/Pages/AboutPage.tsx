@@ -54,6 +54,7 @@ export default function AboutPage() {
                 <HomepageMediaPrimer />
                 <EntranceLoader
                     ready={heroMediaReady}
+                    skipIntro
                     onEntranceReady={handleEntranceReady}
                     onComplete={handleLoaderComplete}
                 />

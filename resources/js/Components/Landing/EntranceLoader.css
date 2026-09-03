@@ -1,10 +1,13 @@
 .ubsc-pixel-loader {
-    --loader-edge: clamp(1rem, 2.35vw, 2.75rem);
     --loader-banner-offset: 2rem;
+    --loader-handoff-duration: 680ms;
+    --loader-panel-step: 6.25vw;
     position: fixed;
     inset: var(--loader-banner-offset) 0 0;
     z-index: 10000;
+    display: grid;
     min-height: calc(100svh - var(--loader-banner-offset));
+    place-items: center;
     overflow: hidden;
     isolation: isolate;
     color: #fff;
@@ -12,15 +15,59 @@
     cursor: default;
     font-family: "BDO Grotesk", sans-serif;
     contain: strict;
-    /*
-     * Keep the loader itself as the gesture target. This blocks accidental
-     * clicks on the page underneath while native wheel/touch panning can
-     * still move the document and trigger the accelerated exit path.
-     */
     pointer-events: auto;
     touch-action: pan-y pinch-zoom;
     user-select: none;
     -webkit-user-select: none;
+}
+
+.ubsc-pixel-loader::before,
+.ubsc-pixel-loader::after {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    opacity: 0;
+    content: "";
+    pointer-events: none;
+}
+
+.ubsc-pixel-loader::before {
+    background: repeating-linear-gradient(
+        90deg,
+        transparent 0,
+        transparent calc(var(--loader-panel-step) - 1px),
+        rgba(151, 208, 242, 0.14)
+            calc(var(--loader-panel-step) - 1px),
+        rgba(151, 208, 242, 0.14) var(--loader-panel-step)
+    );
+}
+
+.ubsc-pixel-loader::after {
+    background-image:
+        linear-gradient(rgba(222, 240, 252, 0.13) 1px, transparent 1px),
+        linear-gradient(
+            90deg,
+            rgba(222, 240, 252, 0.13) 1px,
+            transparent 1px
+        );
+    background-position: center;
+    background-size: 10px 10px;
+    transform: translate3d(0, 0, 0) scaleY(0.035);
+    transform-origin: center;
+    -webkit-mask-image: linear-gradient(
+        180deg,
+        transparent 7%,
+        #000 31%,
+        #000 69%,
+        transparent 93%
+    );
+    mask-image: linear-gradient(
+        180deg,
+        transparent 7%,
+        #000 31%,
+        #000 69%,
+        transparent 93%
+    );
 }
 
 .ubsc-pixel-loader__canvas {
@@ -33,130 +80,251 @@
     pointer-events: none;
 }
 
-.ubsc-pixel-loader__rail {
+.ubsc-pixel-loader__intro-backdrop {
     position: absolute;
-    z-index: 2;
-    left: var(--loader-edge);
-    right: var(--loader-edge);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1.5rem;
-    color: rgba(255, 255, 255, 0.6);
-    font-size: clamp(0.62rem, 0.62vw, 0.72rem);
-    font-weight: 500;
-    letter-spacing: -0.015em;
-    line-height: 1;
+    inset: 0;
+    z-index: 1;
+    background:
+        linear-gradient(
+            180deg,
+            rgba(1, 5, 11, 0.32) 0%,
+            rgba(1, 4, 10, 0.78) 100%
+        ),
+        linear-gradient(
+            90deg,
+            rgba(1, 5, 11, 0.82) 0%,
+            rgba(1, 5, 11, 0.08) 50%,
+            rgba(1, 5, 11, 0.65) 100%
+        ),
+        url("/assets/images/ub-sport-enterence.png") center / cover no-repeat,
+        #030810;
     opacity: 0;
-    transform: translate3d(0, 8px, 0);
-    animation: ubsc-loader-rail-in 560ms cubic-bezier(0.16, 1, 0.3, 1) 120ms
+    transform: translate3d(0, 0, 0) scale(1.04);
+    animation: ubsc-loader-backdrop-in 620ms cubic-bezier(0.16, 1, 0.3, 1)
         both;
     will-change: opacity, transform;
 }
 
-.ubsc-pixel-loader__rail--bottom {
-    bottom: calc(var(--loader-edge) + 0.55rem);
-    color: rgba(255, 255, 255, 0.48);
-    font-variant-numeric: tabular-nums;
+.ubsc-pixel-loader__intro-grain {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    opacity: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.04'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 256px 256px;
+    pointer-events: none;
+    animation: ubsc-loader-grain-in 420ms ease 120ms both;
 }
 
-.ubsc-pixel-loader__stage {
+.ubsc-pixel-loader__intro-frame {
     position: absolute;
+    inset: clamp(0.75rem, 2vw, 2rem);
     z-index: 2;
-    top: 50%;
-    left: 50%;
-    display: grid;
-    width: min(72vw, 34rem);
-    place-items: center;
-    transform: translate3d(-50%, -50%, 0);
+    pointer-events: none;
+}
+
+.ubsc-pixel-loader__intro-frame-line {
+    position: absolute;
+    display: block;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.ubsc-pixel-loader__intro-frame-line--top,
+.ubsc-pixel-loader__intro-frame-line--bottom {
+    right: 0;
+    left: 0;
+    height: 1px;
+    opacity: 0;
+    transform: scaleX(0);
+    animation: ubsc-loader-frame-horizontal 720ms
+        cubic-bezier(0.16, 1, 0.3, 1) 340ms both;
+    will-change: opacity, transform;
+}
+
+.ubsc-pixel-loader__intro-frame-line--top {
+    top: 0;
+    transform-origin: left;
+}
+
+.ubsc-pixel-loader__intro-frame-line--bottom {
+    bottom: 0;
+    transform-origin: right;
+}
+
+.ubsc-pixel-loader__intro-frame-line--left,
+.ubsc-pixel-loader__intro-frame-line--right {
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    opacity: 0;
+    transform: scaleY(0);
+    animation: ubsc-loader-frame-vertical 720ms
+        cubic-bezier(0.16, 1, 0.3, 1) 400ms both;
+    will-change: opacity, transform;
+}
+
+.ubsc-pixel-loader__intro-frame-line--left {
+    left: 0;
+    transform-origin: top;
+}
+
+.ubsc-pixel-loader__intro-frame-line--right {
+    right: 0;
+    transform-origin: bottom;
+}
+
+.ubsc-pixel-loader__intro-stage {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: clamp(1rem, 2.4vw, 1.8rem);
+    transform: translate3d(0, -1vh, 0);
     text-align: center;
     will-change: opacity, transform, filter;
 }
 
-.ubsc-pixel-loader__stage::before,
-.ubsc-pixel-loader__stage::after {
-    position: absolute;
-    top: 50%;
-    width: min(19vw, 9rem);
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22));
-    content: "";
-    opacity: 0;
-    transform: scaleX(0);
-    animation: ubsc-loader-axis-in 680ms cubic-bezier(0.16, 1, 0.3, 1) 360ms
-        both;
+.ubsc-pixel-loader__intro-logo-wrap {
+    position: relative;
+    display: flex;
+    width: clamp(4.5rem, 8vw, 7rem);
+    align-items: center;
+    justify-content: center;
 }
 
-.ubsc-pixel-loader__stage::before {
-    right: calc(100% + clamp(1.4rem, 4vw, 3.5rem));
-    transform-origin: right;
-}
-
-.ubsc-pixel-loader__stage::after {
-    left: calc(100% + clamp(1.4rem, 4vw, 3.5rem));
-    background: linear-gradient(90deg, rgba(255, 255, 255, 0.22), transparent);
-    transform-origin: left;
-}
-
-.ubsc-pixel-loader__stage-index {
-    margin-bottom: clamp(1rem, 2vw, 1.5rem);
-    color: rgba(255, 255, 255, 0.46);
-    font-size: clamp(0.56rem, 0.58vw, 0.68rem);
-    font-variant-numeric: tabular-nums;
-    font-weight: 500;
-    letter-spacing: 0.04em;
-    line-height: 1;
-    opacity: 0;
-    transform: translate3d(0, 10px, 0);
-    animation: ubsc-loader-copy-in 560ms cubic-bezier(0.16, 1, 0.3, 1) 180ms
-        both;
-}
-
-.ubsc-pixel-loader__logo {
+.ubsc-pixel-loader__intro-logo {
+    position: relative;
+    z-index: 1;
     display: block;
-    width: clamp(5.5rem, 9vw, 8.5rem);
+    width: 100%;
     height: auto;
     opacity: 0;
-    filter: brightness(0) invert(1) drop-shadow(0 18px 40px rgba(0, 0, 0, 0.28));
-    transform: scale(0.88);
-    animation: ubsc-loader-logo-in 760ms cubic-bezier(0.16, 1, 0.3, 1) 100ms
-        both;
+    clip-path: inset(0 50% 0 50%);
+    filter: brightness(0) invert(1)
+        drop-shadow(0 0 2rem rgba(255, 255, 255, 0.12));
+    transform: translate3d(0, 0, 0) scale(0.92);
+    animation: ubsc-loader-logo-reveal 640ms cubic-bezier(0.16, 1, 0.3, 1)
+        120ms both;
+    will-change: opacity, transform, clip-path;
+}
+
+.ubsc-pixel-loader__intro-logo-glow {
+    position: absolute;
+    inset: -60%;
+    border-radius: 50%;
+    background: radial-gradient(
+        circle,
+        rgba(255, 255, 255, 0.06) 0%,
+        transparent 70%
+    );
+    opacity: 0;
+    animation: ubsc-loader-glow-in 920ms cubic-bezier(0.16, 1, 0.3, 1)
+        220ms both;
+    pointer-events: none;
+}
+
+.ubsc-pixel-loader__intro-line {
+    display: block;
+    width: clamp(5rem, 22vw, 18rem);
+    height: 1px;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.5),
+        transparent
+    );
+    opacity: 0;
+    transform: scaleX(0);
+    animation: ubsc-loader-line-extend 620ms cubic-bezier(0.16, 1, 0.3, 1)
+        320ms both;
     will-change: opacity, transform;
 }
 
-.ubsc-pixel-loader__stage-copy {
-    margin-top: clamp(0.8rem, 1.8vw, 1.2rem);
-    color: rgba(255, 255, 255, 0.7);
-    font-size: clamp(0.72rem, 0.78vw, 0.88rem);
-    font-weight: 400;
-    letter-spacing: -0.018em;
-    line-height: 1.2;
+.ubsc-pixel-loader__intro-tagline {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: clamp(0.5rem, 1.2vw, 1rem);
+}
+
+.ubsc-pixel-loader__intro-tagline > span {
+    color: rgba(255, 255, 255, 0.74);
+    font-size: clamp(0.72rem, 1.1vw, 1rem);
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    line-height: 1;
     opacity: 0;
-    transform: translate3d(0, 10px, 0);
-    animation: ubsc-loader-copy-in 560ms cubic-bezier(0.16, 1, 0.3, 1) 280ms
+    text-transform: uppercase;
+    transform: translate3d(0, 0.85em, 0);
+    animation: ubsc-loader-copy-rise 500ms cubic-bezier(0.16, 1, 0.3, 1)
         both;
+    animation-delay: calc(460ms + (var(--loader-word-index) * 55ms));
+    will-change: opacity, transform;
 }
 
-.ubsc-pixel-loader__progress {
+.ubsc-pixel-loader__intro-meta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(0.5rem, 1.1vw, 0.9rem);
+}
+
+.ubsc-pixel-loader__intro-meta > span {
+    display: inline-flex;
+    align-items: center;
+    gap: clamp(0.5rem, 1.1vw, 0.9rem);
+    color: rgba(255, 255, 255, 0.44);
+    font-size: clamp(0.55rem, 0.75vw, 0.68rem);
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    line-height: 1;
+    opacity: 0;
+    text-transform: uppercase;
+    transform: translate3d(0, 0.5em, 0);
+    animation: ubsc-loader-copy-rise 420ms cubic-bezier(0.16, 1, 0.3, 1)
+        both;
+    animation-delay: calc(760ms + (var(--loader-meta-index) * 50ms));
+    will-change: opacity, transform;
+}
+
+.ubsc-pixel-loader__intro-meta > span:not(:last-child)::after {
+    width: 3px;
+    height: 3px;
+    flex: 0 0 auto;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.34);
+    content: "";
+}
+
+.ubsc-pixel-loader__intro-progress {
     position: absolute;
-    z-index: 2;
-    right: var(--loader-edge);
-    bottom: var(--loader-edge);
-    left: var(--loader-edge);
-    height: 1px;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 3;
+    height: 2px;
     overflow: hidden;
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.06);
+    pointer-events: none;
 }
 
-.ubsc-pixel-loader__progress > span {
+.ubsc-pixel-loader__intro-progress > span {
     display: block;
     width: 100%;
     height: 100%;
-    background: #ff3b00;
+    background: linear-gradient(
+        90deg,
+        rgba(213, 0, 0, 0.6),
+        rgba(213, 0, 0, 0.9),
+        rgba(255, 255, 255, 0.6)
+    );
     transform: scaleX(0);
     transform-origin: left;
-    animation: ubsc-loader-prime-progress 900ms cubic-bezier(0.16, 1, 0.3, 1)
-        80ms forwards;
+    animation: ubsc-loader-progress-prime 980ms
+        cubic-bezier(0.4, 0, 0.2, 1) 380ms both;
     will-change: transform;
 }
 
@@ -164,24 +332,54 @@
     background: transparent;
 }
 
-.ubsc-pixel-loader--cascade .ubsc-pixel-loader__stage {
-    opacity: 0;
-    filter: blur(3px);
-    transform: translate3d(-50%, calc(-50% - 14px), 0) scale(0.975);
-    transition:
-        opacity 260ms cubic-bezier(0.55, 0, 1, 0.45),
-        filter 300ms ease,
-        transform 320ms cubic-bezier(0.55, 0, 1, 0.45);
+.ubsc-pixel-loader--cascade:not(.ubsc-pixel-loader--skip-intro)::before {
+    animation: ubsc-loader-panel-echo var(--loader-handoff-duration)
+        cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-.ubsc-pixel-loader--cascade .ubsc-pixel-loader__rail,
-.ubsc-pixel-loader--cascade .ubsc-pixel-loader__progress {
+.ubsc-pixel-loader--cascade:not(.ubsc-pixel-loader--skip-intro)::after {
+    animation: ubsc-loader-pixel-nucleation var(--loader-handoff-duration)
+        cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.ubsc-pixel-loader--cascade .ubsc-pixel-loader__intro-backdrop {
+    animation: ubsc-loader-backdrop-dissolve var(--loader-handoff-duration)
+        cubic-bezier(0.45, 0, 0.2, 1) both;
+    transform: translate3d(0, 0, 0) scale(1);
+    will-change: opacity, filter;
+}
+
+.ubsc-pixel-loader--cascade .ubsc-pixel-loader__intro-grain {
+    animation: ubsc-loader-grain-dissolve var(--loader-handoff-duration)
+        ease-out both;
+}
+
+.ubsc-pixel-loader--cascade .ubsc-pixel-loader__intro-frame {
+    opacity: 0;
+    transition: opacity 180ms ease;
+}
+
+.ubsc-pixel-loader--cascade .ubsc-pixel-loader__intro-progress {
     opacity: 0;
     transition: opacity 190ms ease;
 }
 
-.ubsc-pixel-loader--cascade .ubsc-pixel-loader__progress > span {
+.ubsc-pixel-loader--cascade .ubsc-pixel-loader__intro-progress > span {
     animation: none;
+}
+
+.ubsc-pixel-loader--cascade .ubsc-pixel-loader__intro-stage {
+    animation: ubsc-loader-stage-dissolve var(--loader-handoff-duration)
+        cubic-bezier(0.45, 0, 0.2, 1) both;
+    pointer-events: none;
+}
+
+.ubsc-pixel-loader--skip-intro .ubsc-pixel-loader__intro-backdrop,
+.ubsc-pixel-loader--skip-intro .ubsc-pixel-loader__intro-grain,
+.ubsc-pixel-loader--skip-intro .ubsc-pixel-loader__intro-stage,
+.ubsc-pixel-loader--skip-intro .ubsc-pixel-loader__intro-frame,
+.ubsc-pixel-loader--skip-intro .ubsc-pixel-loader__intro-progress {
+    display: none;
 }
 
 .ubsc-pixel-loader--fade {
@@ -190,17 +388,33 @@
     transition: opacity 220ms ease;
 }
 
-@keyframes ubsc-loader-rail-in {
+@keyframes ubsc-loader-backdrop-in {
+    from {
+        opacity: 0;
+        transform: translate3d(0, 0, 0) scale(1.04);
+    }
     to {
         opacity: 1;
-        transform: translate3d(0, 0, 0);
+        transform: translate3d(0, 0, 0) scale(1);
     }
 }
 
-@keyframes ubsc-loader-axis-in {
+@keyframes ubsc-loader-grain-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes ubsc-loader-frame-horizontal {
     0% {
         opacity: 0;
         transform: scaleX(0);
+    }
+    30% {
+        opacity: 1;
     }
     100% {
         opacity: 1;
@@ -208,67 +422,226 @@
     }
 }
 
-@keyframes ubsc-loader-logo-in {
+@keyframes ubsc-loader-frame-vertical {
     0% {
         opacity: 0;
-        transform: scale(0.88);
+        transform: scaleY(0);
+    }
+    30% {
+        opacity: 1;
     }
     100% {
         opacity: 1;
-        transform: scale(1);
+        transform: scaleY(1);
     }
 }
 
-@keyframes ubsc-loader-copy-in {
-    to {
-        opacity: 1;
-        transform: translate3d(0, 0, 0);
-    }
-}
-
-@keyframes ubsc-loader-prime-progress {
+@keyframes ubsc-loader-progress-prime {
     to {
         transform: scaleX(0.32);
     }
 }
 
+@keyframes ubsc-loader-logo-reveal {
+    0% {
+        opacity: 0;
+        clip-path: inset(0 50% 0 50%);
+        transform: translate3d(0, 0, 0) scale(0.92);
+    }
+    38% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 1;
+        clip-path: inset(0 0 0 0);
+        transform: translate3d(0, 0, 0) scale(1);
+    }
+}
+
+@keyframes ubsc-loader-glow-in {
+    0% {
+        opacity: 0;
+        transform: scale(0.74);
+    }
+    55% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    100% {
+        opacity: 0.48;
+        transform: scale(1.08);
+    }
+}
+
+@keyframes ubsc-loader-line-extend {
+    0% {
+        opacity: 0;
+        transform: scaleX(0);
+    }
+    22% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 1;
+        transform: scaleX(1);
+    }
+}
+
+@keyframes ubsc-loader-copy-rise {
+    from {
+        opacity: 0;
+        transform: translate3d(0, 0.8em, 0);
+    }
+    to {
+        opacity: 1;
+        transform: translate3d(0, 0, 0);
+    }
+}
+
+@keyframes ubsc-loader-backdrop-dissolve {
+    0% {
+        opacity: 1;
+        filter: brightness(1) saturate(1) contrast(1);
+        transform: translate3d(0, 0, 0) scale(1);
+    }
+    30% {
+        opacity: 0.9;
+        filter: brightness(0.91) saturate(0.82) contrast(1.025);
+    }
+    68% {
+        opacity: 0.34;
+        filter: brightness(0.63) saturate(0.34) contrast(1.08);
+    }
+    100% {
+        opacity: 0;
+        filter: brightness(0.48) saturate(0) contrast(1.12);
+        transform: translate3d(0, 0, 0) scale(1);
+    }
+}
+
+@keyframes ubsc-loader-grain-dissolve {
+    0% {
+        opacity: 1;
+    }
+    48% {
+        opacity: 0.34;
+    }
+    100% {
+        opacity: 0;
+    }
+}
+
+@keyframes ubsc-loader-stage-dissolve {
+    0% {
+        opacity: 1;
+        filter: blur(0);
+        transform: translate3d(0, -1vh, 0) scale(1);
+    }
+    38% {
+        opacity: 0.88;
+        filter: blur(0);
+        transform: translate3d(0, -1.2vh, 0) scale(0.997);
+    }
+    100% {
+        opacity: 0;
+        filter: blur(1.8px);
+        transform: translate3d(0, -1.85vh, 0) scale(0.985);
+    }
+}
+
+@keyframes ubsc-loader-panel-echo {
+    0% {
+        opacity: 0;
+    }
+    30% {
+        opacity: 0.2;
+    }
+    68% {
+        opacity: 0.085;
+    }
+    100% {
+        opacity: 0;
+    }
+}
+
+@keyframes ubsc-loader-pixel-nucleation {
+    0% {
+        opacity: 0;
+        transform: translate3d(0, 0, 0) scaleY(0.035);
+    }
+    34% {
+        opacity: 0.145;
+        transform: translate3d(0, 0, 0) scaleY(0.32);
+    }
+    72% {
+        opacity: 0.07;
+        transform: translate3d(0, 0, 0) scaleY(1);
+    }
+    100% {
+        opacity: 0;
+        transform: translate3d(0, 0, 0) scaleY(1);
+    }
+}
+
 @media (max-width: 640px) {
     .ubsc-pixel-loader {
-        --loader-edge: 1rem;
+        --loader-panel-step: 12.5vw;
     }
 
-    .ubsc-pixel-loader__rail {
-        font-size: 0.58rem;
+    .ubsc-pixel-loader__intro-stage {
+        max-width: calc(100vw - 2rem);
     }
 
-    .ubsc-pixel-loader__stage {
-        width: min(74vw, 19rem);
+    .ubsc-pixel-loader__intro-logo-wrap {
+        width: clamp(3.5rem, 16vw, 5rem);
     }
 
-    .ubsc-pixel-loader__stage::before,
-    .ubsc-pixel-loader__stage::after {
-        width: 12vw;
+    .ubsc-pixel-loader__intro-tagline {
+        gap: clamp(0.35rem, 2vw, 0.6rem);
+        padding-inline: 1rem;
     }
 
-    .ubsc-pixel-loader__logo {
-        width: clamp(5rem, 27vw, 7rem);
+    .ubsc-pixel-loader__intro-tagline > span {
+        font-size: clamp(0.6rem, 2.8vw, 0.78rem);
+        letter-spacing: 0.12em;
+    }
+
+    .ubsc-pixel-loader__intro-meta {
+        gap: clamp(0.4rem, 2vw, 0.6rem);
+        padding-inline: 1rem;
+    }
+
+    .ubsc-pixel-loader__intro-meta > span {
+        gap: clamp(0.4rem, 2vw, 0.6rem);
+        font-size: clamp(0.48rem, 2.2vw, 0.62rem);
+        letter-spacing: 0.12em;
+    }
+
+    .ubsc-pixel-loader__intro-frame {
+        inset: 0.75rem;
     }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .ubsc-pixel-loader__rail,
-    .ubsc-pixel-loader__stage-index,
-    .ubsc-pixel-loader__logo,
-    .ubsc-pixel-loader__stage-copy,
-    .ubsc-pixel-loader__stage::before,
-    .ubsc-pixel-loader__stage::after,
-    .ubsc-pixel-loader__progress > span {
+    .ubsc-pixel-loader__intro-backdrop,
+    .ubsc-pixel-loader__intro-grain,
+    .ubsc-pixel-loader__intro-logo,
+    .ubsc-pixel-loader__intro-logo-glow,
+    .ubsc-pixel-loader__intro-frame-line,
+    .ubsc-pixel-loader__intro-line,
+    .ubsc-pixel-loader__intro-tagline > span,
+    .ubsc-pixel-loader__intro-meta > span,
+    .ubsc-pixel-loader__intro-progress > span {
         animation: none !important;
         opacity: 1;
         transform: none;
     }
 
-    .ubsc-pixel-loader__progress > span {
-        transform: scaleX(1);
+    .ubsc-pixel-loader__intro-logo {
+        clip-path: inset(0 0 0 0);
+    }
+
+    .ubsc-pixel-loader__intro-progress > span {
+        transform: scaleX(0.32);
     }
 }

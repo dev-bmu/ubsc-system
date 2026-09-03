@@ -11,7 +11,7 @@ import SectionFour from "@/Components/Landing/SectionFour";
 import SectionFive from "@/Components/Landing/SectionFive";
 import SectionSix from "@/Components/Landing/SectionSix";
 import SectionSeven from "@/Components/Landing/SectionSeven";
-import SectionEight from "@/Components/Landing/SectionEight";
+import DeferredSectionEight from "@/Components/Landing/DeferredSectionEight";
 import Footer from "@/Components/Landing/Footer";
 import SeoHead from "@/Components/SeoHead";
 import { usePage } from "@inertiajs/react";
@@ -115,7 +115,6 @@ export default function HomePage() {
         reviews,
         facilities = [],
     } = usePage<HomeProps>().props;
-
     return (
         <HomepageEntranceProvider>
             <SeoHead />
@@ -147,7 +146,7 @@ export default function HomePage() {
             </main>
             <div className="home-footer-reveal-root homepage-footer-reveal-root">
                 <div className="home-footer-reveal-stage">
-                    <SectionEight />
+                    <DeferredSectionEight />
                 </div>
                 <div className="home-footer-reveal-footer">
                     <Footer />

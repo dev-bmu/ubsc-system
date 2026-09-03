@@ -1,4 +1,5 @@
 import {
+    type CSSProperties,
     useCallback,
     useEffect,
     useLayoutEffect,
@@ -11,6 +12,7 @@ import "./EntranceLoader.css";
 
 interface EntranceLoaderProps {
     ready?: boolean;
+    skipIntro?: boolean;
     onComplete: () => void;
     onExitStart?: () => void;
     onEntranceReady?: () => void;
@@ -55,7 +57,7 @@ interface CanvasMetrics {
     pixelRatio: number;
 }
 
-const MIN_INTRO_MS = 650;
+const MIN_INTRO_MS = 1480;
 const MAX_READY_WAIT_MS = 4500;
 const CASCADE_DURATION_MS = 1480;
 const INTENT_CASCADE_DURATION_MS = 1020;
@@ -65,6 +67,8 @@ const REDUCED_FADE_MS = 220;
 const ENTRANCE_SYNC_PROGRESS = 0.55;
 const REGISTRATION_REVEAL_PROGRESS = 0.7;
 const CONTENT_REVEAL_PROGRESS = 0.98;
+const INTRO_TAGLINE_WORDS = ["Train.", "Play.", "Recover.", "Belong."];
+const INTRO_META_ITEMS = ["Training", "Court", "Membership"];
 
 const clamp01 = (value: number): number => Math.min(1, Math.max(0, value));
 
@@ -485,6 +489,7 @@ function drawCascadeFrame(canvas: HTMLCanvasElement, progress: number): void {
 
 export default function EntranceLoader({
     ready = false,
+    skipIntro = false,
     onComplete,
     onExitStart,
     onEntranceReady,
@@ -496,7 +501,6 @@ export default function EntranceLoader({
     const loaderRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const progressBarRef = useRef<HTMLSpanElement>(null);
-    const progressTextRef = useRef<HTMLSpanElement>(null);
     const mountedAtRef = useRef(0);
     const exitQueuedRef = useRef(false);
     const exitStartedRef = useRef(false);
@@ -560,6 +564,9 @@ export default function EntranceLoader({
         signalEntranceReady();
         signalRegistrationReveal();
         signalContentReveal();
+        if (progressBarRef.current) {
+            progressBarRef.current.style.transform = "scaleX(1)";
+        }
         loaderRef.current?.setAttribute("aria-valuenow", "100");
         releaseCanvas(canvasRef.current);
         setPhase("done");
@@ -590,15 +597,24 @@ export default function EntranceLoader({
                 pendingScrollIntentRef.current = false;
             }
 
+            loaderRef.current?.style.setProperty(
+                "--loader-handoff-duration",
+                `${Math.round(cascadeDurationRef.current * 0.46)}ms`,
+            );
+
             exitQueuedRef.current = true;
             exitStartedRef.current = true;
             onExitStartRef.current?.();
 
             if (reducedMotionRef.current) {
-                if (progressTextRef.current) {
-                    progressTextRef.current.textContent = "100";
+                if (progressBarRef.current) {
+                    progressBarRef.current.style.transform = "scaleX(1)";
                 }
                 loaderRef.current?.setAttribute("aria-valuenow", "100");
+            } else if (progressBarRef.current) {
+                // The intro owns the first 32%; the live cascade continues
+                // from that exact value without restarting the progress line.
+                progressBarRef.current.style.transform = "scaleX(0.32)";
             }
 
             queueRafRef.current = window.requestAnimationFrame(() => {
@@ -638,7 +654,27 @@ export default function EntranceLoader({
     }, []);
 
     useEffect(() => {
-        if (!portalHost || phase !== "intro") {
+        if (!skipIntro || !portalHost || phase !== "intro") {
+            return;
+        }
+
+        const elapsed = performance.now() - mountedAtRef.current;
+
+        if (ready) {
+            beginExit();
+            return;
+        }
+
+        const timeout = window.setTimeout(
+            beginExit,
+            Math.max(0, MAX_READY_WAIT_MS - elapsed),
+        );
+
+        return () => window.clearTimeout(timeout);
+    }, [beginExit, phase, portalHost, ready, skipIntro]);
+
+    useEffect(() => {
+        if (skipIntro || !portalHost || phase !== "intro") {
             return;
         }
 
@@ -662,10 +698,10 @@ export default function EntranceLoader({
         return () => {
             window.clearTimeout(timeout);
         };
-    }, [beginExit, phase, portalHost, ready]);
+    }, [beginExit, phase, portalHost, ready, skipIntro]);
 
     useEffect(() => {
-        if (!portalHost || phase !== "intro" || ready) {
+        if (skipIntro || !portalHost || phase !== "intro" || ready) {
             return;
         }
 
@@ -676,7 +712,7 @@ export default function EntranceLoader({
         );
 
         return () => window.clearTimeout(timeout);
-    }, [beginExit, phase, portalHost, ready]);
+    }, [beginExit, phase, portalHost, ready, skipIntro]);
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -737,7 +773,7 @@ export default function EntranceLoader({
     }, [isVisible]);
 
     useEffect(() => {
-        if (!isVisible || phase !== "intro") {
+        if (skipIntro || !isVisible || phase !== "intro") {
             return;
         }
 
@@ -812,7 +848,7 @@ export default function EntranceLoader({
             window.removeEventListener("touchmove", handleTouchMove, true);
             window.removeEventListener("keydown", handleKeyDown, true);
         };
-    }, [beginExit, isVisible, phase]);
+    }, [beginExit, isVisible, phase, skipIntro]);
 
     useLayoutEffect(() => {
         const canvas = canvasRef.current;
@@ -885,6 +921,10 @@ export default function EntranceLoader({
                 const visualProgress = 0.32 + latestProgress * 0.68;
                 const percentage = Math.round(visualProgress * 100);
 
+                if (elapsed <= 190 && progressBarRef.current) {
+                    progressBarRef.current.style.transform = `scaleX(${visualProgress})`;
+                }
+
                 if (visualProgress >= ENTRANCE_SYNC_PROGRESS) {
                     signalEntranceReady();
                 }
@@ -897,18 +937,8 @@ export default function EntranceLoader({
                     signalContentReveal();
                 }
 
-                if (elapsed <= 190 && progressBarRef.current) {
-                    progressBarRef.current.style.transform = `scaleX(${visualProgress})`;
-                }
-
                 if (percentage !== lastPercentage) {
                     lastPercentage = percentage;
-
-                    if (elapsed <= 190 && progressTextRef.current) {
-                        progressTextRef.current.textContent = percentage
-                            .toString()
-                            .padStart(2, "0");
-                    }
 
                     loaderRef.current?.setAttribute(
                         "aria-valuenow",
@@ -960,7 +990,7 @@ export default function EntranceLoader({
     return createPortal(
         <div
             ref={loaderRef}
-            className={`ubsc-pixel-loader ubsc-pixel-loader--${phase}`}
+            className={`ubsc-pixel-loader ubsc-pixel-loader--${phase}${skipIntro ? " ubsc-pixel-loader--skip-intro" : ""}`}
             role="progressbar"
             aria-label="Memuat UB Sport Center"
             aria-valuemin={0}
@@ -973,33 +1003,95 @@ export default function EntranceLoader({
                 aria-hidden="true"
             />
 
-            <div className="ubsc-pixel-loader__stage">
-                <span className="ubsc-pixel-loader__stage-index">
-                    Entry / 01
-                </span>
-                <img
-                    src="/assets/brand/ubsc-logo-640.webp"
-                    alt="UB Sport Center"
-                    className="ubsc-pixel-loader__logo"
-                    width={640}
-                    height={320}
-                    decoding="sync"
-                    draggable={false}
-                    {...{ fetchpriority: "high" }}
-                />
-                <span className="ubsc-pixel-loader__stage-copy">
-                    Gerak dimulai di sini
-                </span>
-            </div>
+            {!skipIntro && (
+                <>
+                    <div
+                        className="ubsc-pixel-loader__intro-backdrop"
+                        aria-hidden="true"
+                    />
+                    <div
+                        className="ubsc-pixel-loader__intro-grain"
+                        aria-hidden="true"
+                    />
 
-            <div className="ubsc-pixel-loader__rail ubsc-pixel-loader__rail--bottom">
-                <span>Menyiapkan pengalaman</span>
-                <span ref={progressTextRef}>32</span>
-            </div>
+                    <div
+                        className="ubsc-pixel-loader__intro-frame"
+                        aria-hidden="true"
+                    >
+                        <span className="ubsc-pixel-loader__intro-frame-line ubsc-pixel-loader__intro-frame-line--top" />
+                        <span className="ubsc-pixel-loader__intro-frame-line ubsc-pixel-loader__intro-frame-line--right" />
+                        <span className="ubsc-pixel-loader__intro-frame-line ubsc-pixel-loader__intro-frame-line--bottom" />
+                        <span className="ubsc-pixel-loader__intro-frame-line ubsc-pixel-loader__intro-frame-line--left" />
+                    </div>
 
-            <div className="ubsc-pixel-loader__progress" aria-hidden="true">
-                <span ref={progressBarRef} />
-            </div>
+                    <div className="ubsc-pixel-loader__intro-stage">
+                        <div className="ubsc-pixel-loader__intro-logo-wrap">
+                            <img
+                                src="/assets/brand/ubsc-logo-640.webp"
+                                alt="UB Sport Center"
+                                className="ubsc-pixel-loader__intro-logo"
+                                width={640}
+                                height={320}
+                                decoding="sync"
+                                draggable={false}
+                                {...{ fetchpriority: "high" }}
+                            />
+                            <span
+                                className="ubsc-pixel-loader__intro-logo-glow"
+                                aria-hidden="true"
+                            />
+                        </div>
+
+                        <span
+                            className="ubsc-pixel-loader__intro-line"
+                            aria-hidden="true"
+                        />
+
+                        <div
+                            className="ubsc-pixel-loader__intro-tagline"
+                            aria-hidden="true"
+                        >
+                            {INTRO_TAGLINE_WORDS.map((word, index) => (
+                                <span
+                                    key={word}
+                                    style={
+                                        {
+                                            "--loader-word-index": index,
+                                        } as CSSProperties
+                                    }
+                                >
+                                    {word}
+                                </span>
+                            ))}
+                        </div>
+
+                        <div
+                            className="ubsc-pixel-loader__intro-meta"
+                            aria-hidden="true"
+                        >
+                            {INTRO_META_ITEMS.map((item, index) => (
+                                <span
+                                    key={item}
+                                    style={
+                                        {
+                                            "--loader-meta-index": index,
+                                        } as CSSProperties
+                                    }
+                                >
+                                    {item}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div
+                        className="ubsc-pixel-loader__intro-progress"
+                        aria-hidden="true"
+                    >
+                        <span ref={progressBarRef} />
+                    </div>
+                </>
+            )}
         </div>,
         portalHost,
     );
