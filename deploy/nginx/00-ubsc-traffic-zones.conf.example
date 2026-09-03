@@ -1,0 +1,34 @@
+# Include this file exactly once inside Nginx's `http {}` context, before the
+# UBSC server block. The private origin restores a canonical client IP only
+# from the trusted load balancer, so these keys cannot be caller-spoofed.
+
+limit_req_zone $binary_remote_addr zone=ubsc_dynamic_per_ip:20m rate=20r/s;
+limit_conn_zone $binary_remote_addr zone=ubsc_connections_per_ip:20m;
+limit_req_zone $server_name zone=ubsc_dynamic_per_node:1m rate=300r/s;
+limit_conn_zone $server_name zone=ubsc_connections_per_node:1m;
+
+# The real-ip module rewrites $remote_addr to the verified end-user address.
+# Preserve ingress authorization against $realip_remote_addr, which remains
+# the TCP peer (the private load balancer) after that rewrite.
+geo $realip_remote_addr $ubsc_load_balancer_allowed {
+    default            0;
+    LOAD_BALANCER_CIDR 1;
+}
+
+map $request_method $ubsc_write_limit_key {
+    default "";
+    POST    $binary_remote_addr;
+    PUT     $binary_remote_addr;
+    PATCH   $binary_remote_addr;
+    DELETE  $binary_remote_addr;
+}
+limit_req_zone $ubsc_write_limit_key zone=ubsc_write_per_ip:20m rate=5r/s;
+
+map $request_uri $ubsc_sensitive_limit_key {
+    default "";
+    ~^/(?:login|register|forgot-password|reset-password)(?:\?|$) $binary_remote_addr;
+    ~^/ubsc-staff/(?:login|mfa)(?:/|\?|$) $binary_remote_addr;
+    ~^/(?:checkout|membership/registrations)(?:/|\?|$) $binary_remote_addr;
+    ~^/monitoring/(?:external-sli|log-receipts)(?:\?|$) $binary_remote_addr;
+}
+limit_req_zone $ubsc_sensitive_limit_key zone=ubsc_sensitive_per_ip:20m rate=2r/s;

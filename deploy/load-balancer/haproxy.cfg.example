@@ -1,0 +1,74 @@
+# Vendor-neutral reference for a self-managed fallback. Prefer the hosting
+# provider's managed regional load balancer when available.
+global
+    log stdout format raw local0
+    maxconn 20000
+
+defaults
+    mode http
+    log global
+    option httplog
+    option dontlognull
+    timeout connect 3s
+    timeout client 60s
+    timeout server 60s
+    timeout queue 5s
+    timeout http-request 10s
+    timeout http-keep-alive 10s
+    timeout check 5s
+
+frontend ubsc_https
+    bind :443 ssl crt /etc/haproxy/certs/ubsc.pem alpn h2,http/1.1
+    maxconn 18000
+    stick-table type ip size 1m expire 10m store http_req_rate(10s),http_err_rate(10s)
+    # Production accepts traffic only from the managed edge networks. Keep the
+    # provider-maintained CIDR file current atomically; an empty/missing file
+    # must fail configuration validation rather than expose the origin.
+    acl ubsc_managed_edge src -f /etc/haproxy/ubsc-edge-cidrs.lst
+    http-request deny deny_status 403 unless ubsc_managed_edge
+
+    # Replace PUBLIC_HOSTNAME during provisioning. Refuse arbitrary Host values
+    # before they reach Nginx or Laravel; the public edge must use this same
+    # canonical authority.
+    acl ubsc_canonical_host hdr(host) -i PUBLIC_HOSTNAME
+    http-request deny deny_status 421 unless ubsc_canonical_host
+
+    # The edge deletes all caller-supplied copies and sets exactly one
+    # X-Verified-Client-IP header. HAProxy refuses ambiguity, parses it as an
+    # IP, then replaces X-Forwarded-For so Laravel/Nginx cannot be spoofed.
+    acl ubsc_client_header_once req.hdr_cnt(X-Verified-Client-IP) eq 1
+    http-request deny deny_status 400 unless ubsc_client_header_once
+    acl ubsc_client_header_shape req.hdr(X-Verified-Client-IP) -m reg ^[0-9A-Fa-f:.]{2,45}$
+    http-request deny deny_status 400 unless ubsc_client_header_shape
+    http-request set-var(txn.ubsc_client_ip) req.hdr_ip(X-Verified-Client-IP)
+    acl ubsc_client_ip_valid var(txn.ubsc_client_ip) -m found
+    http-request deny deny_status 400 unless ubsc_client_ip_valid
+
+    acl ubsc_readiness path -i /health/ready
+    acl ubsc_sensitive_path path_beg -i /login /register /forgot-password /reset-password /checkout /membership/registrations /ubsc-staff/login /ubsc-staff/mfa
+    http-request track-sc0 var(txn.ubsc_client_ip)
+    http-request deny deny_status 429 if { sc_http_req_rate(0) gt 400 }
+    http-request deny deny_status 429 if ubsc_sensitive_path { sc_http_req_rate(0) gt 40 }
+    http-request deny deny_status 429 if ubsc_readiness { sc_http_req_rate(0) gt 30 }
+
+    http-request del-header X-Forwarded-For
+    http-request set-header X-Forwarded-For %[var(txn.ubsc_client_ip)]
+    http-request del-header X-Verified-Client-IP
+    http-request set-header X-Forwarded-Proto https
+    http-request set-header X-Forwarded-Port 443
+    http-request set-header X-Forwarded-Host %[req.hdr(Host)]
+    default_backend ubsc_application
+
+backend ubsc_application
+    balance roundrobin
+    option httpchk
+    http-check send meth GET uri /health/ready ver HTTP/1.1 hdr Host PUBLIC_HOSTNAME
+    http-check expect status 200
+    default-server inter 5s fastinter 2s downinter 10s fall 3 rise 2 slowstart 15s
+
+    # Replace these private addresses and TLS placeholders during
+    # infrastructure provisioning. Port 8080 is loopback-only on each node;
+    # load-balanced traffic always uses authenticated TLS on origin port 8443.
+    # No cookie/stick-table is intentional: UBSC sessions are shared in Redis.
+    server ubsc-app-01 10.0.1.11:8443 check ssl verify required ca-file ORIGIN_CA_FILE sni str(ORIGIN_HOSTNAME) verifyhost ORIGIN_HOSTNAME maxconn 256 maxqueue 512
+    server ubsc-app-02 10.0.2.12:8443 check ssl verify required ca-file ORIGIN_CA_FILE sni str(ORIGIN_HOSTNAME) verifyhost ORIGIN_HOSTNAME maxconn 256 maxqueue 512

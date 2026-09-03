@@ -1,0 +1,207 @@
+# UBSC private origin reference. Replace LOAD_BALANCER_CIDR, PUBLIC_HOSTNAME,
+# ORIGIN_HOSTNAME, ORIGIN_CERTIFICATE, ORIGIN_CERTIFICATE_KEY, and
+# PHP_FPM_SOCKET through the infrastructure template; never expose port 8443
+# directly to the internet.
+
+server {
+    listen 8443 ssl;
+    listen [::]:8443 ssl;
+    http2 on;
+    # ORIGIN_HOSTNAME selects this TLS virtual host from HAProxy SNI and is
+    # covered by the private origin certificate. PUBLIC_HOSTNAME is the sole
+    # accepted HTTP Host below, preserving Laravel's canonical origin.
+    server_name PUBLIC_HOSTNAME ORIGIN_HOSTNAME;
+
+    root /srv/ubsc/current/public;
+    index index.php;
+    server_tokens off;
+
+    # LOAD_BALANCER_CIDR is the only trusted proxy. The load balancer must
+    # replace X-Forwarded-For with exactly one provider-verified client IP.
+    # Never add the public internet, the complete RFC1918 space, or 0/0 here.
+    set_real_ip_from LOAD_BALANCER_CIDR;
+    real_ip_header X-Forwarded-For;
+    real_ip_recursive off;
+
+    ssl_certificate ORIGIN_CERTIFICATE;
+    ssl_certificate_key ORIGIN_CERTIFICATE_KEY;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_session_cache shared:UBSCOriginTLS:10m;
+    ssl_session_timeout 1d;
+    ssl_session_tickets off;
+
+    # Do not use `allow LOAD_BALANCER_CIDR` here: after real-ip processing,
+    # Nginx access rules see the end-user address and would reject legitimate
+    # traffic. The geo map checks the original TCP peer instead. The cloud
+    # firewall must independently enforce the same private LB-only ingress.
+    if ($ubsc_load_balancer_allowed = 0) { return 403; }
+    if ($host != PUBLIC_HOSTNAME) { return 421; }
+
+    limit_req_status 429;
+    limit_conn_status 429;
+    limit_req_log_level warn;
+    limit_conn_log_level warn;
+    limit_conn ubsc_connections_per_ip 30;
+    limit_conn ubsc_connections_per_node 512;
+
+    client_max_body_size 2m;
+    client_body_buffer_size 128k;
+    client_header_timeout 10s;
+    client_body_timeout 15s;
+    keepalive_timeout 15s;
+    keepalive_requests 500;
+    send_timeout 30s;
+    reset_timedout_connection on;
+    lingering_time 20s;
+    lingering_timeout 5s;
+    large_client_header_buffers 4 8k;
+
+    if ($request_method = TRACE) { return 405; }
+    if ($request_method = CONNECT) { return 405; }
+
+    location = /up {
+        access_log off;
+        add_header Cache-Control "no-store, max-age=0" always;
+        try_files $uri /index.php?$query_string;
+    }
+
+    location = /health/ready {
+        access_log off;
+        add_header Cache-Control "no-store, max-age=0" always;
+        try_files $uri /index.php?$query_string;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    # Large administrative media never inherits a site-wide 256 MB envelope.
+    # Gallery video uploads use resumable 5 MB chunks; narrowly-scoped legacy
+    # endpoints remain bounded for compatibility and should stay edge-limited.
+    location ~ ^/ubsc-staff/content/facility-gallery/upload-sessions/[0-9a-f-]+/chunks/[0-9]+$ {
+        client_max_body_size 8m;
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ ^/ubsc-staff/content/facility-gallery/items(?:\?|$) {
+        # Legacy direct ingestion is image-only; videos use resumable chunks.
+        client_max_body_size 24m;
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ ^/ubsc-staff/facilities(?:/|\?|$) {
+        client_max_body_size 128m;
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ ^/ubsc-staff/news(?:/|\?|$) {
+        client_max_body_size 48m;
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ ^/ubsc-staff/reels(?:/|\?|$) {
+        client_max_body_size 64m;
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location = /profile {
+        client_max_body_size 8m;
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    # Signed monitoring ingestion is intentionally stateless and tiny. Bound
+    # it before PHP reads a body; application middleware then applies the
+    # exact 16/32 KiB route envelopes and shared traffic fuses.
+    location ~ ^/monitoring/(?:external-sli|log-receipts)$ {
+        client_max_body_size 64k;
+        try_files $uri /index.php?$query_string;
+    }
+
+    # Laravel has exactly one executable public front controller. Refuse any
+    # future or accidentally deployed PHP file instead of expanding the
+    # executable surface automatically.
+    location = /index.php {
+        limit_req zone=ubsc_dynamic_per_node burst=600 nodelay;
+        limit_req zone=ubsc_dynamic_per_ip burst=80 nodelay;
+        limit_req zone=ubsc_write_per_ip burst=20 nodelay;
+        limit_req zone=ubsc_sensitive_per_ip burst=8 nodelay;
+        try_files $uri =404;
+        include fastcgi_params;
+        fastcgi_pass unix:PHP_FPM_SOCKET;
+        fastcgi_param SCRIPT_FILENAME $realpath_root/index.php;
+        fastcgi_param DOCUMENT_ROOT $realpath_root;
+        fastcgi_param SCRIPT_NAME /index.php;
+        # real_ip intentionally makes REMOTE_ADDR the verified end user for
+        # rate limiting. Laravel therefore must not depend on trusting that
+        # address as a proxy to recover the public scheme/port. Pin the public
+        # transport facts here, after LB-only ingress and Host validation.
+        fastcgi_param HTTPS on;
+        fastcgi_param REQUEST_SCHEME https;
+        fastcgi_param SERVER_PORT 443;
+        fastcgi_param HTTP_X_FORWARDED_PROTO https;
+        fastcgi_param HTTP_X_FORWARDED_PORT 443;
+        fastcgi_param HTTP_PROXY "";
+        fastcgi_connect_timeout 3s;
+        fastcgi_send_timeout 60s;
+        fastcgi_read_timeout 60s;
+        fastcgi_request_buffering on;
+    }
+
+    location ~ \.php(?:/|$) {
+        return 404;
+    }
+
+    # Vite fingerprints every file in this directory, so immutable caching is
+    # safe. Editorial/public files outside it may be replaced under the same
+    # name and deliberately receive a shorter cache policy below.
+    location ^~ /build/assets/ {
+        try_files $uri =404;
+        expires 1y;
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        access_log off;
+    }
+
+    location ~* \.(?:avif|webp|svg|png|jpe?g|gif|ico|mp4|webm)$ {
+        try_files $uri =404;
+        expires 1h;
+        add_header Cache-Control "public, max-age=3600, stale-while-revalidate=86400" always;
+        access_log off;
+    }
+
+    location ~ /\. {
+        deny all;
+    }
+
+    location ~* /(?:composer\.(?:json|lock)|package(?:-lock)?\.json|artisan)$ {
+        deny all;
+    }
+}
+
+# Loopback-only readiness used by atomic-node-rollout.sh after a traffic
+# switch. It cannot be reached from the load balancer or public network.
+server {
+    listen 127.0.0.1:8080;
+    server_name localhost;
+    root /srv/ubsc/current/public;
+    server_tokens off;
+
+    location = /health/ready {
+        access_log off;
+        add_header Cache-Control "no-store, max-age=0" always;
+        include fastcgi_params;
+        fastcgi_pass unix:PHP_FPM_SOCKET;
+        fastcgi_param SCRIPT_FILENAME $realpath_root/index.php;
+        fastcgi_param DOCUMENT_ROOT $realpath_root;
+        fastcgi_param SCRIPT_NAME /index.php;
+        fastcgi_param REQUEST_URI /health/ready;
+        fastcgi_param HTTPS on;
+        fastcgi_param HTTP_X_FORWARDED_PROTO https;
+        fastcgi_param HTTP_PROXY "";
+        fastcgi_connect_timeout 3s;
+        fastcgi_read_timeout 10s;
+    }
+
+    location / {
+        return 404;
+    }
+}
