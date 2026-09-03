@@ -44,7 +44,7 @@ class PublicBookingController extends Controller
         $availability = app()->environment('testing')
             ? $loadAvailability()
             : Cache::remember(
-                "booking-availability:v3:{$this->calendarService->revision()}:{$from}:{$days}",
+                "booking-availability:v4:{$this->calendarService->revision()}:{$from}:{$days}",
                 now()->addSeconds(3),
                 $loadAvailability,
             );

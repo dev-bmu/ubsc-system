@@ -3,8 +3,8 @@
 namespace App\Services;
 
 use App\Models\Facility;
-use App\Models\FacilityUnit;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -26,10 +26,34 @@ class BookingCartValidator
             ]);
         }
 
+        $facilityIds = collect($items)
+            ->pluck('facility_id')
+            ->map(static fn (mixed $id): int => (int) $id)
+            ->filter(static fn (int $id): bool => $id > 0)
+            ->unique()
+            ->values();
+        $facilities = Facility::query()
+            ->with([
+                'category',
+                'media',
+                'prices',
+                'units' => fn ($query) => $query->where('is_active', true),
+                'units.media',
+                'units.prices',
+            ])
+            ->visibleInBookingDirectory()
+            ->whereKey($facilityIds)
+            ->get()
+            ->keyBy('id');
+
         $normalized = [];
 
         foreach ($items as $index => $item) {
-            $normalized[] = $this->validateItem($item, $index);
+            $normalized[] = $this->validateItem(
+                $item,
+                $index,
+                $facilities,
+            );
         }
 
         $this->ensureNoDuplicateOrOverlappingCartSlots($normalized);
@@ -41,8 +65,11 @@ class BookingCartValidator
      * @param  array<string, mixed>  $item
      * @return array<string, mixed>
      */
-    private function validateItem(array $item, int $index): array
-    {
+    private function validateItem(
+        array $item,
+        int $index,
+        Collection $facilities,
+    ): array {
         foreach (['facility_id', 'booking_date', 'start_time', 'end_time'] as $field) {
             if (! array_key_exists($field, $item) || $item[$field] === null || $item[$field] === '') {
                 throw ValidationException::withMessages([
@@ -69,16 +96,13 @@ class BookingCartValidator
             ]);
         }
 
-        $facility = Facility::with([
-            'category',
-            'media',
-            'prices',
-            'units' => fn ($query) => $query->where('is_active', true),
-            'units.media',
-            'units.prices',
-        ])
-            ->visibleInBookingDirectory()
-            ->findOrFail((int) $item['facility_id']);
+        /** @var Facility|null $facility */
+        $facility = $facilities->get((int) $item['facility_id']);
+        if (! $facility) {
+            throw ValidationException::withMessages([
+                "items.{$index}.facility_id" => 'Fasilitas tidak lagi tersedia untuk reservasi website.',
+            ]);
+        }
 
         $unitId = $item['facility_unit_id'] ?? null;
         $unit = null;
@@ -97,10 +121,9 @@ class BookingCartValidator
                 ]);
             }
         } elseif ($unitId) {
-            $unit = FacilityUnit::where('facility_id', $facility->id)
-                ->with('media')
-                ->where('is_active', true)
-                ->findOrFail((int) $unitId);
+            throw ValidationException::withMessages([
+                "items.{$index}.facility_unit_id" => 'Unit fasilitas tidak valid.',
+            ]);
         }
 
         $inspection = $this->availabilityService->inspectSlot(

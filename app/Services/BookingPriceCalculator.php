@@ -29,14 +29,42 @@ class BookingPriceCalculator
         $slots = [];
         $subtotal = 0;
         $standardSubtotal = 0;
+        $facilityIds = collect($mergedSlots)
+            ->pluck('facility_id')
+            ->map(static fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values();
+        $unitIds = collect($mergedSlots)
+            ->pluck('facility_unit_id')
+            ->filter(static fn (mixed $id): bool => $id !== null)
+            ->map(static fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values();
+        $facilities = Facility::query()
+            ->with('prices')
+            ->whereKey($facilityIds)
+            ->get()
+            ->keyBy('id');
+        $units = FacilityUnit::query()
+            ->with('prices')
+            ->whereKey($unitIds)
+            ->get()
+            ->keyBy('id');
 
         foreach ($mergedSlots as $slot) {
-            $facility = Facility::with('prices')->findOrFail((int) $slot['facility_id']);
+            /** @var Facility|null $facility */
+            $facility = $facilities->get((int) $slot['facility_id']);
             $unit = ! empty($slot['facility_unit_id'])
-                ? FacilityUnit::with('prices')
-                    ->where('facility_id', $facility->id)
-                    ->findOrFail((int) $slot['facility_unit_id'])
+                ? $units->get((int) $slot['facility_unit_id'])
                 : null;
+
+            if (! $facility
+                || ($unit && (int) $unit->facility_id !== (int) $facility->id)
+                || (! empty($slot['facility_unit_id']) && ! $unit)) {
+                throw ValidationException::withMessages([
+                    'items' => 'Fasilitas atau unit harga tidak lagi tersedia. Reservasi tidak dibuat.',
+                ]);
+            }
 
             $sourceSlots = isset($slot['source_slots']) && is_array($slot['source_slots'])
                 ? array_values($slot['source_slots'])
