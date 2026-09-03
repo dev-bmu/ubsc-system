@@ -14,6 +14,7 @@ import {
     Dumbbell,
     Film,
     HelpCircle,
+    HeartPulse,
     ImagePlus,
     Images,
     LayoutDashboard,
@@ -721,6 +722,7 @@ export default function Sidebar({ mobileOpen, onClose }: SidebarProps) {
     const schedulesActive = isCurrent("admin.settings.schedules");
     const rolesActive = isCurrent("admin.settings.roles");
     const usersActive = isCurrent("admin.settings.users*");
+    const monitoringActive = isCurrent("admin.settings.monitoring.*");
 
     // ── Nav structure — routes IDENTICAL to original ──────────
     const navGroups: NavGroup[] = [
@@ -763,14 +765,14 @@ export default function Sidebar({ mobileOpen, onClose }: SidebarProps) {
                     children: [
                         {
                             icon: Users2,
-                            label: "Anggota",
+                            label: "Members",
                             href: safeRoute("admin.memberships.index"),
                             active: membershipsActive,
                             permissions: ["view-members", "manage-members", "manage-bookings", "manage-payment-links"],
                         },
                         {
                             icon: Package,
-                            label: "Paket",
+                            label: "Plans",
                             href: safeRoute("admin.memberships.plans.index"),
                             active: plansActive,
                             permissions: ["manage-members"],
@@ -841,6 +843,13 @@ export default function Sidebar({ mobileOpen, onClose }: SidebarProps) {
         {
             label: "Settings",
             items: [
+                {
+                    icon: HeartPulse,
+                    label: "System Monitoring",
+                    href: safeRoute("admin.settings.monitoring.index"),
+                    active: monitoringActive,
+                    permissions: ["view-system-operations"],
+                },
                 {
                     icon: CalendarRange,
                     label: "Schedule Control",
