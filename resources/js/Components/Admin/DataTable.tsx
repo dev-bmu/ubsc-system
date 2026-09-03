@@ -13,6 +13,9 @@ import { ChevronDown, ChevronUp, ChevronsUpDown, Search } from "lucide-react";
 import { ReactNode, useState } from "react";
 import { cn } from "@/lib/utils";
 import { ADMIN_TOKENS } from "./tokens";
+import CursorPagination, {
+    type CursorPaginationState,
+} from "./CursorPagination";
 import Pagination from "./Pagination";
 
 interface DataTableProps<TData, TValue> {
@@ -22,6 +25,9 @@ interface DataTableProps<TData, TValue> {
     searchPlaceholder?: string;
     toolbar?: ReactNode;
     emptyMessage?: string;
+    serverPagination?: CursorPaginationState;
+    searchValue?: string;
+    onSearchChange?: (value: string) => void;
 }
 
 export default function DataTable<TData, TValue>({
@@ -31,6 +37,9 @@ export default function DataTable<TData, TValue>({
     searchPlaceholder = "Search…",
     toolbar,
     emptyMessage = "No records found.",
+    serverPagination,
+    searchValue,
+    onSearchChange,
 }: DataTableProps<TData, TValue>) {
     const [sorting, setSorting] = useState<SortingState>([]);
     const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -41,10 +50,19 @@ export default function DataTable<TData, TValue>({
         state: { sorting, columnFilters },
         onSortingChange: setSorting,
         onColumnFiltersChange: setColumnFilters,
+        enableSorting: !serverPagination,
         getCoreRowModel: getCoreRowModel(),
         getSortedRowModel: getSortedRowModel(),
-        getFilteredRowModel: getFilteredRowModel(),
-        getPaginationRowModel: getPaginationRowModel(),
+        ...(serverPagination
+            ? {
+                  manualFiltering: true,
+                  manualPagination: true,
+                  pageCount: -1,
+              }
+            : {
+                  getFilteredRowModel: getFilteredRowModel(),
+                  getPaginationRowModel: getPaginationRowModel(),
+              }),
         initialState: { pagination: { pageSize: 10 } },
     });
 
@@ -58,16 +76,21 @@ export default function DataTable<TData, TValue>({
                             <input
                                 type="search"
                                 placeholder={searchPlaceholder}
-                                value={
-                                    (table
-                                        .getColumn(searchColumn)
-                                        ?.getFilterValue() as string) ?? ""
-                                }
-                                onChange={(e) =>
+                                value={serverPagination
+                                    ? (searchValue ?? "")
+                                    : ((table
+                                          .getColumn(searchColumn)
+                                          ?.getFilterValue() as string) ?? "")}
+                                onChange={(event) => {
+                                    if (serverPagination) {
+                                        onSearchChange?.(event.target.value);
+                                        return;
+                                    }
+
                                     table
                                         .getColumn(searchColumn)
-                                        ?.setFilterValue(e.target.value)
-                                }
+                                        ?.setFilterValue(event.target.value);
+                                }}
                                 className="w-full border-0 bg-transparent p-0 text-sm text-gray-700 placeholder:text-gray-400 focus:ring-0"
                             />
                         </div>
@@ -152,7 +175,11 @@ export default function DataTable<TData, TValue>({
                 </table>
             </div>
 
-            <Pagination table={table} />
+            {serverPagination ? (
+                <CursorPagination pagination={serverPagination} />
+            ) : (
+                <Pagination table={table} />
+            )}
         </div>
     );
 }
