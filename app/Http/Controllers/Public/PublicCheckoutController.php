@@ -3,21 +3,26 @@
 namespace App\Http\Controllers\Public;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StorePublicBookingCheckoutRequest;
 use App\Models\Booking;
 use App\Models\BookingOrder;
 use App\Models\User;
 use App\Services\BookingCartValidator;
 use App\Services\BookingCheckoutIntentService;
+use App\Services\BookingCheckoutSchema;
 use App\Services\BookingInventoryService;
 use App\Services\BookingOrderExpiryService;
 use App\Services\BookingPriceCalculator;
 use App\Services\BookingSlotMerger;
+use App\Services\Payments\PaymentChannelRegistry;
 use App\Services\Payments\PaymentRecoveryService;
+use Illuminate\Contracts\Database\ConcurrencyErrorDetector;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -32,32 +37,22 @@ class PublicCheckoutController extends Controller
         private readonly BookingPriceCalculator $priceCalculator,
         private readonly BookingOrderExpiryService $expiryService,
         private readonly PaymentRecoveryService $paymentRecovery,
+        private readonly PaymentChannelRegistry $paymentChannels,
     ) {}
 
-    public function store(Request $request): RedirectResponse
+    public function store(StorePublicBookingCheckoutRequest $request): RedirectResponse
     {
-        $data = $request->validate([
-            'idempotency_key' => ['required', 'uuid'],
-            'items' => [
-                'required',
-                'array',
-                'min:1',
-                'max:'.max(1, (int) config('services.payment.booking_max_items', 8)),
-            ],
-            'items.*.facility_id' => ['required', 'integer', 'exists:facilities,id'],
-            'items.*.facility_unit_id' => ['nullable', 'integer', 'exists:facility_units,id'],
-            'items.*.booking_date' => ['required', 'date_format:Y-m-d'],
-            'items.*.start_time' => ['required', 'date_format:H:i'],
-            'items.*.end_time' => ['required', 'date_format:H:i'],
-            'customer_name' => ['nullable', 'string', 'max:255'],
-            'whatsapp_number' => ['nullable', 'string', 'max:30'],
-            'identity_category' => ['nullable', 'in:warga_ub,umum'],
-            'identity_number' => ['nullable', 'required_if:identity_category,warga_ub', 'string', 'regex:/^[0-9]{6,30}$/'],
-            'notes' => ['nullable', 'string', 'max:1000'],
-        ]);
+        $data = $request->validated();
 
         /** @var User $requestUser */
         $requestUser = $request->user();
+
+        // Do not consume scarce inventory when production has no callable
+        // payment channel. This check deliberately happens before recovery,
+        // locking, or any write so an unavailable gateway cannot be abused to
+        // create unpaid holds that other customers cannot book.
+        $this->paymentChannels->assertBookingCheckoutAvailable();
+
         $this->paymentRecovery->recoverForUser((int) $requestUser->id);
         $fingerprint = $this->checkoutIntentService->fingerprint(
             (int) $requestUser->id,
@@ -66,11 +61,11 @@ class PublicCheckoutController extends Controller
         $this->inventoryService->prepareWriteTransactionIsolation();
 
         try {
-            $order = DB::transaction(function () use (
+            $result = DB::transaction(function () use (
                 $data,
                 $requestUser,
                 $fingerprint,
-            ): BookingOrder {
+            ): array {
                 /** @var User $user */
                 $user = User::query()
                     ->whereKey($requestUser->id)
@@ -84,7 +79,7 @@ class PublicCheckoutController extends Controller
                 );
 
                 if ($existing) {
-                    return $existing;
+                    return ['order' => $existing, 'replayed' => true];
                 }
 
                 $this->checkoutIntentService->assertOpenHoldLimit((int) $user->id);
@@ -97,6 +92,11 @@ class PublicCheckoutController extends Controller
                 $identityNumber = $hasVerifiedCampusIdentity
                     ? $user->identity_number
                     : null;
+                $customerName = mb_substr(trim((string) $user->name), 0, 255);
+                if (mb_strlen($customerName) < 2) {
+                    $customerName = 'Pengguna UBSC';
+                }
+                $whatsappNumber = $this->normalizedProfilePhone($user->phone_number);
 
                 $facilityIds = collect($data['items'])
                     ->pluck('facility_id')
@@ -112,6 +112,9 @@ class PublicCheckoutController extends Controller
                     ->sort()
                     ->values();
                 $lockedResources = $this->inventoryService->lockResources($facilityIds, $unitIds);
+                $this->inventoryService->lockSchedulePolicies(
+                    collect($data['items'])->pluck('booking_date'),
+                );
 
                 $validatedSlots = $this->cartValidator->validate($data['items']);
                 foreach ($validatedSlots as $index => $slot) {
@@ -154,7 +157,7 @@ class PublicCheckoutController extends Controller
                     ->first();
                 $paymentWindowMinutes = max(
                     5,
-                    min(120, (int) config('services.payment.hold_minutes', 30)),
+                    min(120, (int) config('services.payment.hold_minutes', 15)),
                 );
                 $paymentDeadline = now()->addMinutes($paymentWindowMinutes);
 
@@ -175,8 +178,8 @@ class PublicCheckoutController extends Controller
                     'request_fingerprint' => $fingerprint,
                     'currency' => strtoupper((string) config('services.payment.currency', 'IDR')),
                     'terms_version' => (string) config('services.payment.terms_version', 'booking-terms-2026-08'),
-                    'customer_name' => $data['customer_name'] ?? $user?->name ?? 'Guest',
-                    'whatsapp_number' => $data['whatsapp_number'] ?? $user?->phone_number,
+                    'customer_name' => $customerName,
+                    'whatsapp_number' => $whatsappNumber,
                     'identity_category' => $identityCategory,
                     'identity_number' => $identityCategory === 'warga_ub'
                         ? $identityNumber
@@ -186,15 +189,17 @@ class PublicCheckoutController extends Controller
                     'discount_amount' => $pricing['discount_amount'],
                     'total_amount' => $pricing['total_amount'],
                     'status' => 'pending_payment',
-                    'notes' => $data['notes'] ?? null,
+                    'notes' => null,
                     'expires_at' => $paymentDeadline,
                 ]);
 
                 $snapshotItems = [];
+                $createdBookings = collect();
                 foreach ($pricing['slots'] as $slot) {
                     $booking = $order->bookings()->create([
                         'user_id' => $user->id,
                         'customer_name' => $order->customer_name,
+                        'customer_phone' => $order->whatsapp_number,
                         'facility_id' => (int) $slot['facility_id'],
                         'facility_unit_id' => $slot['facility_unit_id'] ?? null,
                         'booking_date' => (string) $slot['booking_date'],
@@ -205,6 +210,7 @@ class PublicCheckoutController extends Controller
                         'status' => 'pending',
                         'notes' => $order->notes,
                     ]);
+                    $createdBookings->push($booking);
 
                     $startsAt = Carbon::createFromFormat(
                         'Y-m-d H:i',
@@ -238,6 +244,12 @@ class PublicCheckoutController extends Controller
                     ];
                 }
 
+                $this->inventoryService->assertPersistedBookingsWithinCapacity(
+                    $createdBookings,
+                    $lockedResources['facilities'],
+                    $lockedResources['units'],
+                );
+
                 $order->transaction()->create([
                     'user_id' => $user->id,
                     'amount' => $order->total_amount,
@@ -259,9 +271,23 @@ class PublicCheckoutController extends Controller
                     ],
                 ]);
 
-                return $order;
-            }, 3);
+                return ['order' => $order, 'replayed' => false];
+            }, (int) config('resilience.database.transaction_attempts', 3));
         } catch (QueryException $exception) {
+            if (BookingCheckoutSchema::causedByQueryException($exception)) {
+                // Do not expose SQL, bindings, hosts, or schema identifiers to
+                // the browser. The correlation context still lets operations
+                // find this critical event without leaking customer data.
+                Log::critical('Booking checkout blocked by an incompatible database schema.', [
+                    'sql_state' => (string) ($exception->errorInfo[0] ?? $exception->getCode()),
+                    'driver_code' => (int) ($exception->errorInfo[1] ?? 0),
+                ]);
+
+                throw ValidationException::withMessages([
+                    'checkout' => 'Reservasi sedang disinkronkan. Pilihan jadwal Anda tetap tersimpan; silakan coba kembali beberapa saat lagi.',
+                ]);
+            }
+
             $order = $this->checkoutIntentService->recoverUniqueKeyWinner(
                 (int) $requestUser->id,
                 (string) $data['idempotency_key'],
@@ -269,11 +295,25 @@ class PublicCheckoutController extends Controller
             );
 
             if (! $order) {
+                if (app(ConcurrencyErrorDetector::class)->causedByConcurrencyError($exception)) {
+                    throw ValidationException::withMessages([
+                        'items' => 'Permintaan lain sedang mengamankan jadwal yang sama. Tidak ada reservasi ganda yang dibuat; silakan coba kembali.',
+                    ]);
+                }
+
                 throw $exception;
             }
+
+            $result = ['order' => $order, 'replayed' => true];
         }
 
-        return redirect()->route('checkout.booking.show', $order);
+        $response = redirect()->route('checkout.booking.show', $result['order']);
+        $response->headers->set(
+            (string) config('resilience.idempotency.replay_header', 'Idempotent-Replay'),
+            $result['replayed'] ? 'true' : 'false',
+        );
+
+        return $response;
     }
 
     public function show(Request $request, BookingOrder $bookingOrder): Response
@@ -292,13 +332,12 @@ class PublicCheckoutController extends Controller
 
         return Inertia::render('Checkout/BookingCheckoutPage', [
             'bookingOrder' => $this->payload($bookingOrder),
-            'paymentMethods' => [
-                ['id' => 'bca_va', 'label' => 'BCA Virtual Account'],
-                ['id' => 'qris', 'label' => 'QRIS'],
-                ['id' => 'card', 'label' => 'Credit / Debit Card'],
-            ],
-            'mockPayment' => (bool) config('services.payment.mock', false)
-                && app()->environment(['local', 'testing']),
+            'paymentMethods' => $this->paymentChannels->bookingMethods(),
+            'mockPayment' => $this->paymentChannels->mockEnabled(),
+            'submissionSafetySeconds' => min(30, max(
+                0,
+                (int) config('services.payment.submission_safety_seconds', 3),
+            )),
             'serverNow' => now()->toIso8601String(),
         ]);
     }
@@ -334,8 +373,27 @@ class PublicCheckoutController extends Controller
     {
         abort_unless(
             $request->user() && $bookingOrder->user_id === $request->user()->id,
-            403,
+            404,
         );
+    }
+
+    private function normalizedProfilePhone(mixed $value): ?string
+    {
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $phone = preg_replace('/[\s().+\-]+/', '', $value) ?? '';
+
+        if (str_starts_with($phone, '0')) {
+            $phone = '62'.substr($phone, 1);
+        } elseif (str_starts_with($phone, '8')) {
+            $phone = '62'.$phone;
+        }
+
+        return preg_match('/^628[0-9]{7,13}$/', $phone) === 1
+            ? $phone
+            : null;
     }
 
     /**

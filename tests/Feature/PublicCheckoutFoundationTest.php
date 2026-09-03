@@ -237,7 +237,7 @@ class PublicCheckoutFoundationTest extends TestCase
         $this->assertDatabaseHas('booking_orders', [
             'id' => $order->id,
             'customer_name' => 'Fahri Checkout',
-            'whatsapp_number' => '+628123456789',
+            'whatsapp_number' => '628123456789',
             'identity_category' => 'warga_ub',
             'identity_number' => '225150700111001',
             'notes' => 'Datang 10 menit lebih awal.',
@@ -247,6 +247,7 @@ class PublicCheckoutFoundationTest extends TestCase
         $this->assertDatabaseHas('bookings', [
             'id' => $booking->id,
             'customer_name' => 'Fahri Checkout',
+            'customer_phone' => '628123456789',
             'notes' => 'Datang 10 menit lebih awal.',
             'status' => 'confirmed',
         ]);
@@ -353,6 +354,101 @@ class PublicCheckoutFoundationTest extends TestCase
                 )
                 ->where('bookingOrder.bookings.3.image_url', null)
             );
+    }
+
+    public function test_checkout_exposes_only_callable_payment_channels(): void
+    {
+        config(['services.payment.mock' => false]);
+
+        $user = User::factory()->create();
+        $order = BookingOrder::create([
+            'user_id' => $user->id,
+            'customer_name' => $user->name,
+            'whatsapp_number' => '628123456789',
+            'identity_category' => 'umum',
+            'subtotal_amount' => 100000,
+            'transaction_fee' => 6000,
+            'discount_amount' => 0,
+            'total_amount' => 106000,
+            'status' => 'pending_payment',
+            'expires_at' => now()->addHour(),
+        ]);
+        $order->transaction()->create([
+            'user_id' => $user->id,
+            'amount' => 106000,
+            'payment_status' => 'UNPAID',
+            'checkout_url' => route('checkout.booking.show', $order),
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('checkout.booking.show', $order))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Checkout/BookingCheckoutPage')
+                ->has('paymentMethods', 0)
+                ->where('mockPayment', false));
+    }
+
+    public function test_booking_checkout_hides_an_order_from_every_non_owner_endpoint(): void
+    {
+        config(['services.payment.mock' => true]);
+
+        $owner = User::factory()->create();
+        $otherUser = User::factory()->create();
+        $order = BookingOrder::create([
+            'user_id' => $owner->id,
+            'customer_name' => $owner->name,
+            'whatsapp_number' => '628123456789',
+            'identity_category' => 'umum',
+            'subtotal_amount' => 100000,
+            'transaction_fee' => 6000,
+            'discount_amount' => 0,
+            'total_amount' => 106000,
+            'status' => 'pending_payment',
+            'expires_at' => now()->addHour(),
+        ]);
+
+        $this->actingAs($otherUser)
+            ->get(route('checkout.booking.show', $order))
+            ->assertNotFound()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Errors/NotFound')
+            );
+
+        $this->actingAs($otherUser)
+            ->post(route('checkout.booking.mock-pay', $order), [
+                'idempotency_key' => (string) Str::uuid(),
+            ])
+            ->assertNotFound();
+
+        $this->actingAs($otherUser)
+            ->get(route('checkout.booking.success', $order))
+            ->assertNotFound();
+
+        $this->actingAs($otherUser)
+            ->get(route('checkout.booking.invoice', $order))
+            ->assertNotFound();
+
+        $this->assertSame('pending_payment', $order->fresh()->status);
+    }
+
+    public function test_guest_is_sent_to_login_before_any_booking_checkout_is_disclosed(): void
+    {
+        $owner = User::factory()->create();
+        $order = BookingOrder::create([
+            'user_id' => $owner->id,
+            'customer_name' => $owner->name,
+            'identity_category' => 'umum',
+            'subtotal_amount' => 100000,
+            'transaction_fee' => 6000,
+            'discount_amount' => 0,
+            'total_amount' => 106000,
+            'status' => 'pending_payment',
+            'expires_at' => now()->addHour(),
+        ]);
+
+        $this->get(route('checkout.booking.show', $order))
+            ->assertRedirect(route('login'));
     }
 
     private function facility(): Facility

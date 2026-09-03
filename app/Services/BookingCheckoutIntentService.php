@@ -59,6 +59,7 @@ class BookingCheckoutIntentService
 
         $sameKey = BookingOrder::query()
             ->where('idempotency_key', $idempotencyKey)
+            ->lockForUpdate()
             ->first();
 
         if ($sameKey) {
@@ -79,6 +80,7 @@ class BookingCheckoutIntentService
                     ->orWhere('expires_at', '>', $at);
             })
             ->latest('id')
+            ->lockForUpdate()
             ->first();
     }
 
