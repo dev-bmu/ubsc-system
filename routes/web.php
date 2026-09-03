@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\Admin\AdminBrandAssetController;
+use App\Http\Controllers\Admin\AdminPresenceController;
+use App\Http\Controllers\Admin\Auth\AdminMfaManagementController;
 use App\Http\Controllers\Admin\BookingController;
 use App\Http\Controllers\Admin\FacilityCategoryController;
 use App\Http\Controllers\Admin\FacilityController;
@@ -23,6 +25,7 @@ use App\Http\Controllers\Admin\MembershipController;
 use App\Http\Controllers\Admin\MembershipPlanController;
 use App\Http\Controllers\Admin\NewsCategoryController;
 use App\Http\Controllers\Admin\NewsController;
+use App\Http\Controllers\Admin\NewsHeroController;
 use App\Http\Controllers\Admin\NotificationController;
 use App\Http\Controllers\Admin\PromoCarouselController;
 use App\Http\Controllers\Admin\ReelController;
@@ -32,6 +35,7 @@ use App\Http\Controllers\Admin\SponsorLogoController;
 use App\Http\Controllers\Admin\TestimonialController;
 use App\Http\Controllers\Admin\TransactionController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Public\FacilityGalleryController;
@@ -57,12 +61,12 @@ use App\Models\Facility;
 use App\Models\InfoBanner;
 use App\Models\Membership;
 use App\Models\MembershipPlan;
-use App\Models\Review;
 use App\Models\SystemSetting;
 use App\Models\Testimonial;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\BookingCalendarService;
+use App\Services\ReviewWorkflowService;
 use App\Support\PublicReviewFeed;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -173,7 +177,7 @@ Route::get('/facilities/gallery/media/{galleryItem}', [FacilityGalleryController
     ->whereUuid('galleryItem')
     ->name('gallery.media');
 Route::post('/facilities/gallery/events', [GalleryAnalyticsController::class, 'store'])
-    ->middleware('throttle:120,1')
+    ->middleware('throttle:public-analytics')
     ->name('gallery.events');
 Route::get('/facilities/gallery/{section}', [FacilityGalleryController::class, 'section'])
     ->middleware([RedirectStaffFromPublic::class, 'throttle:90,1'])
@@ -196,23 +200,26 @@ Route::get('/galeri-fasilitas/{section}', fn (string $section) => redirect()->ro
     301,
 ))->where('section', 'indoor|eksklusif|outdoor');
 Route::post('/galeri-fasilitas/events', [GalleryAnalyticsController::class, 'store'])
-    ->middleware('throttle:120,1');
+    ->middleware('throttle:public-analytics');
 
-Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('gallery.sitemap.index');
-Route::get('/sitemap-pages.xml', [SitemapController::class, 'pages'])->name('sitemap.pages');
-Route::get('/sitemap-news.xml', [SitemapController::class, 'news'])->name('sitemap.news');
-Route::get('/sitemap-facilities.xml', [SitemapController::class, 'facilities'])->name('sitemap.facilities');
-Route::get('/sitemap-gallery-pages.xml', [GallerySitemapController::class, 'pages'])->name('gallery.sitemap.pages');
-Route::get('/sitemap-gallery-images.xml', [GallerySitemapController::class, 'images'])->name('gallery.sitemap.images');
-Route::get('/sitemap-gallery-videos.xml', [GallerySitemapController::class, 'videos'])->name('gallery.sitemap.videos');
+Route::middleware('throttle:sitemap-read')->group(function (): void {
+    Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('gallery.sitemap.index');
+    Route::get('/sitemap-pages.xml', [SitemapController::class, 'pages'])->name('sitemap.pages');
+    Route::get('/sitemap-news.xml', [SitemapController::class, 'news'])->name('sitemap.news');
+    Route::get('/sitemap-facilities.xml', [SitemapController::class, 'facilities'])->name('sitemap.facilities');
+    Route::get('/sitemap-gallery-pages.xml', [GallerySitemapController::class, 'pages'])->name('gallery.sitemap.pages');
+    Route::get('/sitemap-gallery-images.xml', [GallerySitemapController::class, 'images'])->name('gallery.sitemap.images');
+    Route::get('/sitemap-gallery-videos.xml', [GallerySitemapController::class, 'videos'])->name('gallery.sitemap.videos');
+});
 
 Route::get('/booking', function (
     PublicReviewFeed $reviewFeed,
     BookingCalendarService $bookingCalendar,
+    ReviewWorkflowService $reviewWorkflow,
 ) {
     $user = auth()->user();
-    $canReview = $user && Booking::where('user_id', $user->id)->where('status', 'completed')->exists();
-    $existingReview = $user ? Review::where('user_id', $user->id)->first() : null;
+    $reviewContext = $reviewWorkflow->pageContext($user);
+    $reviewPayload = $reviewFeed->payload();
     $calendarMetadata = $bookingCalendar->metadata();
 
     return Inertia::render('BookingPage', [
@@ -258,13 +265,11 @@ Route::get('/booking', function (
         )->resolve(),
         'booking_today' => $calendarMetadata['window']['min_date'],
         'booking_calendar' => $calendarMetadata,
-        'can_review' => $canReview,
-        'existing_review' => $existingReview ? [
-            'id' => $existingReview->id,
-            'rating' => (float) $existingReview->rating,
-            'text' => $existingReview->text,
-        ] : null,
-        'approved_reviews' => $reviewFeed->reviews(),
+        'can_review' => $reviewContext['can_review'],
+        'review_eligibility' => $reviewContext['review_eligibility'],
+        'existing_review' => $reviewContext['existing_review'],
+        'approved_reviews' => $reviewPayload['reviews'],
+        'approved_reviews_summary' => $reviewPayload['summary'],
         'testimonials' => Testimonial::active()->ordered()->with('media')->get()->map(fn ($t) => [
             'id' => $t->id,
             'image' => $t->imageUrl(),
@@ -310,11 +315,13 @@ Route::get('/coming-soon', function () {
 
 // ─── Profile & User Endpoints ─────────────────────────────────────────────────
 
-Route::middleware(['auth', 'verified', RedirectStaffFromPublic::class])->group(function () {
-    Route::post('/reviews', [ReviewController::class, 'store'])->name('reviews.store');
+Route::middleware(['auth', 'auth.session', 'verified', RedirectStaffFromPublic::class])->group(function () {
+    Route::post('/reviews', [ReviewController::class, 'store'])
+        ->middleware('throttle:review-write')
+        ->name('reviews.store');
 
     Route::post('/checkout/booking', [PublicCheckoutController::class, 'store'])
-        ->middleware('throttle:booking-checkout')
+        ->middleware(['throttle:booking-checkout', 'idempotency'])
         ->name('checkout.booking.store');
     Route::get('/checkout/booking/{bookingOrder}', [PublicCheckoutController::class, 'show'])
         ->name('checkout.booking.show');
@@ -324,6 +331,7 @@ Route::middleware(['auth', 'verified', RedirectStaffFromPublic::class])->group(f
     Route::get('/checkout/booking/{bookingOrder}/success', [PublicCheckoutController::class, 'success'])
         ->name('checkout.booking.success');
     Route::get('/checkout/booking/{bookingOrder}/invoice.pdf', [InvoiceController::class, 'booking'])
+        ->middleware('throttle:invoice-pdf')
         ->name('checkout.booking.invoice');
 
     Route::get('/checkout/membership/{membership}', [MembershipCheckoutController::class, 'show'])
@@ -334,10 +342,11 @@ Route::middleware(['auth', 'verified', RedirectStaffFromPublic::class])->group(f
     Route::get('/checkout/membership/{membership}/success', [MembershipCheckoutController::class, 'success'])
         ->name('checkout.membership.success');
     Route::get('/checkout/membership/{membership}/invoice.pdf', [InvoiceController::class, 'membership'])
+        ->middleware('throttle:invoice-pdf')
         ->name('checkout.membership.invoice');
 
     Route::post('/membership/registrations', [PublicMembershipController::class, 'store'])
-        ->middleware('throttle:10,1')
+        ->middleware(['throttle:10,1', 'idempotency'])
         ->name('membership.registrations.store');
     Route::get('/membership/registrations/{membership}', [PublicMembershipController::class, 'show'])
         ->middleware('throttle:60,1')
@@ -372,7 +381,9 @@ Route::middleware(['auth', 'verified', RedirectStaffFromPublic::class])->group(f
 
 Route::middleware([
     'auth',
+    'auth.session',
     'role:Administrator|Manager|Finance|Staff Front Office|Staff Central',
+    'admin.session',
 ])
     ->prefix('ubsc-staff')
     ->name('admin.')
@@ -381,6 +392,68 @@ Route::middleware([
         Route::get('brand/ubsc-pro-logo', AdminBrandAssetController::class)
             ->name('brand.logo');
 
+        Route::post('presence/heartbeat', AdminPresenceController::class)
+            ->middleware('throttle:admin-presence')
+            ->name('presence.heartbeat');
+
+        Route::patch('account/profile', [ProfileController::class, 'update'])
+            ->name('account.profile.update');
+        Route::put('account/password', [PasswordController::class, 'update'])
+            ->name('account.password.update');
+
+        Route::prefix('account/security')
+            ->name('account.security.')
+            ->middleware('admin.mfa.payload')
+            ->group(function (): void {
+                Route::get('', [AdminMfaManagementController::class, 'show'])
+                    ->name('show');
+
+                Route::get('mfa/step-up/passkey/options', [AdminMfaManagementController::class, 'stepUpPasskeyOptions'])
+                    ->middleware('throttle:admin-mfa-options')
+                    ->name('mfa.step-up.passkey.options');
+                Route::post('mfa/step-up/passkey', [AdminMfaManagementController::class, 'stepUpPasskey'])
+                    ->middleware('throttle:admin-mfa-options')
+                    ->name('mfa.step-up.passkey');
+                Route::post('mfa/step-up/totp', [AdminMfaManagementController::class, 'stepUpTotp'])
+                    ->middleware('throttle:admin-mfa-options')
+                    ->name('mfa.step-up.totp');
+                Route::post('mfa/step-up/recovery', [AdminMfaManagementController::class, 'stepUpRecoveryCode'])
+                    ->middleware('throttle:admin-mfa-options')
+                    ->name('mfa.step-up.recovery');
+
+                Route::get('mfa/passkeys/options', [AdminMfaManagementController::class, 'passkeyRegistrationOptions'])
+                    ->middleware(['admin.mfa.stepup:add_passkey', 'throttle:admin-mfa-options'])
+                    ->name('mfa.passkeys.options');
+                Route::post('mfa/passkeys', [AdminMfaManagementController::class, 'storePasskey'])
+                    ->middleware('throttle:admin-mfa-options')
+                    ->name('mfa.passkeys.store');
+                Route::patch('mfa/passkeys/{passkeyId}', [AdminMfaManagementController::class, 'renamePasskey'])
+                    ->whereNumber('passkeyId')
+                    ->name('mfa.passkeys.update');
+                Route::delete('mfa/passkeys/{passkeyId}', [AdminMfaManagementController::class, 'destroyPasskey'])
+                    ->middleware('admin.mfa.stepup:remove_passkey')
+                    ->whereNumber('passkeyId')
+                    ->name('mfa.passkeys.destroy');
+
+                Route::post('mfa/totp/options', [AdminMfaManagementController::class, 'totpOptions'])
+                    ->middleware(['admin.mfa.stepup:replace_totp', 'throttle:admin-mfa-options'])
+                    ->name('mfa.totp.options');
+                Route::put('mfa/totp', [AdminMfaManagementController::class, 'storeTotp'])
+                    ->middleware('throttle:admin-mfa-options')
+                    ->name('mfa.totp.store');
+                Route::delete('mfa/totp', [AdminMfaManagementController::class, 'destroyTotp'])
+                    ->middleware('admin.mfa.stepup:remove_totp')
+                    ->name('mfa.totp.destroy');
+
+                Route::post('mfa/recovery-codes', [AdminMfaManagementController::class, 'recoveryCodes'])
+                    ->middleware('admin.mfa.stepup:rotate_recovery_codes')
+                    ->name('mfa.recovery-codes.store');
+                Route::post('mfa/recovery-codes/acknowledge', [AdminMfaManagementController::class, 'acknowledgeRecoveryCodes'])
+                    ->name('mfa.recovery-codes.acknowledge');
+                Route::delete('mfa/recovery-codes/pending', [AdminMfaManagementController::class, 'cancelRecoveryCodes'])
+                    ->name('mfa.recovery-codes.cancel');
+            });
+
         Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
         Route::post('notifications/read', [NotificationController::class, 'markRead'])->name('notifications.read');
         Route::post('notifications/clear-read', [NotificationController::class, 'clearRead'])->name('notifications.clear-read');
@@ -388,8 +461,15 @@ Route::middleware([
         // Bookings
         Route::get('bookings', [BookingController::class, 'index'])->name('bookings.index');
         Route::post('bookings', [BookingController::class, 'store'])->name('bookings.store');
-        Route::patch('bookings/{booking}', [BookingController::class, 'update'])->name('bookings.update');
-        Route::delete('bookings/{booking}', [BookingController::class, 'destroy'])->name('bookings.destroy');
+        Route::get('bookings/{booking}', [BookingController::class, 'show'])
+            ->whereNumber('booking')
+            ->name('bookings.show');
+        Route::patch('bookings/{booking}', [BookingController::class, 'update'])
+            ->whereNumber('booking')
+            ->name('bookings.update');
+        Route::delete('bookings/{booking}', [BookingController::class, 'destroy'])
+            ->whereNumber('booking')
+            ->name('bookings.destroy');
 
         // Membership Plans (must precede {membership} wildcard routes)
         Route::prefix('memberships/plans')->name('memberships.plans.')->group(function () {
@@ -401,6 +481,11 @@ Route::middleware([
 
         // Memberships
         Route::get('memberships', [MembershipController::class, 'index'])->name('memberships.index');
+        Route::get('memberships/users/search', [MembershipController::class, 'searchUsers'])
+            ->middleware('throttle:60,1')
+            ->name('memberships.users.search');
+        Route::get('memberships/{membership}/detail', [MembershipController::class, 'show'])
+            ->name('memberships.show');
         Route::post('memberships', [MembershipController::class, 'store'])->name('memberships.store');
         Route::post('memberships/{membership}/renew', [MembershipController::class, 'renew'])->name('memberships.renew');
         Route::patch('memberships/{membership}', [MembershipController::class, 'update'])->name('memberships.update');
@@ -635,9 +720,12 @@ Route::middleware([
 
         // Settings — Internal User Directory (readable by staff; mutations enforced as Administrator only)
         Route::get('settings/users', [UserController::class, 'index'])->name('settings.users');
-        Route::post('settings/users', [UserController::class, 'store'])->name('settings.users.store');
-        Route::put('settings/users/{user}', [UserController::class, 'update'])->name('settings.users.update');
-        Route::delete('settings/users/{user}', [UserController::class, 'destroy'])->name('settings.users.destroy');
+        Route::middleware(['role:Administrator', 'admin.mfa.stepup:manage_staff_accounts'])
+            ->group(function (): void {
+                Route::post('settings/users', [UserController::class, 'store'])->name('settings.users.store');
+                Route::put('settings/users/{user}', [UserController::class, 'update'])->name('settings.users.update');
+                Route::delete('settings/users/{user}', [UserController::class, 'destroy'])->name('settings.users.destroy');
+            });
 
         // Facility media
         Route::post('facilities/{facility}/hero', [FacilityController::class, 'updateHero'])
@@ -727,6 +815,7 @@ Route::middleware([
         Route::get('news', [NewsController::class, 'index'])->name('news.index');
         Route::get('news/create', [NewsController::class, 'create'])->name('news.create');
         Route::post('news', [NewsController::class, 'store'])->name('news.store');
+        Route::put('news-hero', [NewsHeroController::class, 'update'])->name('news.hero.update');
         Route::get('news/{news}/edit', [NewsController::class, 'edit'])->name('news.edit');
         Route::put('news/{news}', [NewsController::class, 'update'])->name('news.update');
         Route::delete('news/{news}', [NewsController::class, 'destroy'])->name('news.destroy');
@@ -759,8 +848,9 @@ Route::middleware([
         Route::delete('testimonials/{testimonial}', [TestimonialController::class, 'destroy'])->name('testimonials.destroy');
 
         // Reviews (managed via Testimonials page)
-        Route::post('reviews/{review}/toggle-approve', [TestimonialController::class, 'toggleApprove'])->name('reviews.toggle-approve');
-        Route::delete('reviews/{review}', [TestimonialController::class, 'destroyReview'])->name('reviews.destroy');
+        Route::patch('reviews/{review}/moderation', [TestimonialController::class, 'moderate'])
+            ->whereNumber('review')
+            ->name('reviews.moderate');
     });
 
 require __DIR__.'/auth.php';

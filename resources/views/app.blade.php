@@ -33,6 +33,7 @@
 
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="csrf-token" content="{{ csrf_token() }}">
         <meta name="theme-color" content="#071522">
         <meta name="application-name" content="UB Sport Center">
 
@@ -85,7 +86,7 @@
                 <meta inertia="seo-twitter-image-alt" name="twitter:image:alt" content="{{ $seoImageAlt }}">
             @endif
             @if ($safeSeoJsonLd)
-                <script inertia="seo-json-ld" type="application/ld+json">{!! $safeSeoJsonLd !!}</script>
+                <script nonce="{{ \Illuminate\Support\Facades\Vite::cspNonce() }}" inertia="seo-json-ld" type="application/ld+json">{!! $safeSeoJsonLd !!}</script>
             @endif
         @endif
 
@@ -148,6 +149,13 @@
             <link
                 rel="preload"
                 as="image"
+                href="/assets/images/ub-sport-enterence.png"
+                type="image/png"
+                fetchpriority="high"
+            >
+            <link
+                rel="preload"
+                as="image"
                 href="{{ $heroImageUrl }}"
                 type="image/avif"
                 fetchpriority="high"
@@ -155,7 +163,7 @@
         @endif
 
         <!-- Scripts -->
-        @routes
+        @routes(null, \Illuminate\Support\Facades\Vite::cspNonce())
         @viteReactRefresh
         @vite(['resources/js/app.tsx', "resources/js/Pages/{$page['component']}.tsx"])
         @inertiaHead

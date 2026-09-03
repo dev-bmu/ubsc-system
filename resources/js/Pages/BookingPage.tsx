@@ -5,7 +5,7 @@ import BookingFacilitiesSection from "@/Components/Booking/BookingFacilitiesSect
 import BookingReviewSection from "@/Components/Booking/BookingReviewSection";
 import AboutSectionContact from "@/Components/About/AboutSectionContact";
 import SectionSeven from "@/Components/Landing/SectionSeven";
-import SectionEight from "@/Components/Landing/SectionEight";
+import DeferredSectionEight from "@/Components/Landing/DeferredSectionEight";
 import Footer from "@/Components/Landing/Footer";
 import SeoHead from "@/Components/SeoHead";
 import { usePage } from "@inertiajs/react";
@@ -36,6 +36,39 @@ export interface UserExistingReview {
     id: number;
     rating: number;
     text: string;
+    status: "pending" | "approved" | "rejected";
+    status_label: string;
+    status_message: string;
+    moderation_feedback: string | null;
+    eligibility_label: string;
+    version: number;
+    submitted_at: string | null;
+    updated_at: string | null;
+    published_at: string | null;
+}
+
+export interface UserReviewEligibility {
+    eligible: boolean;
+    reason:
+        | "email_unverified"
+        | "completed_booking"
+        | "paid_membership"
+        | "no_qualifying_activity";
+    source: "booking" | "membership" | null;
+    reference_id: number | null;
+    label: string;
+    message: string;
+}
+
+export interface PublicReviewSummary {
+    total: number;
+    averageRating: number | null;
+    avatars: Array<{
+        reviewId: string;
+        authorName: string;
+        avatar: string;
+        avatarFallback: string;
+    }>;
 }
 
 type BookingPageProps = PageProps<{
@@ -43,7 +76,9 @@ type BookingPageProps = PageProps<{
     booking_today?: string;
     booking_calendar?: unknown;
     can_review?: boolean;
+    review_eligibility?: UserReviewEligibility | null;
     existing_review?: UserExistingReview | null;
+    approved_reviews_summary?: PublicReviewSummary;
     testimonials?: PublicTestimonial[];
     membershipPlans?: MembershipPlanItem[];
 }>;
@@ -86,7 +121,7 @@ export default function BookingPage() {
             </main>
             <div className="home-footer-reveal-root booking-footer-reveal-root">
                 <div className="home-footer-reveal-stage">
-                    <SectionEight deferLoopAnimations />
+                    <DeferredSectionEight deferLoopAnimations />
                 </div>
                 <div className="home-footer-reveal-footer">
                     <Footer deferLoopAnimations />

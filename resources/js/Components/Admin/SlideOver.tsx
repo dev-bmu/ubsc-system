@@ -7,6 +7,9 @@ interface SlideOverProps {
     onClose: () => void;
     title: ReactNode;
     description?: ReactNode;
+    panelClassName?: string;
+    headerClassName?: string;
+    contentClassName?: string;
 }
 
 export default function SlideOver({
@@ -14,6 +17,9 @@ export default function SlideOver({
     onClose,
     title,
     description,
+    panelClassName,
+    headerClassName,
+    contentClassName,
     children,
 }: PropsWithChildren<SlideOverProps>) {
     useEffect(() => {
@@ -49,10 +55,11 @@ export default function SlideOver({
                 className={cn(
                     "fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col bg-white shadow-2xl transition-transform duration-300 ease-out",
                     isOpen ? "translate-x-0" : "translate-x-full",
+                    panelClassName,
                 )}
 
             >
-                <div className="flex items-start justify-between border-b border-gray-100 px-6 py-5">
+                <div className={cn("flex items-start justify-between border-b border-gray-100 px-6 py-5", headerClassName)}>
                     <div>
                         <h2 className="font-clash text-base font-medium text-gray-900">
                             {title}
@@ -73,7 +80,7 @@ export default function SlideOver({
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto px-6 py-6">{children}</div>
+                <div className={cn("flex-1 overflow-y-auto px-6 py-6", contentClassName)}>{children}</div>
             </aside>
         </>
     );
