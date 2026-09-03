@@ -10,12 +10,13 @@ use App\Services\Gallery\GalleryAuditService;
 use App\Services\Gallery\GalleryImageProcessor;
 use App\Services\Gallery\GalleryReadinessService;
 use App\Services\Gallery\GalleryVideoProcessor;
+use Illuminate\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Throwable;
 
-class ProcessGalleryMedia implements ShouldQueue
+class ProcessGalleryMedia implements ShouldBeUniqueUntilProcessing, ShouldQueue
 {
     use Queueable;
 
@@ -25,14 +26,33 @@ class ProcessGalleryMedia implements ShouldQueue
 
     public bool $failOnTimeout = true;
 
+    public int $uniqueFor = 3_600;
+
     public function __construct(public readonly int $galleryItemId)
     {
-        $this->onQueue('media-image');
+        $this->onConnection((string) config('background_jobs.media_connection', 'database-long'));
+        $this->onQueue((string) config('background_jobs.queues.media_image', 'media-image'));
+        $this->afterCommit();
+    }
+
+    /** @return array<int, int> */
+    public function backoff(): array
+    {
+        return [15, 60, 300];
+    }
+
+    public function uniqueId(): string
+    {
+        return 'gallery-item:'.$this->galleryItemId;
     }
 
     public function middleware(): array
     {
-        return [(new WithoutOverlapping("gallery-item:{$this->galleryItemId}"))->expireAfter(1100)];
+        return [
+            (new WithoutOverlapping("gallery-item:{$this->galleryItemId}"))
+                ->releaseAfter(15)
+                ->expireAfter(1_100),
+        ];
     }
 
     public function handle(

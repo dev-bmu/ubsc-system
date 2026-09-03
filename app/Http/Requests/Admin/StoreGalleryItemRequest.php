@@ -18,8 +18,12 @@ class StoreGalleryItemRequest extends FormRequest
         return [
             'media' => [
                 'required',
-                File::types(['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'mp4', 'mov'])
-                    ->max('250mb'),
+                // The current admin UI uses resumable upload sessions for
+                // every file. Keep this legacy direct endpoint as a bounded
+                // image fallback; large videos must never be buffered before
+                // authentication and instead use the chunked path.
+                File::types(['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'])
+                    ->max('20mb'),
             ],
             'batch_uuid' => ['nullable', 'uuid', 'exists:gallery_upload_batches,uuid'],
             'title' => ['nullable', 'string', 'max:255'],
@@ -58,6 +62,7 @@ class StoreGalleryItemRequest extends FormRequest
         return [
             'media.required' => 'Pilih gambar atau video untuk diunggah.',
             'media.max' => 'Ukuran file melebihi batas yang diperbolehkan.',
+            'media.extensions' => 'Video harus diunggah melalui dialog upload bertahap.',
             'sections.required' => 'Pilih minimal satu section.',
         ];
     }

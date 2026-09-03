@@ -41,7 +41,19 @@ return [
             'table' => env('DB_QUEUE_TABLE', 'jobs'),
             'queue' => env('DB_QUEUE', 'default'),
             'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 90),
-            'after_commit' => false,
+            'after_commit' => (bool) env('QUEUE_AFTER_COMMIT', true),
+        ],
+
+        // Media transforms may legitimately run for several minutes. Their
+        // visibility lease must remain longer than the job timeout so a slow
+        // worker can never cause the same file to be processed concurrently.
+        'database-long' => [
+            'driver' => 'database',
+            'connection' => env('DB_QUEUE_CONNECTION'),
+            'table' => env('DB_QUEUE_TABLE', 'jobs'),
+            'queue' => env('DB_QUEUE_LONG_QUEUE', 'media-video'),
+            'retry_after' => (int) env('DB_QUEUE_LONG_RETRY_AFTER', 1_200),
+            'after_commit' => (bool) env('QUEUE_AFTER_COMMIT', true),
         ],
 
         'beanstalkd' => [
@@ -66,11 +78,20 @@ return [
 
         'redis' => [
             'driver' => 'redis',
-            'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
+            'connection' => env('REDIS_QUEUE_CONNECTION', 'queue'),
             'queue' => env('REDIS_QUEUE', 'default'),
             'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 90),
-            'block_for' => null,
-            'after_commit' => false,
+            'block_for' => max(1, (int) env('REDIS_QUEUE_BLOCK_FOR', 5)),
+            'after_commit' => (bool) env('QUEUE_AFTER_COMMIT', true),
+        ],
+
+        'redis-long' => [
+            'driver' => 'redis',
+            'connection' => env('REDIS_QUEUE_CONNECTION', 'queue'),
+            'queue' => env('REDIS_QUEUE_LONG_QUEUE', 'media-video'),
+            'retry_after' => (int) env('REDIS_QUEUE_LONG_RETRY_AFTER', 1_200),
+            'block_for' => max(1, (int) env('REDIS_QUEUE_BLOCK_FOR', 5)),
+            'after_commit' => (bool) env('QUEUE_AFTER_COMMIT', true),
         ],
 
         'deferred' => [

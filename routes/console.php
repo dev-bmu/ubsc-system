@@ -1,5 +1,6 @@
 <?php
 
+use App\Jobs\RecoverInterruptedPayments;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -8,7 +9,9 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-Schedule::command('payments:recover --limit=100 --quiet')
+Schedule::job(new RecoverInterruptedPayments(
+    batchSize: (int) config('background_jobs.payment_recovery.batch_size', 100),
+))
     ->everyMinute()
     ->name('recover-interrupted-payments')
     ->withoutOverlapping(2)
@@ -23,14 +26,17 @@ Schedule::command('payments:logs:archive --quiet')
 Schedule::command('gallery:publish-scheduled')
     ->everyMinute()
     ->name('publish-scheduled-gallery-items')
-    ->withoutOverlapping(5);
+    ->withoutOverlapping(5)
+    ->onOneServer();
 
 Schedule::command('gallery:prune')
     ->dailyAt('02:30')
     ->name('prune-gallery-operational-data')
-    ->withoutOverlapping();
+    ->withoutOverlapping(30)
+    ->onOneServer();
 
 Schedule::command('gallery:aggregate-analytics')
     ->dailyAt('00:15')
     ->name('aggregate-gallery-analytics')
-    ->withoutOverlapping();
+    ->withoutOverlapping(30)
+    ->onOneServer();

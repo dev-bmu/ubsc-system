@@ -170,7 +170,9 @@ class GalleryItemController extends Controller
         });
 
         if ($posterChanged) {
-            ProcessGalleryMedia::dispatch($galleryItem->id)->onQueue('media-video');
+            ProcessGalleryMedia::dispatch($galleryItem->id)->onQueue(
+                (string) config('background_jobs.queues.media_video', 'media-video'),
+            );
         }
 
         $cache->invalidate();
@@ -198,8 +200,8 @@ class GalleryItemController extends Controller
 
         ProcessGalleryMedia::dispatch($galleryItem->id)->onQueue(
             $galleryItem->media_type === GalleryMediaType::Video
-                ? 'media-video'
-                : 'media-image',
+                ? (string) config('background_jobs.queues.media_video', 'media-video')
+                : (string) config('background_jobs.queues.media_image', 'media-image'),
         );
 
         return back()->with('success', 'Media masuk kembali ke antrean pemrosesan.');

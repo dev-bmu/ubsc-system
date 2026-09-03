@@ -156,7 +156,9 @@ class GalleryIngestService
         });
 
         ProcessGalleryMedia::dispatch($item->id)->onQueue(
-            $mediaType === GalleryMediaType::Video ? 'media-video' : 'media-image',
+            $mediaType === GalleryMediaType::Video
+                ? (string) config('background_jobs.queues.media_video', 'media-video')
+                : (string) config('background_jobs.queues.media_image', 'media-image'),
         );
 
         return ['item' => $item, 'duplicate' => $duplicate];
