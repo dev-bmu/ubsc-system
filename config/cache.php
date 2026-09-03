@@ -17,6 +17,12 @@ return [
 
     'default' => env('CACHE_STORE', 'database'),
 
+    // Keep request throttling off the ordinary data cache in production.
+    // Random-source attacks create high-cardinality, short-lived keys; an
+    // isolated Redis endpoint prevents that pressure from evicting content,
+    // sessions, queue state, or distributed coordination locks.
+    'limiter' => env('CACHE_LIMITER_STORE', env('CACHE_STORE', 'database')),
+
     /*
     |--------------------------------------------------------------------------
     | Cache Stores
@@ -75,7 +81,25 @@ return [
         'redis' => [
             'driver' => 'redis',
             'connection' => env('REDIS_CACHE_CONNECTION', 'cache'),
-            'lock_connection' => env('REDIS_CACHE_LOCK_CONNECTION', 'default'),
+            // Locks coordinate sessions, schedulers, migrations, invoices,
+            // and integrity jobs across every application node. Never place
+            // them on the evictable data-cache endpoint.
+            'lock_connection' => env('REDIS_CACHE_LOCK_CONNECTION', 'coordination'),
+        ],
+
+        'traffic' => [
+            'driver' => 'redis',
+            'connection' => env('REDIS_TRAFFIC_CONNECTION', 'traffic'),
+            'lock_connection' => env('REDIS_TRAFFIC_CONNECTION', 'traffic'),
+        ],
+
+        // Non-evictable control-plane state such as distributed maintenance
+        // mode may use this store directly. Ordinary application cache data
+        // must remain on the separate evictable Redis cache endpoint.
+        'coordination' => [
+            'driver' => 'redis',
+            'connection' => env('REDIS_COORDINATION_CONNECTION', 'coordination'),
+            'lock_connection' => env('REDIS_CACHE_LOCK_CONNECTION', 'coordination'),
         ],
 
         'dynamodb' => [
