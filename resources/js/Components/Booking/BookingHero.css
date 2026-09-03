@@ -1,5 +1,5 @@
 .booking-hero {
-    --booking-night: #070c0f;
+    --booking-night: #173859;
     --booking-ink: #e8efee;
     --booking-blue: #258db8;
     --booking-blue-bright: #72c2d4;
@@ -76,13 +76,11 @@
     pointer-events: none;
     background:
         radial-gradient(
-            ellipse 66% 88% at 50% 42%,
-            #0b2029 0%,
-            #061117 38%,
-            #020608 72%,
-            #010304 100%
+            circle at 76% 24%,
+            rgba(21, 103, 141, 0.48),
+            transparent 58%
         ),
-        #020608;
+        linear-gradient(90deg, #173859 0%, #173859 44%, #15678d 100%);
 }
 
 .booking-hero__beams canvas {
@@ -113,7 +111,12 @@
             rgba(162, 190, 199, 0.1) 71%,
             transparent 84%
         ),
-        radial-gradient(ellipse at 50% 42%, #0b2029, #020608 72%);
+        radial-gradient(
+            circle at 76% 24%,
+            rgba(21, 103, 141, 0.48),
+            transparent 58%
+        ),
+        linear-gradient(90deg, #173859 0%, #173859 44%, #15678d 100%);
 }
 
 .booking-hero__sr-title {

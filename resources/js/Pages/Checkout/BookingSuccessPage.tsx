@@ -120,10 +120,10 @@ export default function BookingSuccessPage() {
                     <div className="mx-auto max-w-[1880px]">
                         <header className="grid items-end gap-5 border-b border-black/45 pb-6 md:grid-cols-[18%_1fr_auto] lg:gap-6 lg:pb-7">
                             <div>
-                                <p className="text-[12px] text-black/45">
+                                <p className="text-[13px] text-black/45">
                                     Bukti pembayaran / 06
                                 </p>
-                                <p className="mt-4 flex items-center gap-2 text-[13px] font-medium">
+                                <p className="mt-4 flex items-center gap-2 text-[14px] font-medium">
                                     <span
                                         className="size-2 rotate-45"
                                         style={{ backgroundColor: statusTone.color }}
@@ -133,7 +133,7 @@ export default function BookingSuccessPage() {
                             </div>
 
                             <div>
-                                <p className="max-w-[520px] text-[13px] leading-[1.4] text-black/50">
+                                <p className="max-w-[520px] text-[14px] leading-[1.45] text-black/50">
                                     Pembayaran diterima dan jadwal telah dikunci.
                                 </p>
                                 <h1 className="mt-2 text-[clamp(2.7rem,5.1vw,6.2rem)] font-semibold leading-[0.9] tracking-[-0.07em]">
@@ -141,7 +141,7 @@ export default function BookingSuccessPage() {
                                 </h1>
                             </div>
 
-                            <dl className="flex min-w-[290px] gap-9 border-l-2 border-[#15678d] pl-5 text-[12px]">
+                            <dl className="flex min-w-[290px] gap-9 border-l-2 border-[#15678d] pl-5 text-[13px]">
                                 <div>
                                     <dt className="text-black/42">Nomor transaksi</dt>
                                     <dd className="mt-1 text-[15px] font-medium">{receipt}</dd>
@@ -157,12 +157,12 @@ export default function BookingSuccessPage() {
                             <section>
                                 <div className="flex items-end justify-between pb-3 sm:border-b sm:border-black/50 sm:pb-4">
                                     <div className="flex items-baseline gap-4">
-                                        <span className="text-[12px] text-[#15678d]">01/</span>
+                                        <span className="text-[13px] text-[#15678d]">01/</span>
                                         <h2 className="text-[clamp(1.7rem,2.5vw,3rem)] font-medium leading-none tracking-[-0.045em]">
                                             Jadwal Anda
                                         </h2>
                                     </div>
-                                    <p className="text-[12px] text-black/48">
+                                    <p className="text-[13px] text-black/48">
                                         {String(bookingOrder.bookings.length).padStart(2, "0")} reservasi
                                     </p>
                                 </div>
@@ -176,29 +176,31 @@ export default function BookingSuccessPage() {
                                             {booking.image_url ? (
                                                 <img
                                                     src={booking.image_url}
-                                                    alt=""
+                                                    alt={`${booking.facility_name ?? "Fasilitas"}${booking.facility_unit_name ? ` — ${booking.facility_unit_name}` : ""}`}
+                                                    loading={index === 0 ? "eager" : "lazy"}
+                                                    decoding="async"
                                                     className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
                                                 />
                                             ) : (
-                                                <span className="flex h-full items-center justify-center text-[11px] text-black/35">
+                                                <span className="flex h-full items-center justify-center text-[12px] text-black/35">
                                                     {String(index + 1).padStart(2, "0")}
                                                 </span>
                                             )}
                                         </div>
 
                                         <div className="min-w-0">
-                                            <p className="text-[11px] text-[#15678d]">
+                                            <p className="text-[12px] text-[#15678d]">
                                                 {String(index + 1).padStart(2, "0")} / Reservasi
                                             </p>
                                             <h3 className="mt-0.5 text-[clamp(1.35rem,2vw,2.35rem)] font-medium leading-[1.02] tracking-[-0.04em]">
                                                 {booking.facility_name ?? "Fasilitas"}
                                             </h3>
-                                            <p className="mt-1 text-[12px] text-black/46">
+                                            <p className="mt-1 text-[13px] text-black/46">
                                                 {booking.facility_unit_name ?? "Unit utama"}
                                             </p>
                                         </div>
 
-                                        <div className="col-span-2 flex justify-between pl-[74px] text-[12px] sm:col-span-1 sm:block sm:min-w-[185px] sm:pl-0 sm:text-right">
+                                        <div className="col-span-2 flex justify-between pl-[74px] text-[13px] sm:col-span-1 sm:block sm:min-w-[185px] sm:pl-0 sm:text-right">
                                             <p>{fullDate(booking.booking_date)}</p>
                                             <p className="text-black/46 sm:mt-1">
                                                 {booking.start_time}—{booking.end_time} WIB
@@ -210,7 +212,7 @@ export default function BookingSuccessPage() {
 
                             <aside>
                                 <div className="flex items-baseline gap-4 pb-3 sm:border-b sm:border-black/50 sm:pb-4">
-                                    <span className="text-[12px] text-[#ff0000]">02/</span>
+                                    <span className="text-[13px] text-[#ff0000]">02/</span>
                                     <h2 className="text-[clamp(1.7rem,2.4vw,2.8rem)] font-medium leading-none tracking-[-0.045em]">
                                         Pembayaran
                                     </h2>
@@ -252,7 +254,7 @@ export default function BookingSuccessPage() {
                             </aside>
                         </div>
 
-                        <footer className="mt-6 flex flex-col justify-between gap-4 pt-3 text-[12px] sm:mt-7 sm:flex-row sm:items-center sm:border-t sm:border-black sm:pt-4">
+                        <footer className="mt-6 flex flex-col justify-between gap-4 pt-3 text-[13px] sm:mt-7 sm:flex-row sm:items-center sm:border-t sm:border-black sm:pt-4">
                             <p className="text-black/48">
                                 Dokumen tersimpan otomatis di riwayat pembayaran.
                             </p>
@@ -289,7 +291,7 @@ function Detail({
     tone?: { color: string; soft: string };
 }) {
     return (
-        <div className="grid grid-cols-[32%_1fr] gap-4 py-3 text-[12px]">
+        <div className="grid grid-cols-[32%_1fr] gap-4 py-3 text-[13px]">
             <dt className="text-black/43">{label}</dt>
             <dd className="flex justify-between gap-3 font-medium">
                 <span style={tone ? { color: tone.color } : undefined}>{value}</span>

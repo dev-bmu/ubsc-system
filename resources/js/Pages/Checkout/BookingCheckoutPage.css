@@ -1072,6 +1072,83 @@
     align-items: start;
 }
 
+.checkout-error-summary {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 0.85rem;
+    align-items: center;
+    padding: 0.9rem 1rem;
+    border: 1px solid rgba(255, 0, 0, 0.24);
+    border-left: 3px solid var(--checkout-red);
+    border-radius: var(--checkout-radius);
+    outline: none;
+    color: #511414;
+    background: linear-gradient(105deg, #fff7f5, #fff 58%);
+}
+
+.checkout-error-summary:focus-visible {
+    box-shadow: 0 0 0 3px rgba(255, 0, 0, 0.12);
+}
+
+.checkout-error-summary > svg {
+    width: 1.15rem;
+    height: 1.15rem;
+    color: var(--checkout-red);
+    stroke-width: 1.7;
+}
+
+.checkout-error-summary__copy,
+.checkout-error-summary__copy strong,
+.checkout-error-summary__copy span {
+    display: block;
+}
+
+.checkout-error-summary__copy strong {
+    margin-bottom: 0.15rem;
+    color: var(--checkout-ink);
+    font-size: 0.86rem;
+    font-weight: 600;
+}
+
+.checkout-error-summary__copy span {
+    max-width: 68rem;
+    color: #6e3733;
+    font-size: 0.76rem;
+    line-height: 1.4;
+}
+
+.checkout-error-summary button {
+    display: inline-flex;
+    min-height: 2.7rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    padding: 0 0.85rem;
+    border: 1px solid rgba(20, 20, 19, 0.18);
+    border-radius: var(--checkout-radius);
+    color: #fff;
+    background: var(--checkout-ink);
+    font: inherit;
+    font-size: 0.74rem;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.checkout-error-summary button:disabled {
+    cursor: wait;
+    opacity: 0.62;
+}
+
+.checkout-error-summary button svg {
+    width: 0.85rem;
+    height: 0.85rem;
+}
+
+.checkout-error-summary__spinner {
+    animation: checkout-spin 0.8s linear infinite;
+}
+
 .checkout-form-column {
     display: grid;
     min-width: 0;
@@ -1105,7 +1182,7 @@
 
 .checkout-block__index {
     color: #777873;
-    font-size: 0.67rem;
+    font-size: 0.75rem;
     font-variant-numeric: tabular-nums;
 }
 
@@ -1122,7 +1199,7 @@
     max-width: 30rem;
     margin: 0;
     color: var(--checkout-muted);
-    font-size: 0.72rem;
+    font-size: 0.82rem;
     line-height: 1.35;
 }
 
@@ -1143,12 +1220,22 @@
 }
 
 .checkout-field__label {
-    display: block;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
     margin-bottom: 0.28rem;
     color: #5f5f5f;
-    font-size: 0.68rem;
+    font-size: 0.78rem;
     font-weight: 500;
     line-height: 1.2;
+}
+
+.checkout-field__label small {
+    color: var(--checkout-red);
+    font-size: 0.68rem;
+    font-weight: 500;
+    letter-spacing: 0;
 }
 
 .checkout-input {
@@ -1208,7 +1295,7 @@ textarea.checkout-input {
 .checkout-field__error {
     display: block;
     margin-top: 0.28rem;
-    font-size: 0.62rem;
+    font-size: 0.75rem;
     line-height: 1.25;
 }
 
@@ -1248,12 +1335,12 @@ textarea.checkout-input {
 .checkout-identity span {
     margin-bottom: 0.18rem;
     color: #8b8b8b;
-    font-size: 0.62rem;
+    font-size: 0.74rem;
 }
 
 .checkout-identity strong {
     overflow: hidden;
-    font-size: 0.82rem;
+    font-size: 0.9rem;
     font-weight: 500;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1363,7 +1450,7 @@ textarea.checkout-input {
 .checkout-payment-method__copy small {
     margin-bottom: 0.17rem;
     color: #8d8d8d;
-    font-size: 0.57rem;
+    font-size: 0.7rem;
     line-height: 1.1;
 }
 
@@ -1376,7 +1463,7 @@ textarea.checkout-input {
 
 .checkout-payment-method__copy strong {
     overflow: hidden;
-    font-size: 0.84rem;
+    font-size: 0.94rem;
     font-weight: 500;
     line-height: 1.1;
     letter-spacing: -0.025em;
@@ -1389,7 +1476,7 @@ textarea.checkout-input {
     margin-top: 0.18rem;
     overflow: hidden;
     color: #777777;
-    font-size: 0.59rem;
+    font-size: 0.74rem;
     line-height: 1.2;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
@@ -1439,7 +1526,7 @@ textarea.checkout-input {
     border-top: 1px solid var(--checkout-line);
     border-bottom: 1px solid var(--checkout-line);
     color: var(--checkout-muted);
-    font-size: 0.68rem;
+    font-size: 0.8rem;
     line-height: 1.35;
 }
 
@@ -1483,7 +1570,7 @@ textarea.checkout-input {
 .checkout-summary__head p {
     margin-bottom: 0.25rem;
     color: rgba(247, 244, 236, 0.58);
-    font-size: 0.62rem;
+    font-size: 0.72rem;
 }
 
 .checkout-summary__head h2 {
@@ -1504,7 +1591,7 @@ textarea.checkout-input {
     overflow: hidden;
     padding-top: 0.08rem;
     color: rgba(247, 244, 236, 0.58);
-    font-size: 0.62rem;
+    font-size: 0.72rem;
     font-weight: 500;
     text-align: right;
     text-overflow: ellipsis;
@@ -1535,7 +1622,7 @@ textarea.checkout-input {
 .checkout-order-item__index {
     padding-top: 0.08rem;
     color: var(--checkout-blue-bright);
-    font-size: 0.6rem;
+    font-size: 0.68rem;
     font-variant-numeric: tabular-nums;
 }
 
@@ -1558,7 +1645,7 @@ textarea.checkout-input {
     right: 0.42rem;
     bottom: 0.34rem;
     color: rgba(255, 255, 255, 0.34);
-    font-size: 0.52rem;
+    font-size: 0.64rem;
     font-weight: 500;
     letter-spacing: -0.035em;
 }
@@ -1610,7 +1697,7 @@ textarea.checkout-input {
     margin-top: 0.15rem;
     overflow: hidden;
     color: rgba(247, 244, 236, 0.56);
-    font-size: 0.62rem;
+    font-size: 0.72rem;
     line-height: 1.2;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1623,7 +1710,7 @@ textarea.checkout-input {
     margin-top: 0.2rem;
     overflow: hidden;
     color: rgba(247, 244, 236, 0.78);
-    font-size: 0.61rem;
+    font-size: 0.72rem;
     line-height: 1.05;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -2111,11 +2198,11 @@ textarea.checkout-input {
 
     .checkout-journey__number {
         padding: 0;
-        font-size: 0.54rem;
+        font-size: 0.64rem;
     }
 
     .checkout-journey__copy strong {
-        font-size: clamp(0.72rem, 3.2vw, 0.82rem);
+        font-size: clamp(0.78rem, 3.2vw, 0.86rem);
         white-space: nowrap;
     }
 
@@ -2123,13 +2210,23 @@ textarea.checkout-input {
         li[data-state="current"]
         .checkout-journey__copy
         strong {
-        font-size: clamp(0.78rem, 3.45vw, 0.88rem);
+        font-size: clamp(0.84rem, 3.45vw, 0.92rem);
     }
 
     .checkout-journey__copy small {
         margin-top: 0.2rem;
-        font-size: clamp(0.49rem, 2.2vw, 0.56rem);
+        font-size: clamp(0.59rem, 2.2vw, 0.64rem);
         white-space: nowrap;
+    }
+
+    .checkout-error-summary {
+        grid-template-columns: auto minmax(0, 1fr);
+        align-items: start;
+    }
+
+    .checkout-error-summary button {
+        width: 100%;
+        grid-column: 1 / -1;
     }
 
     .checkout-form-column {
@@ -2149,7 +2246,7 @@ textarea.checkout-input {
 
     .checkout-block__head p {
         max-width: 15rem;
-        font-size: 0.6rem;
+        font-size: 0.72rem;
     }
 
     .checkout-field-grid {
@@ -2210,11 +2307,11 @@ textarea.checkout-input {
     }
 
     .checkout-order-item__copy strong {
-        font-size: 0.82rem;
+        font-size: 0.9rem;
     }
 
     .checkout-order-item__price {
-        font-size: 0.62rem;
+        font-size: 0.72rem;
     }
 
     .checkout-price-summary {
@@ -2246,7 +2343,7 @@ textarea.checkout-input {
     .checkout-footnote {
         flex-direction: column;
         gap: 0.35rem;
-        font-size: 0.66rem;
+        font-size: 0.75rem;
     }
 
     .checkout-footnote > span:last-child {

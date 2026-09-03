@@ -1,7 +1,7 @@
 import type { PageProps } from "@/types";
 import { router, usePage } from "@inertiajs/react";
 import axios from "axios";
-import { ArrowRight, RotateCcw, SearchX } from "lucide-react";
+import { AlertCircle, ArrowRight, RotateCcw, SearchX } from "lucide-react";
 import {
     useCallback,
     useDeferredValue,
@@ -61,6 +61,9 @@ interface FacilityUnit {
     id: number;
     name: string;
     image: string;
+    capacity_override?: number | null;
+    booking_capacity?: number;
+    has_shared_booking_capacity?: boolean;
 }
 
 interface BackendFacility {
@@ -71,6 +74,8 @@ interface BackendFacility {
     category: string;
     location?: string | null;
     venue_type?: string | null;
+    booking_capacity?: number;
+    has_shared_booking_capacity?: boolean;
     class_code?: string | null;
     rating?: number | null;
     display_metadata?: Record<string, unknown> | null;
@@ -92,6 +97,9 @@ interface ApiSlot {
     price: string;
     status: "available" | "booked";
     reason?: "elapsed" | "fully_booked" | null;
+    capacity: number;
+    shared_capacity: boolean;
+    occupied: number;
     remaining: number;
     facility_unit_id?: number | null;
 }
@@ -431,6 +439,13 @@ function isApiSlot(value: unknown): value is ApiSlot {
             slot.reason === null ||
             slot.reason === "elapsed" ||
             slot.reason === "fully_booked") &&
+        typeof slot.capacity === "number" &&
+        Number.isInteger(slot.capacity) &&
+        slot.capacity >= 1 &&
+        typeof slot.shared_capacity === "boolean" &&
+        typeof slot.occupied === "number" &&
+        Number.isInteger(slot.occupied) &&
+        slot.occupied >= 0 &&
         typeof slot.remaining === "number" &&
         Number.isFinite(slot.remaining) &&
         slot.remaining >= 0 &&
@@ -605,6 +620,8 @@ export default function BookingSection({
     const [timePreset, setTimePreset] = useState<BookingTimePreset>("all");
     const [selectedStartTimes, setSelectedStartTimes] = useState<string[]>([]);
     const [availableOnly, setAvailableOnly] = useState(false);
+    const [checkoutProcessing, setCheckoutProcessing] = useState(false);
+    const [checkoutError, setCheckoutError] = useState<string | null>(null);
     const deferredQuery = useDeferredValue(query);
     const slotCacheRef = useRef<
         Record<
@@ -648,6 +665,10 @@ export default function BookingSection({
                 : null,
         [auth.user?.id, cartHydrated, checkoutCartIdentity, slotCart],
     );
+
+    useEffect(() => {
+        setCheckoutError(null);
+    }, [auth.user?.id, checkoutCartIdentity]);
 
     useEffect(() => {
         if (!cartHydrated) return;
@@ -802,6 +823,11 @@ export default function BookingSection({
                     selectedAvailabilityEntry?.data?.facilities.find(
                         (summary) => summary.facility_id === facility.id,
                     );
+                const selectedUnitAvailability = selectedUnitId === null
+                    ? null
+                    : facilityAvailability?.units.find(
+                        (unit) => unit.facility_unit_id === selectedUnitId,
+                    ) ?? null;
                 const policyClosedReason = calendarDateClosed
                     ? calendarClosureReason
                     : null;
@@ -850,6 +876,18 @@ export default function BookingSection({
                     sport: sportLabelFor(facility),
                     filterCategory: facilityKindLabelFor(facility),
                     category: facility.category,
+                    bookingCapacity: Math.max(
+                        1,
+                        selectedUnitAvailability?.capacity ??
+                            facilityAvailability?.capacity ??
+                            facility.booking_capacity ??
+                            1,
+                    ),
+                    hasSharedBookingCapacity:
+                        selectedUnitAvailability?.shared_capacity ??
+                        facilityAvailability?.shared_capacity ??
+                        facility.has_shared_booking_capacity ??
+                        false,
                     units,
                     selectedUnitId,
                     availableSlots: apiSlots.map((slot) => ({
@@ -860,6 +898,9 @@ export default function BookingSection({
                         priceAmount: priceStringToAmount(slot.price),
                         status: slot.status,
                         reason: slot.reason ?? null,
+                        capacity: slot.capacity,
+                        sharedCapacity: slot.shared_capacity,
+                        occupied: slot.occupied,
                         remaining: slot.remaining,
                         facilityUnitId: slot.facility_unit_id ?? null,
                     })),
@@ -1593,6 +1634,7 @@ export default function BookingSection({
     const handleCheckoutIntent = async () => {
         if (slotCart.length === 0) return;
 
+        setCheckoutError(null);
         syncStoredBookingCart(slotCart);
 
         if (!auth.user) {
@@ -1608,6 +1650,7 @@ export default function BookingSection({
 
         if (checkoutRequestInFlightRef.current) return;
         checkoutRequestInFlightRef.current = true;
+        setCheckoutProcessing(true);
 
         const submittedCart = slotCart;
         const submittedCartIdentity = canonicalBookingCheckoutCart(submittedCart);
@@ -1647,13 +1690,6 @@ export default function BookingSection({
                         price: item.price,
                         price_amount: item.price_amount,
                     })),
-                    customer_name: submittedUser.name,
-                    whatsapp_number: submittedUser.phone_number ?? "",
-                    identity_category:
-                        submittedUser.identity_category === "warga_kampus"
-                            ? "warga_ub"
-                            : "umum",
-                    identity_number: submittedUser.identity_number ?? "",
                 },
                 {
                     preserveScroll: true,
@@ -1671,27 +1707,55 @@ export default function BookingSection({
 
                         if (!reachedBookingCheckout) return;
 
+                        setCheckoutError(null);
                         clearBookingCheckoutIntent(intent);
                         observedCheckoutScopeRef.current = null;
                         syncStoredBookingCart([]);
                         setSlotCart([]);
                     },
+                    onError: (errors) => {
+                        if (errors.idempotency_key) {
+                            clearBookingCheckoutIntent(intent);
+                        }
+
+                        const message = [
+                            errors.checkout,
+                            errors.items,
+                            errors["items.0.start_time"],
+                            errors.idempotency_key,
+                        ].find(
+                            (candidate): candidate is string =>
+                                typeof candidate === "string" &&
+                                candidate.trim().length > 0,
+                        );
+
+                        setCheckoutError(
+                            message ??
+                                "Checkout belum dapat disiapkan. Pilihan Anda tetap tersimpan; silakan coba kembali.",
+                        );
+                    },
                     onFinish: () => {
                         checkoutRequestInFlightRef.current = false;
+                        setCheckoutProcessing(false);
                     },
                 },
             );
             requestStarted = true;
+        } catch {
+            setCheckoutError(
+                "Checkout belum dapat disiapkan. Pilihan Anda tetap tersimpan; periksa koneksi lalu coba kembali.",
+            );
         } finally {
             if (!requestStarted) {
                 checkoutRequestInFlightRef.current = false;
+                setCheckoutProcessing(false);
             }
         }
     };
 
     return (
         <section
-            className={`booking-section${slotCart.length > 0 ? " has-cart" : ""}`}
+            className={`booking-section${slotCart.length > 0 ? " has-cart" : ""}${checkoutError ? " has-checkout-error" : ""}`}
             id="booking-content"
         >
             <div className="booking-section__content-shell">
@@ -1941,6 +2005,16 @@ export default function BookingSection({
                     role="region"
                     aria-label="Keranjang reservasi"
                 >
+                    {checkoutError && (
+                        <div
+                            className="booking-cart-bar__error"
+                            id="booking-checkout-error"
+                            role="alert"
+                        >
+                            <AlertCircle aria-hidden="true" />
+                            <span>{checkoutError}</span>
+                        </div>
+                    )}
                     <div
                         className="booking-cart-bar__summary"
                         aria-live="polite"
@@ -1965,7 +2039,10 @@ export default function BookingSection({
                         <button
                             type="button"
                             className="booking-cart-bar__clear"
-                            onClick={() => setSlotCart([])}
+                            onClick={() => {
+                                setCheckoutError(null);
+                                setSlotCart([]);
+                            }}
                         >
                             Kosongkan
                         </button>
@@ -1973,13 +2050,24 @@ export default function BookingSection({
                             type="button"
                             className="booking-cart-bar__checkout"
                             onClick={handleCheckoutIntent}
+                            disabled={checkoutProcessing}
+                            aria-describedby={
+                                checkoutError
+                                    ? "booking-checkout-error"
+                                    : undefined
+                            }
                         >
-                            <span>Mulai reservasi</span>
+                            <span>
+                                {checkoutProcessing
+                                    ? "Menyiapkan checkout"
+                                    : "Mulai reservasi"}
+                            </span>
                             <ArrowRight aria-hidden="true" />
                         </button>
                     </div>
                 </div>
             )}
+
         </section>
     );
 }

@@ -248,6 +248,7 @@ export default function BookingHero({
             <BeamsBackground
                 className="booking-hero__beams"
                 beamColor="#15678D"
+                backgroundColor="#173859"
                 speed={0.55}
             />
 

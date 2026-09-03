@@ -1,5 +1,5 @@
 import { motion, useReducedMotion } from "framer-motion";
-import { LoaderCircle, Minus, Plus } from "lucide-react";
+import { LoaderCircle, Minus, Plus, UsersRound } from "lucide-react";
 import {
     useMemo,
     type PointerEventHandler,
@@ -23,13 +23,19 @@ interface TimeSlot {
     reason?: "elapsed" | "fully_booked" | null;
     facilityUnitId?: number | null;
     priceAmount?: number;
-    remaining?: number;
+    capacity: number;
+    sharedCapacity: boolean;
+    occupied: number;
+    remaining: number;
 }
 
 interface FacilityUnitOption {
     id: number;
     name: string;
     image: string;
+    capacity_override?: number | null;
+    booking_capacity?: number;
+    has_shared_booking_capacity?: boolean;
 }
 
 export interface BookingSlotFilter {
@@ -61,6 +67,8 @@ export interface BookingFacility {
     sport: string;
     filterCategory: string;
     category: string;
+    bookingCapacity: number;
+    hasSharedBookingCapacity: boolean;
     badgeLocation: string;
     badgeType: string;
     units: FacilityUnitOption[];
@@ -305,6 +313,23 @@ function CalendarUI({
                 </span>
             </div>
 
+            {item.hasSharedBookingCapacity && (
+                <div className="booking-capacity-guide" role="note">
+                    <span
+                        className="booking-capacity-guide__icon"
+                        aria-hidden="true"
+                    >
+                        <UsersRound />
+                    </span>
+                    <span>
+                        <strong>{item.bookingCapacity} tempat per jadwal</strong>
+                        <small>
+                            Sisa kuota aktual tertera pada setiap pilihan waktu.
+                        </small>
+                    </span>
+                </div>
+            )}
+
             {units.length > 0 && (
                 <section
                     className="booking-unit-selector"
@@ -341,6 +366,9 @@ function CalendarUI({
                                           "fully_booked"
                                         ? "Sudah dipesan"
                                         : "Penuh";
+                            const unitQuota = unitAvailability?.shared_capacity
+                                ? ` · kuota ${unitAvailability.capacity}`
+                                : "";
                             return (
                                 <button
                                     key={unit.id}
@@ -367,7 +395,7 @@ function CalendarUI({
                                     </span>
                                     <strong>{unit.name}</strong>
                                     <span className="booking-unit-option__state">
-                                        {active ? `Terpilih · ${unitState}` : unitState}
+                                        {active ? `Terpilih · ${unitState}${unitQuota}` : `${unitState}${unitQuota}`}
                                     </span>
                                     <span
                                         className="booking-unit-option__mark"
@@ -452,6 +480,18 @@ function CalendarUI({
                     <div className="booking-slot-grid">
                         {visibleSlots.map((slot, index) => {
                             const isBooked = slot.status === "booked";
+                            const showsQuota =
+                                slot.sharedCapacity &&
+                                slot.capacity > 1 &&
+                                slot.reason !== "elapsed";
+                            const lowQuota =
+                                !isBooked &&
+                                showsQuota &&
+                                slot.remaining <=
+                                    Math.max(
+                                        2,
+                                        Math.ceil(slot.capacity * 0.2),
+                                    );
                             const bookedStateLabel =
                                 slot.reason === "elapsed"
                                     ? "Waktu berlalu"
@@ -473,7 +513,7 @@ function CalendarUI({
                                     type="button"
                                     disabled={isBooked}
                                     aria-pressed={isSelected}
-                                    aria-label={`${slot.time}, ${isBooked ? bookedStateLabel.toLocaleLowerCase("id-ID") : slot.price}${isSelected ? ", dipilih" : ""}`}
+                                    aria-label={`${slot.time}, ${isBooked ? bookedStateLabel.toLocaleLowerCase("id-ID") : slot.price}${showsQuota ? `, sisa ${slot.remaining} dari ${slot.capacity} tempat` : ""}${isSelected ? ", dipilih" : ""}`}
                                     onClick={() => {
                                         if (isBooked) return;
                                         onToggleSlot({
@@ -497,7 +537,7 @@ function CalendarUI({
                                                 slot.priceAmount ?? 0,
                                         });
                                     }}
-                                    className={`booking-slot${isBooked ? " is-booked" : ""}${isSelected ? " is-selected" : ""}`}
+                                    className={`booking-slot${showsQuota ? " has-shared-capacity" : ""}${lowQuota ? " is-low-quota" : ""}${isBooked ? " is-booked" : ""}${isSelected ? " is-selected" : ""}`}
                                 >
                                     <span
                                         className="booking-slot__index"
@@ -506,6 +546,14 @@ function CalendarUI({
                                         {String(index + 1).padStart(2, "0")}
                                     </span>
                                     <strong>{slot.time}</strong>
+                                    {showsQuota && (
+                                        <span className="booking-slot__quota">
+                                            <i aria-hidden="true" />
+                                            {isBooked
+                                                ? `0 dari ${slot.capacity} tersisa`
+                                                : `Sisa ${slot.remaining} dari ${slot.capacity}`}
+                                        </span>
+                                    )}
                                     <span className="booking-slot__price">
                                         {isBooked
                                             ? bookedStateLabel
@@ -599,6 +647,12 @@ export default function BookingListItem({
                     <strong>{availabilityLabel.primary}</strong>
                     {availabilityLabel.secondary && (
                         <small>{availabilityLabel.secondary}</small>
+                    )}
+                    {item.hasSharedBookingCapacity && (
+                        <small className="booking-directory-item__quota">
+                            <UsersRound aria-hidden="true" />
+                            Kapasitas {item.bookingCapacity} peserta
+                        </small>
                     )}
                 </span>
                 <span className="booking-directory-item__thumb">

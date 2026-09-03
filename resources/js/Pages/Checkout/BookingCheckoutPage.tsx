@@ -6,8 +6,9 @@ import {
 } from "@/lib/paymentAttemptIntent";
 import CheckoutMasthead from "./CheckoutMasthead";
 import type { PageProps } from "@/types";
-import { Head, Link, useForm, usePage } from "@inertiajs/react";
+import { Head, Link, router, useForm, usePage } from "@inertiajs/react";
 import {
+    AlertTriangle,
     ArrowLeft,
     ArrowRight,
     Banknote,
@@ -15,12 +16,15 @@ import {
     Landmark,
     Loader2,
     QrCode,
+    RefreshCw,
     ShieldCheck,
     type LucideIcon,
 } from "lucide-react";
 import {
+    useCallback,
     useEffect,
     useMemo,
+    useRef,
     useState,
     type FormEvent,
     type ReactNode,
@@ -77,6 +81,7 @@ type CheckoutPageProps = PageProps<{
     bookingOrder: BookingCheckoutOrder;
     paymentMethods: PaymentMethod[];
     mockPayment: boolean;
+    submissionSafetySeconds: number;
     serverNow: string;
 }>;
 
@@ -146,6 +151,18 @@ function normalizeIdentityCategory(
     return value === "warga_ub" ? "warga_ub" : "umum";
 }
 
+function normalizeIndonesianPhone(value: string): string {
+    let phone = value.replace(/[\s().+\-]+/g, "");
+
+    if (phone.startsWith("0")) {
+        phone = `62${phone.slice(1)}`;
+    } else if (phone.startsWith("8")) {
+        phone = `62${phone}`;
+    }
+
+    return phone;
+}
+
 function parseExpiry(value: string | null): number | null {
     if (!value) return null;
 
@@ -200,6 +217,7 @@ function useExpiry(expiresAt: string | null, serverNow: string) {
 
     return {
         isExpired: remaining !== null && remaining <= 0,
+        remainingMs: remaining,
         label,
     };
 }
@@ -321,9 +339,19 @@ function resolveCheckoutState({
 }
 
 export default function BookingCheckoutPage() {
-    const { bookingOrder, paymentMethods, mockPayment, serverNow, auth } =
-        usePage<CheckoutPageProps>().props;
+    const {
+        bookingOrder,
+        paymentMethods,
+        mockPayment,
+        submissionSafetySeconds,
+        serverNow,
+        auth,
+    } = usePage<CheckoutPageProps>().props;
     const expiry = useExpiry(bookingOrder.expires_at, serverNow);
+    const [syncingState, setSyncingState] = useState(false);
+    const syncingStateRef = useRef(false);
+    const errorSummaryRef = useRef<HTMLDivElement>(null);
+    const automaticSyncAtRef = useRef(0);
     const initialPaymentMethod = paymentMethods[0]?.id ?? "";
     const paymentIntentScopeFor = (paymentMethod: string) =>
         paymentAttemptIntentScope([
@@ -334,7 +362,7 @@ export default function BookingCheckoutPage() {
             paymentMethod,
         ]);
 
-    const { data, setData, post, processing, errors } =
+    const { data, setData, post, processing, errors, clearErrors } =
         useForm<CheckoutFormData>({
             idempotency_key: getOrCreatePaymentAttemptKey(
                 paymentIntentScopeFor(initialPaymentMethod),
@@ -356,6 +384,7 @@ export default function BookingCheckoutPage() {
             notes: bookingOrder.notes ?? "",
             payment_method: initialPaymentMethod,
         });
+    const formErrors = errors as Record<string, string | undefined>;
 
     const state = resolveCheckoutState({
         order: bookingOrder,
@@ -363,11 +392,6 @@ export default function BookingCheckoutPage() {
         gatewayReady: mockPayment,
         hasPaymentMethods: paymentMethods.length > 0,
     });
-    const canSubmit =
-        state.key === "payable" &&
-        state.serverPayable &&
-        Boolean(data.payment_method) &&
-        !processing;
     const formLocked = state.key !== "payable";
     const receiptNumber =
         bookingOrder.transaction?.receipt_number ??
@@ -405,11 +429,30 @@ export default function BookingCheckoutPage() {
     const whatsappSupportHref = `https://wa.me/6285280809080?text=${encodeURIComponent(
         supportMessage,
     )}`;
+    const normalizedPhone = normalizeIndonesianPhone(data.whatsapp_number);
     const customerDataComplete =
         data.customer_name.trim().length >= 2 &&
-        data.whatsapp_number.replace(/\D/g, "").length >= 10 &&
+        data.customer_name.trim().length <= 255 &&
+        /^628[0-9]{7,13}$/.test(normalizedPhone) &&
+        data.notes.length <= 1000 &&
         (data.identity_category !== "warga_ub" ||
-            data.identity_number.trim().length >= 6);
+            /^[0-9]{6,30}$/.test(data.identity_number.trim()));
+    const submissionWindowOpen =
+        expiry.remainingMs === null ||
+        expiry.remainingMs > Math.max(0, submissionSafetySeconds) * 1_000;
+    const canSubmit =
+        state.key === "payable" &&
+        state.serverPayable &&
+        customerDataComplete &&
+        submissionWindowOpen &&
+        Boolean(data.payment_method) &&
+        !processing;
+    const operationalError =
+        formErrors.checkout ??
+        formErrors.idempotency_key ??
+        formErrors.identity_category ??
+        formErrors.payment_method ??
+        null;
     const checkoutStage = (() => {
         if (["paid", "expired", "cancelled", "failed"].includes(state.key)) {
             return 3;
@@ -431,6 +474,49 @@ export default function BookingCheckoutPage() {
         return 1;
     })();
 
+    const syncCheckoutState = useCallback((clearCurrentErrors = false) => {
+        if (syncingStateRef.current || processing) return;
+
+        syncingStateRef.current = true;
+        setSyncingState(true);
+        if (clearCurrentErrors) clearErrors();
+
+        router.reload({
+            only: [
+                "bookingOrder",
+                "paymentMethods",
+                "mockPayment",
+                "submissionSafetySeconds",
+                "serverNow",
+            ],
+            onFinish: () => {
+                syncingStateRef.current = false;
+                setSyncingState(false);
+            },
+        });
+    }, [clearErrors, processing]);
+
+    useEffect(() => {
+        if (!state.serverPayable) return;
+
+        const syncWhenVisible = () => {
+            if (document.visibilityState !== "visible") return;
+
+            const now = Date.now();
+            if (now - automaticSyncAtRef.current < 3_000) return;
+            automaticSyncAtRef.current = now;
+            syncCheckoutState(false);
+        };
+
+        window.addEventListener("focus", syncWhenVisible);
+        document.addEventListener("visibilitychange", syncWhenVisible);
+
+        return () => {
+            window.removeEventListener("focus", syncWhenVisible);
+            document.removeEventListener("visibilitychange", syncWhenVisible);
+        };
+    }, [state.serverPayable, syncCheckoutState]);
+
     const submit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         if (!canSubmit) return;
@@ -443,6 +529,37 @@ export default function BookingCheckoutPage() {
                         paymentIntentScopeFor(data.payment_method),
                     );
                 }
+            },
+            onError: (formErrors) => {
+                if (formErrors.idempotency_key) {
+                    const scope = paymentIntentScopeFor(data.payment_method);
+                    clearPaymentAttemptKey(scope);
+                    setData(
+                        "idempotency_key",
+                        getOrCreatePaymentAttemptKey(scope),
+                    );
+                }
+
+                window.requestAnimationFrame(() => {
+                    const fieldByError: Record<string, string> = {
+                        customer_name: "checkout-customer-name",
+                        whatsapp_number: "checkout-whatsapp-number",
+                        identity_number: "checkout-identity-number",
+                        notes: "checkout-notes",
+                    };
+                    const firstField = Object.keys(fieldByError).find(
+                        (key) => Boolean(formErrors[key]),
+                    );
+
+                    if (firstField) {
+                        document
+                            .getElementById(fieldByError[firstField])
+                            ?.focus();
+                        return;
+                    }
+
+                    errorSummaryRef.current?.focus();
+                });
             },
         });
     };
@@ -546,6 +663,40 @@ export default function BookingCheckoutPage() {
                     </nav>
 
                     <form className="checkout-layout" onSubmit={submit}>
+                        {operationalError && (
+                            <div
+                                ref={errorSummaryRef}
+                                className="checkout-error-summary"
+                                role="alert"
+                                tabIndex={-1}
+                                aria-labelledby="checkout-error-title"
+                            >
+                                <AlertTriangle aria-hidden="true" />
+                                <span className="checkout-error-summary__copy">
+                                    <strong id="checkout-error-title">
+                                        Transaksi belum diteruskan
+                                    </strong>
+                                    <span>{operationalError}</span>
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => syncCheckoutState(true)}
+                                    disabled={syncingState || processing}
+                                >
+                                    <RefreshCw
+                                        aria-hidden="true"
+                                        className={
+                                            syncingState
+                                                ? "checkout-error-summary__spinner"
+                                                : undefined
+                                        }
+                                    />
+                                    {syncingState
+                                        ? "Menyinkronkan"
+                                        : "Sinkronkan status"}
+                                </button>
+                            </div>
+                        )}
                         <div className="checkout-form-column">
                             <CheckoutBlock
                                 index="01"
@@ -557,17 +708,19 @@ export default function BookingCheckoutPage() {
                                         htmlFor="checkout-customer-name"
                                         label="Nama lengkap"
                                         error={errors.customer_name}
+                                        required
                                     >
                                         <input
                                             id="checkout-customer-name"
                                             name="customer_name"
                                             value={data.customer_name}
-                                            onChange={(event) =>
+                                            onChange={(event) => {
                                                 setData(
                                                     "customer_name",
                                                     event.target.value,
-                                                )
-                                            }
+                                                );
+                                                clearErrors("customer_name");
+                                            }}
                                             className="checkout-input"
                                             placeholder="Nama sesuai identitas"
                                             autoComplete="name"
@@ -590,17 +743,19 @@ export default function BookingCheckoutPage() {
                                         htmlFor="checkout-whatsapp-number"
                                         label="Nomor WhatsApp"
                                         error={errors.whatsapp_number}
+                                        required
                                     >
                                         <input
                                             id="checkout-whatsapp-number"
                                             name="whatsapp_number"
                                             value={data.whatsapp_number}
-                                            onChange={(event) =>
+                                            onChange={(event) => {
                                                 setData(
                                                     "whatsapp_number",
                                                     event.target.value,
-                                                )
-                                            }
+                                                );
+                                                clearErrors("whatsapp_number");
+                                            }}
                                             className="checkout-input"
                                             placeholder="+62 812 3456 7890"
                                             autoComplete="tel"
@@ -684,12 +839,13 @@ export default function BookingCheckoutPage() {
                                             id="checkout-notes"
                                             name="notes"
                                             value={data.notes}
-                                            onChange={(event) =>
+                                            onChange={(event) => {
                                                 setData(
                                                     "notes",
                                                     event.target.value,
-                                                )
-                                            }
+                                                );
+                                                clearErrors("notes");
+                                            }}
                                             className="checkout-input"
                                             placeholder="Tambahkan catatan bila diperlukan"
                                             disabled={formLocked}
@@ -745,7 +901,7 @@ export default function BookingCheckoutPage() {
                                                         name="payment_method"
                                                         value={method.id}
                                                         checked={active}
-                                                        onChange={() =>
+                                                        onChange={() => {
                                                             setData(
                                                                 (current) => ({
                                                                     ...current,
@@ -756,10 +912,13 @@ export default function BookingCheckoutPage() {
                                                                             paymentIntentScopeFor(
                                                                                 method.id,
                                                                             ),
-                                                                        ),
+                                                                    ),
                                                                 }),
-                                                            )
-                                                        }
+                                                            );
+                                                            clearErrors(
+                                                                "payment_method",
+                                                            );
+                                                        }}
                                                         disabled={formLocked}
                                                     />
                                                     <span className="checkout-payment-method__icon">
@@ -1002,8 +1161,14 @@ export default function BookingCheckoutPage() {
                                             disabled={!canSubmit}
                                         >
                                             <span>
-                                                {processing
-                                                    ? "Memproses pembayaran"
+                                                 {processing
+                                                     ? "Memproses pembayaran"
+                                                     : !submissionWindowOpen &&
+                                                         state.key === "payable"
+                                                       ? "Waktu pembayaran berakhir"
+                                                     : state.key === "payable" &&
+                                                         !customerDataComplete
+                                                      ? "Lengkapi data pemesan"
                                                     : state.action}
                                             </span>
                                             {processing ? (
@@ -1020,9 +1185,10 @@ export default function BookingCheckoutPage() {
                                     <p className="checkout-action__support">
                                         <ShieldCheck aria-hidden="true" />
                                         <span>
-                                            Harga dan ketersediaan diperiksa
-                                            kembali sebelum transaksi
-                                            dikonfirmasi.
+                                            {state.key === "payable" &&
+                                            !customerDataComplete
+                                                ? "Nama lengkap dan nomor WhatsApp aktif wajib diisi sebelum pembayaran."
+                                                : "Harga dan ketersediaan diperiksa kembali sebelum transaksi dikonfirmasi."}
                                         </span>
                                     </p>
 
@@ -1091,6 +1257,7 @@ function Field({
     label,
     hint,
     error,
+    required = false,
     full = false,
     children,
 }: {
@@ -1098,6 +1265,7 @@ function Field({
     label: string;
     hint?: string;
     error?: string;
+    required?: boolean;
     full?: boolean;
     children: ReactNode;
 }) {
@@ -1108,7 +1276,10 @@ function Field({
             }`}
             htmlFor={htmlFor}
         >
-            <span className="checkout-field__label">{label}</span>
+            <span className="checkout-field__label">
+                {label}
+                {required && <small>Wajib</small>}
+            </span>
             {children}
             {hint && !error && (
                 <span

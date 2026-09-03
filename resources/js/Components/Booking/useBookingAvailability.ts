@@ -22,6 +22,8 @@ export interface BookingUnitAvailability {
     facility_unit_id: number;
     status: BookingFacilityAvailabilityStatus;
     reason: string | null;
+    capacity: number;
+    shared_capacity: boolean;
     available_slot_count: number;
     total_slot_count: number;
     available_start_times: string[];
@@ -32,6 +34,8 @@ export interface BookingFacilityAvailability {
     facility_id: number;
     status: BookingFacilityAvailabilityStatus;
     reason: string | null;
+    capacity: number;
+    shared_capacity: boolean;
     available_slot_count: number;
     total_slot_count: number;
     available_start_times: string[];
@@ -138,6 +142,9 @@ function normalizeUnit(value: unknown): BookingUnitAvailability | null {
         !VALID_STATUSES.has(
             value.status as BookingFacilityAvailabilityStatus,
         ) ||
+        !isNonNegativeInteger(value.capacity) ||
+        value.capacity < 1 ||
+        typeof value.shared_capacity !== "boolean" ||
         !isNonNegativeInteger(value.available_slot_count) ||
         !isNonNegativeInteger(value.total_slot_count) ||
         startTimes === null ||
@@ -155,6 +162,8 @@ function normalizeUnit(value: unknown): BookingUnitAvailability | null {
         facility_unit_id: value.facility_unit_id,
         status: value.status as BookingFacilityAvailabilityStatus,
         reason: value.reason,
+        capacity: value.capacity,
+        shared_capacity: value.shared_capacity,
         available_slot_count: value.available_slot_count,
         total_slot_count: value.total_slot_count,
         available_start_times: startTimes,
@@ -180,6 +189,9 @@ function normalizeFacility(
         !VALID_STATUSES.has(
             value.status as BookingFacilityAvailabilityStatus,
         ) ||
+        !isNonNegativeInteger(value.capacity) ||
+        value.capacity < 1 ||
+        typeof value.shared_capacity !== "boolean" ||
         !isNonNegativeInteger(value.available_slot_count) ||
         !isNonNegativeInteger(value.total_slot_count) ||
         startTimes === null ||
@@ -199,6 +211,8 @@ function normalizeFacility(
         facility_id: value.facility_id,
         status: value.status as BookingFacilityAvailabilityStatus,
         reason: value.reason,
+        capacity: value.capacity,
+        shared_capacity: value.shared_capacity,
         available_slot_count: value.available_slot_count,
         total_slot_count: value.total_slot_count,
         available_start_times: startTimes,

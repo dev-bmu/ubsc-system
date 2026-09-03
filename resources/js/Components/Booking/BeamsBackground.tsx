@@ -11,6 +11,7 @@ import {
 
 interface BeamsBackgroundProps {
     beamColor?: string;
+    backgroundColor?: string;
     speed?: number;
     className?: string;
 }
@@ -290,6 +291,7 @@ const clamp = (value: number, min: number, max: number) =>
 
 export default function BeamsBackground({
     beamColor = "#15678D",
+    backgroundColor = "#010203",
     speed = 0.55,
     className = "",
 }: BeamsBackgroundProps) {
@@ -347,7 +349,8 @@ export default function BeamsBackground({
         }
 
         const gl: OGLRenderingContext = renderer.gl;
-        gl.clearColor(0.003, 0.008, 0.011, 1);
+        const background = hexToVec3(backgroundColor);
+        gl.clearColor(background[0], background[1], background[2], 1);
         container.appendChild(gl.canvas);
 
         const cameraTarget: [number, number, number] = [0, -0.18, -2.4];
@@ -721,7 +724,7 @@ export default function BeamsBackground({
 
             gl.getExtension("WEBGL_lose_context")?.loseContext();
         };
-    }, [beamColor, speed]);
+    }, [backgroundColor, beamColor, speed]);
 
     return (
         <div
