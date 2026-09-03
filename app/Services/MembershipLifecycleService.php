@@ -8,6 +8,7 @@ use App\Models\MembershipPlan;
 use App\Models\PaymentAttempt;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\DataGovernance\MembershipStatusTransitionPolicy;
 use App\Services\Payments\PaymentAttemptService;
 use App\Services\Payments\PaymentOperationalLogger;
 use DateTimeInterface;
@@ -20,6 +21,7 @@ class MembershipLifecycleService
     public function __construct(
         private readonly PaymentAttemptService $paymentAttempts,
         private readonly PaymentOperationalLogger $operationalLog,
+        private readonly MembershipStatusTransitionPolicy $statusTransitions,
     ) {}
 
     /**
@@ -412,22 +414,11 @@ class MembershipLifecycleService
                 ->lockForUpdate()
                 ->first();
 
-            if ($status === 'active' && $membership->status !== 'active') {
-                throw ValidationException::withMessages([
-                    'status' => 'Membership tidak dapat diaktifkan ulang secara langsung. Konfirmasikan pembayaran atau buat perpanjangan baru.',
-                ]);
-            }
-
-            if ($status === 'pending_payment'
-                && $membership->status !== 'pending_payment') {
-                throw ValidationException::withMessages([
-                    'status' => 'Membership yang sudah diproses tidak dapat dikembalikan ke status menunggu pembayaran.',
-                ]);
-            }
-
             if ($membership->status === $status) {
                 return $membership->setRelation('transaction', $transaction);
             }
+
+            $this->statusTransitions->assertAllowed($membership->status, $status);
 
             if ($transaction
                 && in_array($status, ['expired', 'cancelled'], true)) {
@@ -476,6 +467,11 @@ class MembershipLifecycleService
         string $actorType,
         DateTimeInterface $settledAt,
     ): Membership {
+        $this->statusTransitions->assertAllowed(
+            $membership->status,
+            'active',
+            allowPaymentActivation: true,
+        );
         $snapshot = is_array($transaction->service_snapshot)
             ? $transaction->service_snapshot
             : [];

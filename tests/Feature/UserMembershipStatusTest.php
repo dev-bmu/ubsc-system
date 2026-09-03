@@ -145,7 +145,11 @@ class UserMembershipStatusTest extends TestCase
             'payment_status' => 'PAID',
             'paid_at' => now(),
         ]);
-        $membership->update(['status' => 'pending_payment']);
+        // Deliberately simulate a legacy/corrupt split state. Production
+        // writers correctly reject active -> pending_payment, so this fixture
+        // must bypass model events to verify that the public lifecycle still
+        // fails closed when such historical data is encountered.
+        $membership->forceFill(['status' => 'pending_payment'])->saveQuietly();
 
         $this->assertSame(
             'awaiting_payment',
