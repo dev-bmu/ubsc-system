@@ -1,20 +1,3 @@
-## UBSC production operations
-
-Operator yang akan memasang atau memelihara UBSC pada VPS harus mulai dari
-[`docs/operations/00-START-HERE.md`](docs/operations/00-START-HERE.md).
-Petunjuk tersebut berlaku untuk manusia maupun automation assistant dan wajib
-dibaca sebelum menjalankan perintah apa pun pada server produksi.
-
-Jangan menggunakan `composer setup` untuk produksi, jangan menyalin
-`.env.example` secara mentah, dan jangan mengakali pemeriksaan high availability
-ketika infrastruktur yang tersedia hanya satu VPS.
-
-Production mendukung dua profil eksplisit: gunakan
-[`deploy/single-node.env.example`](deploy/single-node.env.example) untuk satu
-VPS atau [`deploy/production.env.example`](deploy/production.env.example) untuk
-multi-node HA. Entry point deployment keduanya adalah
-`deploy/scripts/activate-production-topology.sh`.
-
 <p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
 
 <p align="center">
@@ -37,6 +20,27 @@ Laravel is a web application framework with expressive, elegant syntax. We belie
 - [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
 
 Laravel is accessible, powerful, and provides tools required for large, robust applications.
+
+## Sport Center Production Operations
+
+> [!IMPORTANT]
+> Before installing, maintaining, or automating UBSC on a production VPS, begin with the [Operations Start Here guide](docs/operations/00-START-HERE.md). It is the required starting point for both human operators and automation assistants.
+
+### Choose the deployment profile
+
+| Environment | Configuration template | Use when |
+| --- | --- | --- |
+| **Single node** | [`deploy/single-node.env.example`](deploy/single-node.env.example) | Operating UBSC on one VPS. |
+| **High availability** | [`deploy/production.env.example`](deploy/production.env.example) | Operating UBSC across multiple application nodes. |
+
+Both profiles use the same deployment entry point:
+[`deploy/scripts/activate-production-topology.sh`](deploy/scripts/activate-production-topology.sh).
+
+### Production guardrails
+
+- Do not run `composer setup` on a production server.
+- Do not copy `.env.example` directly; create a protected environment file with production values.
+- Do not bypass high-availability checks when only one VPS is available; use the single-node profile instead.
 
 ## Learning Laravel
 
