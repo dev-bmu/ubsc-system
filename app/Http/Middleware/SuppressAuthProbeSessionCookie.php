@@ -24,6 +24,18 @@ class SuppressAuthProbeSessionCookie
 
         $response = $next($request);
 
+        // A request that arrived with an already-retired ID is not a delayed
+        // old-tab response. StartSession has replaced it before CSRF checks,
+        // so the new session and XSRF cookies must reach the browser. This
+        // also lets the normally cookie-silent auth probe heal a stale tab.
+        if ($request->attributes->get(
+            AuthSessionCoordinator::RECOVERED_RETIRED_SESSION_ATTRIBUTE,
+        ) === true) {
+            $this->mergeVaryHeaders($response);
+
+            return $response;
+        }
+
         if ($request->routeIs('auth.session-state')) {
             $this->removeStateCookies($response);
             $this->mergeVaryHeaders($response);
@@ -89,5 +101,4 @@ class SuppressAuthProbeSessionCookie
             ])),
         );
     }
-
 }

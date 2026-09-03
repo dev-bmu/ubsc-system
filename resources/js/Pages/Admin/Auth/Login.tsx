@@ -60,13 +60,12 @@ export default function Login({ status }: LoginProps) {
     const { data, setData, post, processing, errors, reset } = useForm({
         email:    '',
         password: '',
-        remember: false as boolean,
     });
     const [showPassword, setShowPassword] = useState(false);
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
-        post(route('ubsc-staff.login'), { onFinish: () => reset('password') });
+        post(route('ubsc-staff.login.store'), { onFinish: () => reset('password') });
     };
 
     return (
@@ -610,22 +609,6 @@ export default function Login({ status }: LoginProps) {
                                             >
                                                 {showPassword ? <EyeClosed /> : <EyeOpen />}
                                             </button>
-                                        </div>
-                                    </div>
-
-                                    {/* Remember me */}
-                                    <div className="u-field">
-                                        <div className="u-check-row">
-                                            <input
-                                                id="remember"
-                                                type="checkbox"
-                                                checked={data.remember}
-                                                onChange={(e) => setData('remember', e.target.checked)}
-                                                className="u-checkbox"
-                                            />
-                                            <label htmlFor="remember" className="u-check-label">
-                                                Keep me signed in
-                                            </label>
                                         </div>
                                     </div>
 
