@@ -10,36 +10,42 @@ class AdminUserSeeder extends Seeder
 {
     public function run(): void
     {
+        if (! app()->environment(['local', 'testing'])) {
+            throw new \LogicException(
+                'Demo staff accounts are allowed only in local/testing environments. Provision real staff securely.',
+            );
+        }
+
         $users = [
             [
-                'name'     => 'Admin UBSC',
-                'email'    => 'admin@ubsc.id',
+                'name' => 'Admin UBSC',
+                'email' => 'admin@ubsc.id',
                 'password' => Hash::make('password'),
-                'role'     => 'Administrator',
+                'role' => 'Administrator',
             ],
             [
-                'name'     => 'Manager UBSC',
-                'email'    => 'manager@ubsc.id',
+                'name' => 'Manager UBSC',
+                'email' => 'manager@ubsc.id',
                 'password' => Hash::make('password'),
-                'role'     => 'Manager',
+                'role' => 'Manager',
             ],
             [
-                'name'     => 'Finance UBSC',
-                'email'    => 'finance@ubsc.id',
+                'name' => 'Finance UBSC',
+                'email' => 'finance@ubsc.id',
                 'password' => Hash::make('password'),
-                'role'     => 'Finance',
+                'role' => 'Finance',
             ],
             [
-                'name'     => 'Staff Front Office',
-                'email'    => 'stafffo@ubsc.id',
+                'name' => 'Staff Front Office',
+                'email' => 'stafffo@ubsc.id',
                 'password' => Hash::make('password'),
-                'role'     => 'Staff Front Office',
+                'role' => 'Staff Front Office',
             ],
             [
-                'name'     => 'Staff Central',
-                'email'    => 'staffcentral@ubsc.id',
+                'name' => 'Staff Central',
+                'email' => 'staffcentral@ubsc.id',
                 'password' => Hash::make('password'),
-                'role'     => 'Staff Central',
+                'role' => 'Staff Central',
             ],
         ];
 
@@ -47,8 +53,8 @@ class AdminUserSeeder extends Seeder
             $user = User::firstOrCreate(
                 ['email' => $data['email']],
                 [
-                    'name'              => $data['name'],
-                    'password'          => $data['password'],
+                    'name' => $data['name'],
+                    'password' => $data['password'],
                     'email_verified_at' => now(),
                 ],
             );

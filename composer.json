@@ -6,20 +6,23 @@
     "keywords": ["laravel", "framework"],
     "license": "MIT",
     "require": {
-        "ext-gd": "*",
         "php": "^8.2",
+        "ext-gd": "*",
         "bacon/bacon-qr-code": "^3.0",
         "barryvdh/laravel-dompdf": "^3.1",
         "http-interop/http-factory-guzzle": "^1.2",
         "inertiajs/inertia-laravel": "^2.0",
         "laravel/framework": "^12.61.1",
+        "laravel/passkeys": "0.2.1",
         "laravel/sanctum": "^4.0",
         "laravel/scout": "^11.3",
         "laravel/socialite": "^5.26",
         "laravel/tinker": "^2.10.1",
+        "league/flysystem-aws-s3-v3": "^3.25.1",
         "meilisearch/meilisearch-php": "^1.16",
         "spatie/laravel-medialibrary": "^11.23",
         "spatie/laravel-permission": "^7.3",
+        "spomky-labs/otphp": "^11.5",
         "tightenco/ziggy": "^2.0"
     },
     "require-dev": {
@@ -55,7 +58,7 @@
         ],
         "dev": [
             "Composer\\Config::disableProcessTimeout",
-            "npx concurrently -c \"#93c5fd,#c4b5fd,#67e8f9,#fb7185,#fdba74\" \"php artisan serve\" \"php artisan queue:listen --tries=1 --timeout=0\" \"php artisan schedule:work\" \"php artisan pail --timeout=0\" \"npm run dev\" --names=server,queue,scheduler,logs,vite --kill-others"
+            "npx concurrently -c \"#93c5fd,#c4b5fd,#67e8f9,#22d3ee,#fb7185,#fdba74\" \"php artisan serve\" \"php artisan queue:listen --queue=critical,notifications,documents,maintenance,media-maintenance,default --sleep=1 --tries=3 --timeout=80\" \"php artisan queue:listen database-long --queue=media-video,media-image --sleep=1 --tries=3 --timeout=1000\" \"php artisan schedule:work\" \"php artisan pail --timeout=0\" \"npm run dev\" --names=server,queue,media,scheduler,logs,vite --kill-others"
         ],
         "test": [
             "@php artisan config:clear --ansi",
