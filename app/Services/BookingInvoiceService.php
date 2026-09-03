@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\InvoicePdfGenerationException;
 use App\Models\Booking;
 use App\Models\BookingOrder;
 use BaconQrCode\Renderer\GDLibRenderer;
@@ -16,8 +17,11 @@ class BookingInvoiceService
     /**
      * @return array<string, mixed>
      */
-    public function document(BookingOrder $order): array
-    {
+    public function document(
+        BookingOrder $order,
+        bool $includeRenderAssets = true,
+    ): array {
+        $this->loadBoundedSource($order);
         $transaction = $order->transaction;
         $receipt = $transaction?->receipt_number
             ?? 'DRAFT-'.str_pad((string) $order->id, 6, '0', STR_PAD_LEFT);
@@ -94,25 +98,50 @@ class BookingInvoiceService
             ],
             'document_code' => $documentCode,
             'verification_url' => $verificationUrl,
-            'qr_data_uri' => $this->qrDataUri($verificationUrl),
-            'logo_data_uri' => $this->embeddedImageDataUri(
-                public_path('ubsc-blue.svg'),
-            ),
+            'qr_data_uri' => $includeRenderAssets
+                ? $this->qrDataUri($verificationUrl)
+                : null,
+            'logo_data_uri' => $includeRenderAssets
+                ? $this->localFileUri(public_path('assets/brand/ubsc-logo-optimized.webp'))
+                : null,
             'fonts' => [
-                'regular' => $this->dataUri(
+                'regular' => $includeRenderAssets ? $this->localFileUri(
                     public_path('fonts/BDOGrotesk-Regular.ttf'),
-                ),
-                'medium' => $this->dataUri(
+                ) : null,
+                'medium' => $includeRenderAssets ? $this->localFileUri(
                     public_path('fonts/BDOGrotesk-Medium.ttf'),
-                ),
-                'semibold' => $this->dataUri(
+                ) : null,
+                'semibold' => $includeRenderAssets ? $this->localFileUri(
                     public_path('fonts/BDOGrotesk-SemiBold.ttf'),
-                ),
-                'bold' => $this->dataUri(
+                ) : null,
+                'bold' => $includeRenderAssets ? $this->localFileUri(
                     public_path('fonts/BDOGrotesk-Bold.ttf'),
-                ),
+                ) : null,
             ],
         ];
+    }
+
+    private function loadBoundedSource(BookingOrder $order): void
+    {
+        $maximum = max(8, (int) config('invoice_pdf.bounds.max_document_items', 32));
+
+        $order->loadMissing([
+            'bookings' => static fn ($query) => $query
+                ->orderBy('id')
+                ->limit($maximum + 1),
+            'bookings.facility.category',
+            'bookings.facilityUnit',
+            'transaction',
+        ]);
+        $snapshotItems = data_get($order->transaction?->service_snapshot, 'items', []);
+        $snapshotCount = is_array($snapshotItems) ? count($snapshotItems) : 0;
+
+        if ($order->bookings->count() > $maximum || $snapshotCount > $maximum) {
+            throw new InvoicePdfGenerationException(
+                'Invoice item count exceeds the renderer safety bound.',
+                'item_bound_exceeded',
+            );
+        }
     }
 
     /**
@@ -339,50 +368,17 @@ class BookingInvoiceService
         );
     }
 
-    private function dataUri(string $path): ?string
+    private function localFileUri(string $path): ?string
     {
-        if (! is_file($path) || ! is_readable($path)) {
+        $realPath = realpath($path);
+
+        if ($realPath === false || ! is_file($realPath) || ! is_readable($realPath)) {
             return null;
         }
 
-        $mime = match (strtolower(pathinfo($path, PATHINFO_EXTENSION))) {
-            'svg' => 'image/svg+xml',
-            'png' => 'image/png',
-            'jpg', 'jpeg' => 'image/jpeg',
-            'otf' => 'font/otf',
-            'ttf' => 'font/ttf',
-            default => null,
-        };
+        $normalized = str_replace('\\', '/', $realPath);
 
-        if ($mime === null) {
-            return null;
-        }
-
-        $contents = file_get_contents($path);
-
-        return $contents === false
-            ? null
-            : "data:{$mime};base64,".base64_encode($contents);
-    }
-
-    private function embeddedImageDataUri(string $svgPath): ?string
-    {
-        if (! is_file($svgPath) || ! is_readable($svgPath)) {
-            return null;
-        }
-
-        $contents = file_get_contents($svgPath);
-
-        if ($contents === false
-            || preg_match(
-                '/xlink:href="(data:image\/png;base64,[^"]+)"/',
-                $contents,
-                $match,
-            ) !== 1) {
-            return $this->dataUri($svgPath);
-        }
-
-        return $match[1];
+        return 'file://'.$normalized;
     }
 
     private function qrDataUri(string $payload): ?string

@@ -83,10 +83,6 @@
             }
         @endif
 
-        * {
-            box-sizing: border-box;
-        }
-
         html,
         body {
             width: 210mm;
@@ -215,12 +211,6 @@
             font-size: 8.2pt;
             font-weight: 600;
             line-height: 1.13;
-        }
-
-        .items td:not(:first-child) {
-            padding-top: .2mm;
-            text-align: right;
-            white-space: nowrap;
         }
 
         .item__name,

@@ -2,17 +2,31 @@
 
 namespace Tests\Feature;
 
+use App\Exceptions\InvoicePdfGenerationException;
+use App\Jobs\GenerateInvoicePdf;
 use App\Models\BookingOrder;
 use App\Models\Facility;
 use App\Models\FacilityCategory;
+use App\Models\InvoicePdfArtifact;
 use App\Models\User;
 use App\Services\BookingInvoiceService;
+use App\Services\Invoices\InvoicePdfArtifactService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class BookingInvoiceTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Storage::fake('invoice-pdf');
+    }
 
     public function test_paid_owner_receives_a_real_private_pdf(): void
     {
@@ -34,7 +48,11 @@ class BookingInvoiceTest extends TestCase
             'no-store',
             (string) $response->headers->get('Cache-Control'),
         );
-        $this->assertStringStartsWith('%PDF-', $response->getContent());
+        $inlinePdf = $response->streamedContent();
+        $this->assertStringStartsWith('%PDF-', $inlinePdf);
+        $this->assertStringContainsString('BDOGrotesk', $inlinePdf);
+        $this->assertGreaterThanOrEqual(4, substr_count($inlinePdf, '/FontFile2'));
+        $this->assertGreaterThanOrEqual(4, substr_count($inlinePdf, '/Subtype /Image'));
 
         $download = $this->actingAs($user)
             ->get(route('checkout.booking.invoice', [
@@ -47,6 +65,8 @@ class BookingInvoiceTest extends TestCase
             'attachment',
             (string) $download->headers->get('Content-Disposition'),
         );
+        $this->assertSame($inlinePdf, $download->streamedContent());
+        $this->assertDatabaseCount('invoice_pdf_artifacts', 1);
     }
 
     public function test_invoice_rejects_non_owner_and_unpaid_orders(): void
@@ -56,7 +76,7 @@ class BookingInvoiceTest extends TestCase
 
         $this->actingAs($otherUser)
             ->get(route('checkout.booking.invoice', $paidOrder))
-            ->assertForbidden();
+            ->assertNotFound();
 
         [$unpaidOwner, $unpaidOrder] = $this->paidOrder(false);
 
@@ -151,6 +171,194 @@ class BookingInvoiceTest extends TestCase
         );
 
         $this->get($tamperedUrl)->assertForbidden();
+    }
+
+    public function test_private_artifact_is_content_addressed_verified_and_rendered_only_once(): void
+    {
+        [, $order] = $this->paidOrder();
+        $service = app(InvoicePdfArtifactService::class);
+        $first = $service->generateForBooking($order);
+        $binary = Storage::disk('invoice-pdf')->get($first->path);
+
+        $this->assertMatchesRegularExpression('/^[a-f0-9]{64}$/', $first->cache_key);
+        $this->assertMatchesRegularExpression('/^[a-f0-9]{64}$/', $first->content_sha256);
+        $this->assertSame($first->cache_key.'.pdf', basename($first->path));
+        $this->assertStringNotContainsString($order->customer_name, $first->path);
+        $this->assertStringStartsWith('%PDF-', $binary);
+        $this->assertStringContainsString('%%EOF', substr($binary, -1_024));
+        $this->assertSame(strlen($binary), $first->size_bytes);
+        $this->assertSame(hash('sha256', $binary), $first->content_sha256);
+
+        $second = $service->generateForBooking($order);
+
+        $this->assertSame($first->id, $second->id);
+        $this->assertDatabaseCount('invoice_pdf_artifacts', 1);
+    }
+
+    public function test_corrupt_artifact_is_rejected_and_regenerated_under_the_lock(): void
+    {
+        [, $order] = $this->paidOrder();
+        $service = app(InvoicePdfArtifactService::class);
+        $first = $service->generateForBooking($order);
+        Storage::disk('invoice-pdf')->put($first->path, '%PDF-corrupt');
+
+        $recovered = $service->generateForBooking($order);
+        $binary = Storage::disk('invoice-pdf')->get($recovered->path);
+
+        $this->assertSame($first->cache_key, $recovered->cache_key);
+        $this->assertNotSame($first->id, $recovered->id);
+        $this->assertStringStartsWith('%PDF-', $binary);
+        $this->assertStringContainsString('%%EOF', substr($binary, -1_024));
+        $this->assertSame(hash('sha256', $binary), $recovered->content_sha256);
+        $this->assertDatabaseCount('invoice_pdf_artifacts', 1);
+    }
+
+    public function test_source_change_creates_a_new_immutable_artifact_version(): void
+    {
+        [, $order] = $this->paidOrder();
+        $service = app(InvoicePdfArtifactService::class);
+        $first = $service->generateForBooking($order);
+        $order->update(['notes' => 'Catatan transaksi yang diperbarui.']);
+        $second = $service->generateForBooking($order->fresh());
+
+        $this->assertNotSame($first->cache_key, $second->cache_key);
+        $this->assertNotSame($first->path, $second->path);
+        Storage::disk('invoice-pdf')->assertExists($first->path);
+        Storage::disk('invoice-pdf')->assertExists($second->path);
+        $this->assertDatabaseCount('invoice_pdf_artifacts', 2);
+    }
+
+    public function test_production_style_cache_miss_returns_bounded_pending_response(): void
+    {
+        [$user, $order] = $this->paidOrder();
+        config()->set('invoice_pdf.allow_synchronous_fallback', false);
+        Queue::fake();
+
+        $response = $this->actingAs($user)
+            ->getJson(route('checkout.booking.invoice', $order));
+
+        $response
+            ->assertStatus(202)
+            ->assertHeader('Retry-After')
+            ->assertJsonPath('status', 'preparing');
+        Queue::assertPushed(
+            GenerateInvoicePdf::class,
+            fn (GenerateInvoicePdf $job): bool => $job->kind === InvoicePdfArtifactService::KIND_BOOKING
+                && $job->subjectId === $order->id,
+        );
+        $this->assertDatabaseCount('invoice_pdf_artifacts', 0);
+    }
+
+    public function test_successful_synchronous_fallback_does_not_enqueue_duplicate_work(): void
+    {
+        [$user, $order] = $this->paidOrder();
+        config()->set('invoice_pdf.allow_synchronous_fallback', true);
+        Queue::fake();
+
+        $this->actingAs($user)
+            ->get(route('checkout.booking.invoice', $order))
+            ->assertOk();
+
+        Queue::assertNothingPushed();
+        $this->assertDatabaseCount('invoice_pdf_artifacts', 1);
+    }
+
+    public function test_deployment_doctor_accepts_the_safe_default_queue_timing(): void
+    {
+        $this->app->detectEnvironment(static fn (): string => 'production');
+        config()->set('invoice_pdf.prewarm.connection', 'database');
+        config()->set('invoice_pdf.prewarm.enabled', true);
+        config()->set('invoice_pdf.allow_synchronous_fallback', false);
+        config()->set('invoice_pdf.lock.store', 'database');
+        config()->set('queue.connections.database.retry_after', 90);
+        config()->set('invoice_pdf.prewarm.timeout_seconds', 60);
+        config()->set('invoice_pdf.prewarm.visibility_timeout_seconds', 90);
+        config()->set('invoice_pdf.lock.seconds', 75);
+
+        $status = Artisan::call('invoices:pdf:doctor', ['--probe-storage' => true]);
+
+        $this->assertSame(0, $status, Artisan::output());
+    }
+
+    public function test_deployment_doctor_rejects_a_queue_lease_shorter_than_the_lock(): void
+    {
+        config()->set('invoice_pdf.prewarm.connection', 'database');
+        config()->set('queue.connections.database.retry_after', 70);
+        config()->set('invoice_pdf.prewarm.timeout_seconds', 60);
+        config()->set('invoice_pdf.prewarm.visibility_timeout_seconds', 70);
+        config()->set('invoice_pdf.lock.seconds', 75);
+
+        $this->artisan('invoices:pdf:doctor')
+            ->assertFailed();
+    }
+
+    public function test_lifecycle_prunes_only_regenerable_artifact_and_preserves_source_data(): void
+    {
+        [, $order] = $this->paidOrder();
+        $artifact = app(InvoicePdfArtifactService::class)->generateForBooking($order);
+        $artifact->forceFill(['expires_at' => now()->subSecond()])->save();
+
+        $this->assertSame(0, Artisan::call('invoices:pdf:lifecycle', ['--quiet' => true]));
+
+        Storage::disk('invoice-pdf')->assertMissing($artifact->path);
+        $this->assertDatabaseMissing('invoice_pdf_artifacts', ['id' => $artifact->id]);
+        $this->assertDatabaseHas('booking_orders', ['id' => $order->id, 'status' => 'paid']);
+        $this->assertDatabaseHas('transactions', [
+            'transactionable_id' => $order->id,
+            'payment_status' => 'PAID',
+        ]);
+    }
+
+    public function test_lifecycle_archives_with_size_and_checksum_verification(): void
+    {
+        Storage::fake('invoice-pdf-archive');
+        config()->set('invoice_pdf.archive_disk', 'invoice-pdf-archive');
+        [, $order] = $this->paidOrder();
+        $artifact = app(InvoicePdfArtifactService::class)->generateForBooking($order);
+        $artifact->forceFill(['expires_at' => now()->subSecond()])->save();
+
+        $this->assertSame(0, Artisan::call('invoices:pdf:lifecycle', ['--quiet' => true]));
+
+        $artifact->refresh();
+        $binary = Storage::disk('invoice-pdf-archive')->get($artifact->path);
+        $this->assertSame(InvoicePdfArtifact::TIER_ARCHIVE, $artifact->storage_tier);
+        $this->assertSame('invoice-pdf-archive', $artifact->disk);
+        $this->assertNull($artifact->expires_at);
+        $this->assertSame($artifact->size_bytes, strlen($binary));
+        $this->assertSame($artifact->content_sha256, hash('sha256', $binary));
+        Storage::disk('invoice-pdf')->assertMissing(str_replace('archive/', '', $artifact->path));
+    }
+
+    public function test_renderer_fails_closed_when_corrupt_source_exceeds_the_item_bound(): void
+    {
+        [, $order] = $this->paidOrder();
+        $snapshot = $order->transaction->service_snapshot;
+        $snapshot['items'] = array_fill(0, 33, ['facility_name' => 'bounded']);
+        $order->transaction->update(['service_snapshot' => $snapshot]);
+        $order->refresh()->load('transaction');
+
+        try {
+            app(InvoicePdfArtifactService::class)->generateForBooking($order);
+            $this->fail('The renderer accepted an unbounded source payload.');
+        } catch (InvoicePdfGenerationException $exception) {
+            $this->assertSame('item_bound_exceeded', $exception->failureCode);
+        }
+
+        $this->assertDatabaseCount('invoice_pdf_artifacts', 0);
+    }
+
+    public function test_lifecycle_removes_only_stale_temporary_partitions(): void
+    {
+        config()->set('invoice_pdf.lifecycle.partial_retention_days', 2);
+        $old = 'invoice-pdf/_tmp/'.now('UTC')->subDays(3)->format('Y-m-d').'/booking/old.part';
+        $current = 'invoice-pdf/_tmp/'.now('UTC')->format('Y-m-d').'/booking/current.part';
+        Storage::disk('invoice-pdf')->put($old, 'partial');
+        Storage::disk('invoice-pdf')->put($current, 'active');
+
+        $this->assertSame(0, Artisan::call('invoices:pdf:lifecycle', ['--quiet' => true]));
+
+        Storage::disk('invoice-pdf')->assertMissing($old);
+        Storage::disk('invoice-pdf')->assertExists($current);
     }
 
     /**

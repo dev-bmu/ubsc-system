@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex,nofollow,noarchive">
-    <title>Verifikasi {{ $invoice['receipt'] }} · UB Sport Center</title>
+    <title>Verifikasi {{ $invoice['receipt'] }} &middot; UB Sport Center</title>
     <style>
         @font-face {
             font-family: "BDO Grotesk";

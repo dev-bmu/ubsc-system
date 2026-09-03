@@ -15,8 +15,10 @@ class MembershipInvoiceService
     /**
      * @return array<string, mixed>
      */
-    public function document(Membership $membership): array
-    {
+    public function document(
+        Membership $membership,
+        bool $includeRenderAssets = true,
+    ): array {
         $membership->loadMissing(['plan', 'transaction', 'user']);
         $transaction = $membership->transaction;
         $snapshot = is_array($transaction?->service_snapshot)
@@ -159,23 +161,25 @@ class MembershipInvoiceService
             ],
             'document_code' => $documentCode,
             'verification_url' => $verificationUrl,
-            'qr_data_uri' => $this->qrDataUri($verificationUrl),
-            'logo_data_uri' => $this->embeddedImageDataUri(
-                public_path('ubsc-blue.svg'),
-            ),
+            'qr_data_uri' => $includeRenderAssets
+                ? $this->qrDataUri($verificationUrl)
+                : null,
+            'logo_data_uri' => $includeRenderAssets
+                ? $this->localFileUri(public_path('assets/brand/ubsc-logo-optimized.webp'))
+                : null,
             'fonts' => [
-                'regular' => $this->dataUri(
+                'regular' => $includeRenderAssets ? $this->localFileUri(
                     public_path('fonts/BDOGrotesk-Regular.ttf'),
-                ),
-                'medium' => $this->dataUri(
+                ) : null,
+                'medium' => $includeRenderAssets ? $this->localFileUri(
                     public_path('fonts/BDOGrotesk-Medium.ttf'),
-                ),
-                'semibold' => $this->dataUri(
+                ) : null,
+                'semibold' => $includeRenderAssets ? $this->localFileUri(
                     public_path('fonts/BDOGrotesk-SemiBold.ttf'),
-                ),
-                'bold' => $this->dataUri(
+                ) : null,
+                'bold' => $includeRenderAssets ? $this->localFileUri(
                     public_path('fonts/BDOGrotesk-Bold.ttf'),
-                ),
+                ) : null,
             ],
         ];
     }
@@ -214,50 +218,17 @@ class MembershipInvoiceService
             ->translatedFormat('d F Y, H:i').' WIB';
     }
 
-    private function dataUri(string $path): ?string
+    private function localFileUri(string $path): ?string
     {
-        if (! is_file($path) || ! is_readable($path)) {
+        $realPath = realpath($path);
+
+        if ($realPath === false || ! is_file($realPath) || ! is_readable($realPath)) {
             return null;
         }
 
-        $mime = match (strtolower(pathinfo($path, PATHINFO_EXTENSION))) {
-            'svg' => 'image/svg+xml',
-            'png' => 'image/png',
-            'jpg', 'jpeg' => 'image/jpeg',
-            'otf' => 'font/otf',
-            'ttf' => 'font/ttf',
-            default => null,
-        };
+        $normalized = str_replace('\\', '/', $realPath);
 
-        if ($mime === null) {
-            return null;
-        }
-
-        $contents = file_get_contents($path);
-
-        return $contents === false
-            ? null
-            : "data:{$mime};base64,".base64_encode($contents);
-    }
-
-    private function embeddedImageDataUri(string $svgPath): ?string
-    {
-        if (! is_file($svgPath) || ! is_readable($svgPath)) {
-            return null;
-        }
-
-        $contents = file_get_contents($svgPath);
-
-        if ($contents === false
-            || preg_match(
-                '/xlink:href="(data:image\/png;base64,[^"]+)"/',
-                $contents,
-                $match,
-            ) !== 1) {
-            return $this->dataUri($svgPath);
-        }
-
-        return $match[1];
+        return 'file://'.$normalized;
     }
 
     private function qrDataUri(string $payload): ?string

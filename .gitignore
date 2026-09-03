@@ -27,9 +27,25 @@ Thumbs.db
 *.md
 !docs/PRD_FACILITY_GALLERY.md
 !docs/PAYMENT_RECOVERY_OPERATIONS.md
+!docs/INVOICE_PDF_OPERATIONS.md
+!docs/PERFORMANCE_AND_BACKGROUND_JOBS.md
+!docs/PRODUCTION_RUNTIME_OPERATIONS.md
+!docs/PRODUCTION_DEPLOYMENT_AND_EDGE.md
+!docs/RESILIENCE_ENGINEERING.md
+!docs/DATABASE_REPLICATION_OPERATIONS.md
+!docs/DISASTER_RECOVERY_AND_OBSERVABILITY.md
+!docs/DDOS_RESPONSE_OPERATIONS.md
+!docs/operations/
+!docs/operations/*.md
+!deploy/resilience/README.md
+!deploy/replication/README.md
+!deploy/recovery/README.md
 !.github/CONCURRENCY_CI.md
 *.html
 *.json
+!deploy/resilience/evidence.example.json
+!deploy/replication/*.payload.example.json
+!deploy/recovery/*.payload.example.json
 *.ffpreset
 *.exe
 
