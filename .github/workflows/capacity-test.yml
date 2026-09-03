@@ -1,0 +1,114 @@
+name: Authorized capacity test
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Authorized staging or production HTTPS origin"
+        required: true
+        type: string
+      profile:
+        description: "Test profile"
+        required: true
+        default: smoke
+        type: choice
+        options:
+          - smoke
+          - baseline
+          - capacity
+      start_rps:
+        description: "Starting requests per second"
+        required: true
+        default: "2"
+        type: string
+      target_rps:
+        description: "Target requests per second"
+        required: true
+        default: "20"
+        type: string
+      release:
+        description: "Immutable application release identifier"
+        required: true
+        type: string
+      acknowledgement:
+        description: "Type I_HAVE_AUTHORIZATION"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ubsc-authorized-capacity-test
+  cancel-in-progress: false
+
+jobs:
+  capacity:
+    name: Read-only production-like capacity evidence
+    runs-on: ubuntu-latest
+    environment: capacity-testing
+    timeout-minutes: 20
+    env:
+      LOAD_TEST_BASE_URL: ${{ inputs.base_url }}
+      LOAD_TEST_PROFILE: ${{ inputs.profile }}
+      LOAD_TEST_START_RPS: ${{ inputs.start_rps }}
+      LOAD_TEST_TARGET_RPS: ${{ inputs.target_rps }}
+      LOAD_TEST_ACKNOWLEDGEMENT: ${{ inputs.acknowledgement }}
+      LOAD_TEST_ID: github-${{ github.run_id }}-${{ github.run_attempt }}
+      LOAD_TEST_ENVIRONMENT: ${{ vars.CAPACITY_TARGET_ENVIRONMENT }}
+      LOAD_TEST_RELEASE: ${{ inputs.release }}
+      LOAD_TEST_INFRASTRUCTURE_PROFILE: ${{ vars.CAPACITY_INFRASTRUCTURE_PROFILE }}
+      LOAD_TEST_SOURCE_PROVIDER: github-actions
+      LOAD_TEST_APP_INSTANCES: ${{ vars.CAPACITY_EVIDENCE_EXPECTED_INSTANCES }}
+      LOAD_TEST_HEADROOM_PERCENT: "25"
+      LOAD_TEST_ALLOWED_ORIGINS: ${{ vars.LOAD_TEST_ALLOWED_ORIGINS }}
+      CAPACITY_EVIDENCE_EXPECTED_SCOPE: public_read
+      CAPACITY_EVIDENCE_EXPECTED_INSTANCES: ${{ vars.CAPACITY_EVIDENCE_EXPECTED_INSTANCES }}
+      CAPACITY_EVIDENCE_P95_LIMIT_MS: "300"
+      CAPACITY_EVIDENCE_P99_LIMIT_MS: "800"
+      CAPACITY_EVIDENCE_MAX_ERROR_PERCENT: "1"
+      CAPACITY_EVIDENCE_MIN_HOLD_SECONDS: "300"
+      CAPACITY_OPERATIONAL_HEADROOM_PERCENT: "25"
+
+    steps:
+      - name: Check out the test contract
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Use the supported Node runtime
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+
+      - name: Verify the capacity evidence contract
+        run: node --test tests/Load/capacity-file.test.mjs tests/Load/validate-capacity-evidence.test.mjs tests/Load/sign-capacity-evidence.test.mjs tests/Load/capacity-control-crypto.test.mjs
+
+      - name: Install k6
+        uses: grafana/setup-k6-action@c00053c996b4061198c9c24a00474b748abdf8b7 # v1
+
+      - name: Execute the authorized read-only profile
+        run: |
+          mkdir -p artifacts
+          k6 run tests/Load/ubsc-capacity.js
+
+      - name: Validate capacity evidence
+        id: capacity
+        if: inputs.profile == 'capacity'
+        run: node scripts/validate-capacity-evidence.mjs artifacts/capacity-evidence.json
+
+      - name: Sign capacity evidence for controlled ingestion
+        if: inputs.profile == 'capacity'
+        env:
+          CAPACITY_EVIDENCE_KEY_ID: ${{ vars.CAPACITY_EVIDENCE_KEY_ID }}
+          CAPACITY_EVIDENCE_SIGNING_KEY: ${{ secrets.CAPACITY_EVIDENCE_SIGNING_KEY }}
+        run: node scripts/sign-capacity-evidence.mjs artifacts/capacity-evidence.json artifacts/capacity-evidence.signed.json
+
+      - name: Retain bounded evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ubsc-capacity-evidence-${{ github.run_id }}
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 30
