@@ -10,11 +10,16 @@ use App\Models\BookingSchedule;
 use App\Models\Facility;
 use App\Models\FacilityCategory;
 use App\Models\User;
+use App\Services\AdminBookingReadModel;
+use App\Services\BookingInventoryService;
 use App\Services\BookingOrderExpiryService;
 use App\Services\Payments\PaymentAttemptService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
@@ -162,6 +167,62 @@ class BookingIntegrityTest extends TestCase
             ]);
 
         $this->assertDatabaseCount('booking_orders', 0);
+    }
+
+    public function test_checkout_hold_uses_the_authenticated_profile_and_requires_contact_at_payment(): void
+    {
+        Carbon::setTestNow('2026-07-20 05:00:00');
+        config(['services.payment.mock' => true]);
+
+        $date = Carbon::parse('2026-07-21');
+        $facility = $this->facility($date, ['08:00']);
+        $user = User::factory()->create([
+            'name' => 'Pemilik Akun',
+            'phone_number' => '+62 812-3456-7890',
+        ]);
+        $payload = $this->checkoutPayload(
+            $facility,
+            $date,
+            '08:00',
+            '09:00',
+        );
+        $payload['customer_name'] = 'Nama yang tidak boleh dipercaya';
+        $payload['whatsapp_number'] = '628999999999';
+        $payload['notes'] = 'Catatan yang belum dikonfirmasi di checkout.';
+
+        $this->actingAs($user)
+            ->post(route('checkout.booking.store'), $payload)
+            ->assertRedirect();
+
+        $order = BookingOrder::query()->sole();
+        $this->assertDatabaseHas('booking_orders', [
+            'id' => $order->id,
+            'user_id' => $user->id,
+            'customer_name' => 'Pemilik Akun',
+            'whatsapp_number' => '6281234567890',
+            'notes' => null,
+            'status' => 'pending_payment',
+        ]);
+        $this->assertDatabaseHas('bookings', [
+            'booking_order_id' => $order->id,
+            'user_id' => $user->id,
+            'customer_name' => 'Pemilik Akun',
+            'customer_phone' => '6281234567890',
+            'status' => 'pending',
+        ]);
+
+        $this->actingAs($user)
+            ->from(route('checkout.booking.show', $order))
+            ->post(route('checkout.booking.mock-pay', $order), [
+                'idempotency_key' => (string) Str::uuid(),
+                'payment_method' => 'qris',
+                'identity_category' => 'umum',
+            ])
+            ->assertRedirect(route('checkout.booking.show', $order))
+            ->assertSessionHasErrors(['customer_name', 'whatsapp_number']);
+
+        $this->assertSame('pending_payment', $order->fresh()->status);
+        $this->assertSame('UNPAID', $order->transaction()->sole()->payment_status);
     }
 
     public function test_expiry_service_releases_pending_bookings_and_expires_transaction_atomically(): void
@@ -413,6 +474,132 @@ class BookingIntegrityTest extends TestCase
         ]);
     }
 
+    public function test_checkout_never_holds_inventory_without_a_callable_payment_channel(): void
+    {
+        Carbon::setTestNow('2026-07-20 05:00:00');
+        config(['services.payment.mock' => false]);
+
+        $date = Carbon::parse('2026-07-21');
+        $facility = $this->facility($date, ['08:00']);
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->from(route('booking'))
+            ->post(
+                route('checkout.booking.store'),
+                $this->checkoutPayload($facility, $date, '08:00', '09:00'),
+            )
+            ->assertRedirect(route('booking'))
+            ->assertSessionHasErrors('checkout');
+
+        $this->assertDatabaseCount('booking_orders', 0);
+        $this->assertDatabaseCount('bookings', 0);
+        $this->assertDatabaseCount('transactions', 0);
+    }
+
+    public function test_payment_inside_the_safety_window_expires_without_creating_an_attempt(): void
+    {
+        Carbon::setTestNow('2026-07-20 05:00:00');
+        config([
+            'services.payment.mock' => true,
+            'services.payment.submission_safety_seconds' => 3,
+        ]);
+
+        $date = Carbon::parse('2026-07-21');
+        $facility = $this->facility($date, ['08:00']);
+        $user = User::factory()->create();
+        $order = $this->order($user, now()->addSeconds(2));
+        $booking = $this->booking($order, $facility, $date, '08:00', '09:00');
+
+        $this->actingAs($user)
+            ->from(route('checkout.booking.show', $order))
+            ->post(route('checkout.booking.mock-pay', $order), [
+                'idempotency_key' => (string) Str::uuid(),
+                'payment_method' => 'qris',
+                'customer_name' => $user->name,
+                'whatsapp_number' => '628123456789',
+                'identity_category' => 'umum',
+            ])
+            ->assertRedirect(route('checkout.booking.show', $order))
+            ->assertSessionHasErrors('payment_method');
+
+        $this->assertDatabaseHas('booking_orders', [
+            'id' => $order->id,
+            'status' => 'expired',
+        ]);
+        $this->assertDatabaseHas('bookings', [
+            'id' => $booking->id,
+            'status' => 'cancelled',
+        ]);
+        $this->assertDatabaseCount('payment_attempts', 0);
+    }
+
+    public function test_second_tab_payment_conflict_returns_a_recoverable_error_without_duplicate_attempt(): void
+    {
+        Carbon::setTestNow('2026-07-20 05:00:00');
+        config(['services.payment.mock' => true]);
+
+        $date = Carbon::parse('2026-07-21');
+        $facility = $this->facility($date, ['08:00']);
+        $user = User::factory()->create();
+        $order = $this->order($user, now()->addHour());
+        $this->booking($order, $facility, $date, '08:00', '09:00');
+
+        $order->transaction->paymentAttempts()->create([
+            'user_id' => $user->id,
+            'attempt_number' => 1,
+            'idempotency_key' => (string) Str::uuid(),
+            'request_fingerprint' => hash('sha256', 'first-tab-qris-intent'),
+            'amount' => (int) $order->transaction->amount,
+            'currency' => 'IDR',
+            'status' => PaymentAttemptStatus::Pending,
+            'expires_at' => $order->expires_at,
+            'metadata' => [
+                'channel' => 'local_mock',
+                'payment_method' => 'qris',
+                'subject_kind' => 'booking_order',
+            ],
+        ]);
+
+        $this->actingAs($user)
+            ->from(route('checkout.booking.show', $order))
+            ->post(route('checkout.booking.mock-pay', $order), [
+                'idempotency_key' => (string) Str::uuid(),
+                'payment_method' => 'card',
+                'customer_name' => $user->name,
+                'whatsapp_number' => '628123456789',
+                'identity_category' => 'umum',
+            ])
+            ->assertRedirect(route('checkout.booking.show', $order))
+            ->assertSessionHasErrors('payment_method');
+
+        $this->assertDatabaseCount('payment_attempts', 1);
+        $this->assertDatabaseHas('transactions', [
+            'id' => $order->transaction->id,
+            'payment_status' => 'UNPAID',
+        ]);
+        $this->assertDatabaseHas('booking_orders', [
+            'id' => $order->id,
+            'status' => 'pending_payment',
+        ]);
+    }
+
+    public function test_booking_contention_hot_paths_have_dedicated_indexes(): void
+    {
+        $this->assertTrue(Schema::hasIndex(
+            'bookings',
+            'bookings_inventory_lock_idx',
+        ));
+        $this->assertTrue(Schema::hasIndex(
+            'booking_orders',
+            'booking_orders_user_live_hold_idx',
+        ));
+        $this->assertTrue(Schema::hasIndex(
+            'booking_orders',
+            'booking_orders_user_fingerprint_idx',
+        ));
+    }
+
     public function test_checkout_prices_each_source_slot_before_merging_across_a_price_boundary(): void
     {
         Carbon::setTestNow('2026-07-20 05:00:00');
@@ -550,6 +737,7 @@ class BookingIntegrityTest extends TestCase
         $this->actingAs($staff)
             ->patch(route('admin.bookings.update', $booking), [
                 'status' => 'confirmed',
+                'state_version' => $this->bookingStateVersion($booking),
             ])
             ->assertSessionHasErrors([
                 'status' => 'Booking hanya dapat dikonfirmasi setelah pembayaran lunas.',
@@ -583,7 +771,9 @@ class BookingIntegrityTest extends TestCase
         );
 
         $this->actingAs($staff)
-            ->delete(route('admin.bookings.destroy', $booking))
+            ->delete(route('admin.bookings.destroy', $booking), [
+                'state_version' => $this->bookingStateVersion($booking),
+            ])
             ->assertRedirect()
             ->assertSessionDoesntHaveErrors();
 
@@ -602,6 +792,49 @@ class BookingIntegrityTest extends TestCase
         $this->assertDatabaseHas('payment_attempts', [
             'id' => $attempt->id,
             'status' => PaymentAttemptStatus::Cancelled->value,
+        ]);
+    }
+
+    public function test_admin_status_action_rejects_a_stale_operational_state(): void
+    {
+        Carbon::setTestNow('2026-07-20 05:00:00');
+
+        $date = Carbon::parse('2026-07-21');
+        $facility = $this->facility($date, ['08:00']);
+        $booking = Booking::create([
+            'customer_name' => 'Pelanggan Bersamaan',
+            'facility_id' => $facility->id,
+            'booking_date' => $date->toDateString(),
+            'start_time' => '08:00',
+            'end_time' => '09:00',
+            'pax' => 1,
+            'subtotal_price' => 100000,
+            'status' => 'pending',
+        ]);
+        $booking->transaction()->create([
+            'amount' => 100000,
+            'payment_status' => 'PAID',
+            'paid_at' => now(),
+        ]);
+        $staleStateVersion = $this->bookingStateVersion($booking);
+
+        // Simulate another staff member confirming the booking after this
+        // browser opened its detail panel.
+        $booking->update(['status' => 'confirmed']);
+
+        $this->actingAs($this->staffUser())
+            ->from(route('admin.bookings.index'))
+            ->delete(route('admin.bookings.destroy', $booking), [
+                'state_version' => $staleStateVersion,
+            ])
+            ->assertRedirect(route('admin.bookings.index'))
+            ->assertSessionHasErrors([
+                'state_version' => 'Data booking berubah sejak panel dibuka. Muat ulang detail sebelum melanjutkan.',
+            ]);
+
+        $this->assertDatabaseHas('bookings', [
+            'id' => $booking->id,
+            'status' => 'confirmed',
         ]);
     }
 
@@ -639,7 +872,9 @@ class BookingIntegrityTest extends TestCase
 
         $this->actingAs($staff)
             ->from(route('admin.bookings.index'))
-            ->delete(route('admin.bookings.destroy', $booking))
+            ->delete(route('admin.bookings.destroy', $booking), [
+                'state_version' => $this->bookingStateVersion($booking),
+            ])
             ->assertRedirect(route('admin.bookings.index'))
             ->assertSessionHasErrors('status');
 
@@ -687,6 +922,60 @@ class BookingIntegrityTest extends TestCase
             ]);
 
         $this->assertDatabaseCount('bookings', 1);
+    }
+
+    public function test_admin_writer_normalizes_the_walk_in_contact_and_does_not_publish_an_internal_checkout_link(): void
+    {
+        Carbon::setTestNow('2026-07-20 05:00:00');
+
+        $date = Carbon::parse('2026-07-21');
+        $facility = $this->facility($date, ['08:00']);
+
+        $this->actingAs($this->staffUser())
+            ->post(route('admin.bookings.store'), [
+                'customer_name' => '  Pelanggan Walk-in  ',
+                'customer_phone' => '+62 812-3456-7890',
+                'facility_id' => $facility->id,
+                'booking_date' => $date->toDateString(),
+                'start_time' => '08:00',
+                'end_time' => '09:00',
+                'pax' => 1,
+                'is_free' => false,
+            ])
+            ->assertRedirect(route('admin.bookings.index'));
+
+        $booking = Booking::query()->sole();
+
+        $this->assertSame('Pelanggan Walk-in', $booking->customer_name);
+        $this->assertSame('6281234567890', $booking->customer_phone);
+        $this->assertNull($booking->transaction?->checkout_url);
+        $this->assertSame('UNPAID', $booking->transaction?->payment_status);
+    }
+
+    public function test_admin_writer_rejects_a_slot_that_has_already_elapsed_today(): void
+    {
+        Carbon::setTestNow('2026-07-20 09:00:00');
+
+        $date = Carbon::parse('2026-07-20');
+        $facility = $this->facility($date, ['08:00']);
+
+        $this->actingAs($this->staffUser())
+            ->post(route('admin.bookings.store'), [
+                'customer_name' => 'Pelanggan Terlambat',
+                'customer_phone' => '081234567890',
+                'facility_id' => $facility->id,
+                'booking_date' => $date->toDateString(),
+                'start_time' => '08:00',
+                'end_time' => '09:00',
+                'pax' => 1,
+                'is_free' => false,
+            ])
+            ->assertSessionHasErrors([
+                'start_time' => 'Jadwal ini sudah berlalu. Pilih waktu lain.',
+            ]);
+
+        $this->assertDatabaseCount('bookings', 0);
+        $this->assertDatabaseCount('transactions', 0);
     }
 
     public function test_admin_price_calculation_splits_an_interval_at_pricing_rule_edges(): void
@@ -789,6 +1078,164 @@ class BookingIntegrityTest extends TestCase
         $payload = [
             'customer_name' => 'Peserta Ketiga',
             'facility_id' => $facility->id,
+            'booking_date' => $date->toDateString(),
+            'start_time' => '08:00',
+            'end_time' => '09:00',
+            'pax' => 1,
+            'is_free' => false,
+        ];
+
+        $this->actingAs($staff)
+            ->post(route('admin.bookings.store'), $payload)
+            ->assertRedirect(route('admin.bookings.index'));
+
+        $this->actingAs($staff)
+            ->post(route('admin.bookings.store'), [
+                ...$payload,
+                'customer_name' => 'Peserta Keempat',
+            ])
+            ->assertSessionHasErrors('start_time');
+
+        $this->assertDatabaseCount('bookings', 2);
+    }
+
+    public function test_class_capacity_uses_peak_simultaneous_occupancy_instead_of_summing_sequential_rows(): void
+    {
+        Carbon::setTestNow('2026-07-20 05:00:00');
+
+        $date = Carbon::parse('2026-07-21');
+        $facility = $this->facility($date, ['08:00', '09:00']);
+        $facility->category()->update(['name' => 'Kelas', 'slug' => 'kelas']);
+        $facility->update(['capacity' => 2]);
+
+        foreach ([['08:00', '09:00'], ['09:00', '10:00']] as [$start, $end]) {
+            Booking::create([
+                'customer_name' => 'Peserta Berurutan '.$start,
+                'facility_id' => $facility->id,
+                'booking_date' => $date->toDateString(),
+                'start_time' => $start,
+                'end_time' => $end,
+                'pax' => 1,
+                'subtotal_price' => 100000,
+                'status' => 'confirmed',
+            ]);
+        }
+
+        $this->actingAs($this->staffUser())
+            ->post(route('admin.bookings.store'), [
+                'customer_name' => 'Peserta Sepanjang Sesi',
+                'facility_id' => $facility->id,
+                'booking_date' => $date->toDateString(),
+                'start_time' => '08:00',
+                'end_time' => '10:00',
+                'pax' => 1,
+                'is_free' => false,
+            ])
+            ->assertRedirect(route('admin.bookings.index'));
+
+        $this->assertDatabaseCount('bookings', 3);
+        $this->assertDatabaseHas('bookings', [
+            'customer_name' => 'Peserta Sepanjang Sesi',
+            'start_time' => '08:00',
+            'end_time' => '10:00',
+            'pax' => 1,
+        ]);
+    }
+
+    public function test_post_write_capacity_invariant_rolls_back_an_oversold_row(): void
+    {
+        Carbon::setTestNow('2026-07-20 05:00:00');
+
+        $date = Carbon::parse('2026-07-21');
+        $facility = $this->facility($date, ['08:00']);
+
+        try {
+            DB::transaction(function () use ($facility, $date): void {
+                $inventory = app(BookingInventoryService::class);
+                $locked = $inventory->lockResources([$facility->id]);
+                $booking = Booking::create([
+                    'customer_name' => 'Invariant Probe',
+                    'facility_id' => $facility->id,
+                    'booking_date' => $date->toDateString(),
+                    'start_time' => '08:00',
+                    'end_time' => '09:00',
+                    'pax' => 2,
+                    'subtotal_price' => 200000,
+                    'status' => 'confirmed',
+                ]);
+
+                $inventory->assertPersistedBookingsWithinCapacity(
+                    collect([$booking]),
+                    $locked['facilities'],
+                    $locked['units'],
+                );
+            });
+
+            $this->fail('Invariant pascatulis seharusnya menolak kapasitas berlebih.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('items', $exception->errors());
+        }
+
+        $this->assertDatabaseCount('bookings', 0);
+    }
+
+    public function test_class_unit_keeps_shared_capacity_while_sibling_unit_has_independent_inventory(): void
+    {
+        Carbon::setTestNow('2026-07-20 05:00:00');
+
+        $date = Carbon::parse('2026-07-21');
+        $facility = $this->facility($date, ['08:00']);
+        $facility->category()->update(['name' => 'Kelas & Kebugaran', 'slug' => 'kelas-kebugaran']);
+        $facility->update(['capacity' => 3, 'class_code' => 'Class 001']);
+        $unitOne = $facility->units()->create([
+            'name' => 'Studio 1',
+            'is_active' => true,
+        ]);
+        $unitTwo = $facility->units()->create([
+            'name' => 'Studio 2',
+            'is_active' => true,
+        ]);
+
+        Booking::create([
+            'customer_name' => 'Dua Peserta',
+            'facility_id' => $facility->id,
+            'facility_unit_id' => $unitOne->id,
+            'booking_date' => $date->toDateString(),
+            'start_time' => '08:00',
+            'end_time' => '09:00',
+            'pax' => 2,
+            'subtotal_price' => 200000,
+            'status' => 'confirmed',
+        ]);
+
+        $this->getJson(route('booking.slots', [
+            'facility_id' => $facility->id,
+            'facility_unit_id' => $unitOne->id,
+            'date' => $date->toDateString(),
+        ]))
+            ->assertOk()
+            ->assertJsonPath('slots.0.status', 'available')
+            ->assertJsonPath('slots.0.capacity', 3)
+            ->assertJsonPath('slots.0.shared_capacity', true)
+            ->assertJsonPath('slots.0.occupied', 2)
+            ->assertJsonPath('slots.0.remaining', 1);
+
+        $this->getJson(route('booking.slots', [
+            'facility_id' => $facility->id,
+            'facility_unit_id' => $unitTwo->id,
+            'date' => $date->toDateString(),
+        ]))
+            ->assertOk()
+            ->assertJsonPath('slots.0.status', 'available')
+            ->assertJsonPath('slots.0.capacity', 3)
+            ->assertJsonPath('slots.0.occupied', 0)
+            ->assertJsonPath('slots.0.remaining', 3);
+
+        $staff = $this->staffUser();
+        $payload = [
+            'customer_name' => 'Peserta Ketiga',
+            'facility_id' => $facility->id,
+            'facility_unit_id' => $unitOne->id,
             'booking_date' => $date->toDateString(),
             'start_time' => '08:00',
             'end_time' => '09:00',
@@ -1047,6 +1494,12 @@ class BookingIntegrityTest extends TestCase
         return $user;
     }
 
+    private function bookingStateVersion(Booking $booking): string
+    {
+        return (string) app(AdminBookingReadModel::class)
+            ->detail($booking)['state_version'];
+    }
+
     private function order(User $user, Carbon $expiresAt): BookingOrder
     {
         $order = BookingOrder::create([
@@ -1110,9 +1563,6 @@ class BookingIntegrityTest extends TestCase
                 'start_time' => $start,
                 'end_time' => $end,
             ]],
-            'customer_name' => 'Pengguna Reservasi',
-            'whatsapp_number' => '628123456789',
-            'identity_category' => 'umum',
         ];
     }
 

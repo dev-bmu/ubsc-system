@@ -339,11 +339,14 @@ class BookingAvailabilityService
                 fn (array $unit): bool => $unit['reason'] === 'elapsed'
             ),
         );
+        $resourceCapacity = $this->inventoryService->capacityFor($facility, null);
 
         return [
             'facility_id' => $facility->id,
             'status' => $status,
             'reason' => $reason,
+            'capacity' => $resourceCapacity,
+            'shared_capacity' => $resourceCapacity > 1,
             'available_slot_count' => $availableSlotCount,
             'total_slot_count' => $totalSlotCount,
             'available_start_times' => $availableStartTimes,
@@ -394,6 +397,9 @@ class BookingAvailabilityService
                 'end_time' => $endTime,
                 'label' => $startTime.' - '.$endTime,
                 'status' => $available ? 'available' : 'booked',
+                'capacity' => $capacity,
+                'shared_capacity' => $capacity > 1,
+                'occupied' => $occupiedPax,
                 'remaining' => $available ? max(0, $capacity - $occupiedPax) : 0,
                 'facility_unit_id' => $unit?->id,
                 '_reason' => $available ? null : ($elapsed ? 'elapsed' : 'occupied'),
@@ -439,6 +445,8 @@ class BookingAvailabilityService
             'summary' => [
                 'status' => $status,
                 'reason' => $reason,
+                'capacity' => $capacity,
+                'shared_capacity' => $capacity > 1,
                 'available_slot_count' => $availableSlotCount,
                 'total_slot_count' => $totalSlotCount,
                 'available_start_times' => $availableStartTimes,
@@ -470,7 +478,7 @@ class BookingAvailabilityService
         string $startTime,
         string $endTime,
     ): int {
-        return (int) $bookings
+        $matching = $bookings
             ->filter(function (Booking $booking) use ($unit, $startTime, $endTime): bool {
                 if ($unit
                     && $booking->facility_unit_id !== null
@@ -483,7 +491,10 @@ class BookingAvailabilityService
 
                 return $bookingStart < $endTime && $bookingEnd > $startTime;
             })
-            ->sum(fn (Booking $booking): int => max(1, (int) ($booking->pax ?? 1)));
+            ->values();
+
+        return $this->inventoryService
+            ->occupancyMetrics($matching, $startTime, $endTime)['pax'];
     }
 
     /**
@@ -535,24 +546,34 @@ class BookingAvailabilityService
      */
     private function closedFacilitySummary(Facility $facility, string $reason): array
     {
+        $capacity = $this->inventoryService->capacityFor($facility, null);
+
         return [
             'facility_id' => $facility->id,
             'status' => 'closed',
             'reason' => $reason,
+            'capacity' => $capacity,
+            'shared_capacity' => $capacity > 1,
             'available_slot_count' => 0,
             'total_slot_count' => 0,
             'available_start_times' => [],
             'next_available_at' => null,
             'units' => $facility->units
-                ->map(fn (FacilityUnit $unit): array => [
-                    'facility_unit_id' => $unit->id,
-                    'status' => 'closed',
-                    'reason' => $reason,
-                    'available_slot_count' => 0,
-                    'total_slot_count' => 0,
-                    'available_start_times' => [],
-                    'next_available_at' => null,
-                ])
+                ->map(function (FacilityUnit $unit) use ($facility, $reason): array {
+                    $unitCapacity = $this->inventoryService->capacityFor($facility, $unit);
+
+                    return [
+                        'facility_unit_id' => $unit->id,
+                        'status' => 'closed',
+                        'reason' => $reason,
+                        'capacity' => $unitCapacity,
+                        'shared_capacity' => $unitCapacity > 1,
+                        'available_slot_count' => 0,
+                        'total_slot_count' => 0,
+                        'available_start_times' => [],
+                        'next_available_at' => null,
+                    ];
+                })
                 ->values()
                 ->all(),
         ];

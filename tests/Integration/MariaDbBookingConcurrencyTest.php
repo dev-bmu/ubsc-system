@@ -9,6 +9,7 @@ use App\Models\BookingOrder;
 use App\Models\BookingSchedule;
 use App\Models\Facility;
 use App\Models\FacilityCategory;
+use App\Models\InvoicePdfArtifact;
 use App\Models\Membership;
 use App\Models\MembershipPlan;
 use App\Models\PaymentAttempt;
@@ -16,6 +17,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Services\Payments\PaymentAttemptService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\Process\Process;
@@ -23,9 +25,12 @@ use Tests\TestCase;
 
 class MariaDbBookingConcurrencyTest extends TestCase
 {
-    #[DataProvider('exclusiveSlotRaceRounds')]
-    public function test_real_mariadb_connections_cannot_hold_the_same_exclusive_slot(
+    #[DataProvider('inventoryCapacityRaceRounds')]
+    public function test_real_mariadb_connections_enforce_capacity_without_overselling(
         int $contenderCount,
+        int $capacity,
+        bool $sharedCapacity,
+        int $expectedCreated,
     ): void {
         if (DB::connection()->getDriverName() !== 'mysql') {
             $this->fail('Concurrency gate requires a real isolated MariaDB/MySQL connection.');
@@ -42,14 +47,14 @@ class MariaDbBookingConcurrencyTest extends TestCase
         $suffix = strtolower(Str::random(12));
         $date = now()->addYears(8)->startOfMonth()->addDays(9);
         $category = FacilityCategory::query()->create([
-            'name' => 'Concurrency '.$suffix,
-            'slug' => 'concurrency-'.$suffix,
+            'name' => ($sharedCapacity ? 'Kelas Concurrency ' : 'Concurrency ').$suffix,
+            'slug' => ($sharedCapacity ? 'kelas-concurrency-' : 'concurrency-').$suffix,
         ]);
         $facility = Facility::query()->create([
             'facility_category_id' => $category->id,
-            'name' => 'Exclusive concurrency '.$suffix,
-            'slug' => 'exclusive-concurrency-'.$suffix,
-            'capacity' => 1,
+            'name' => ($sharedCapacity ? 'Shared class ' : 'Exclusive arena ').$suffix,
+            'slug' => ($sharedCapacity ? 'shared-class-' : 'exclusive-arena-').$suffix,
+            'capacity' => $capacity,
             'active_slots' => [$date->format('l') => ['10:00']],
             'is_active' => true,
         ]);
@@ -89,6 +94,7 @@ class MariaDbBookingConcurrencyTest extends TestCase
                         ]],
                         'customer_name' => $user->name,
                         'whatsapp_number' => '081234567890',
+                        'reservation_acknowledged' => true,
                         'identity_category' => 'umum',
                     ],
                 ], JSON_THROW_ON_ERROR));
@@ -118,21 +124,21 @@ class MariaDbBookingConcurrencyTest extends TestCase
 
             $diagnostic = $results->toJson(JSON_UNESCAPED_SLASHES);
             $this->assertSame(
-                1,
+                $expectedCreated,
                 $results->where('result', 'created')->count(),
                 $diagnostic,
             );
             $this->assertSame(
-                $contenderCount - 1,
+                $contenderCount - $expectedCreated,
                 $results->where('result', 'conflict')->count(),
                 $diagnostic,
             );
             $this->assertSame(
-                1,
+                $expectedCreated,
                 BookingOrder::query()->whereIn('idempotency_key', $keys)->count(),
             );
             $this->assertSame(
-                1,
+                $expectedCreated,
                 Booking::query()
                     ->where('facility_id', $facility->id)
                     ->whereDate('booking_date', $date->toDateString())
@@ -167,7 +173,7 @@ class MariaDbBookingConcurrencyTest extends TestCase
                 $category->delete();
                 $schedule->delete();
                 User::query()->whereIn('id', $users->pluck('id'))->delete();
-            }, 3);
+            }, (int) config('resilience.database.transaction_attempts', 3));
         }
     }
 
@@ -175,14 +181,14 @@ class MariaDbBookingConcurrencyTest extends TestCase
      * A deliberately small burst: enough repetition to expose stale-snapshot,
      * lock-order and retry regressions without turning CI into a load test.
      *
-     * @return array<string, array{int}>
+     * @return array<string, array{int, int, bool, int}>
      */
-    public static function exclusiveSlotRaceRounds(): array
+    public static function inventoryCapacityRaceRounds(): array
     {
         return [
-            'round 1 - two contenders' => [2],
-            'round 2 - three contenders' => [3],
-            'round 3 - two contenders' => [2],
+            'exclusive arena ignores generic capacity' => [3, 12, false, 1],
+            'shared class admits exactly its capacity' => [4, 2, true, 2],
+            'single-capacity boundary' => [2, 1, false, 1],
         ];
     }
 
@@ -244,6 +250,51 @@ class MariaDbBookingConcurrencyTest extends TestCase
             PaymentAttempt::query()->where('transaction_id', $transaction->id)->delete();
             $transaction->delete();
             $order->delete();
+            $user->delete();
+        }
+    }
+
+    public function test_real_mariadb_connections_settle_one_booking_once_when_payment_is_submitted_concurrently(): void
+    {
+        $this->assertIsolatedMariaDb();
+
+        [$user, $category, $facility, $order, $booking, $transaction] =
+            $this->pendingBookingRecoveryAggregate();
+        $idempotencyKeys = collect(range(1, 3))
+            ->map(static fn (): string => (string) Str::uuid())
+            ->all();
+
+        try {
+            $results = $this->runPaymentRace([
+                'operation' => 'pay_booking_order',
+                'booking_order_id' => $order->id,
+                'user_id' => $user->id,
+                'idempotency_keys' => $idempotencyKeys,
+                'payment_method' => 'qris',
+                'customer_name' => $user->name,
+                'whatsapp_number' => '628123456789',
+                'identity_category' => 'umum',
+            ], 3);
+
+            $diagnostic = $results->toJson(JSON_UNESCAPED_SLASHES);
+            $this->assertSame(3, $results->where('result', 'payment_completed')->count(), $diagnostic);
+            $this->assertSame('paid', $order->fresh()->status);
+            $this->assertSame('confirmed', $booking->fresh()->status);
+            $this->assertSame('PAID', $transaction->fresh()->payment_status);
+            $this->assertSame(1, PaymentAttempt::query()
+                ->where('transaction_id', $transaction->id)
+                ->count());
+            $this->assertSame(1, PaymentAttempt::query()
+                ->where('transaction_id', $transaction->id)
+                ->where('status', PaymentAttemptStatus::Paid->value)
+                ->count());
+        } finally {
+            PaymentAttempt::query()->where('transaction_id', $transaction->id)->delete();
+            $transaction->delete();
+            $booking->delete();
+            $order->delete();
+            $facility->delete();
+            $category->delete();
             $user->delete();
         }
     }
@@ -327,22 +378,33 @@ class MariaDbBookingConcurrencyTest extends TestCase
     }
 
     /**
-     * @param  array<string, int|string>  $payload
+     * @param  array<string, mixed>  $payload
      * @return \Illuminate\Support\Collection<int, array<string, mixed>>
      */
     private function runPaymentRace(array $payload, int $contenderCount)
     {
         $barrier = sys_get_temp_dir().DIRECTORY_SEPARATOR.'ubsc-payment-race-'.Str::uuid();
-        $encodedPayload = base64_encode(json_encode($payload, JSON_THROW_ON_ERROR));
         $processes = [];
 
         try {
-            foreach (range(1, $contenderCount) as $_) {
+            foreach (range(1, $contenderCount) as $contenderNumber) {
+                $processPayload = $payload;
+                if (isset($payload['idempotency_keys'])
+                    && is_array($payload['idempotency_keys'])) {
+                    $processPayload['idempotency_key'] = $payload['idempotency_keys'][$contenderNumber - 1]
+                        ?? throw new \RuntimeException('Missing payment race idempotency key.');
+                    unset($processPayload['idempotency_keys']);
+                }
+
+                $processEncodedPayload = base64_encode(json_encode(
+                    $processPayload,
+                    JSON_THROW_ON_ERROR,
+                ));
                 $process = new Process([
                     PHP_BINARY,
                     base_path('tests/Support/run-payment-concurrency-race.php'),
                     $barrier,
-                    $encodedPayload,
+                    $processEncodedPayload,
                 ], base_path(), null, null, 45);
                 $process->start();
                 $processes[] = $process;
@@ -370,6 +432,106 @@ class MariaDbBookingConcurrencyTest extends TestCase
                     $process->stop(1);
                 }
             }
+        }
+    }
+
+    public function test_real_mariadb_and_shared_lock_publish_one_invoice_artifact_for_two_processes(): void
+    {
+        $this->assertIsolatedMariaDb();
+        config()->set('invoice_pdf.lock.store', 'database');
+        [$user, $category, $facility, $order, $booking, $transaction]
+            = $this->pendingBookingRecoveryAggregate();
+        $order->update(['status' => 'paid']);
+        $booking->update(['status' => 'confirmed']);
+        $transaction->update([
+            'payment_status' => 'PAID',
+            'payment_method' => 'qris',
+            'paid_at' => now(),
+            'service_snapshot' => [
+                'version' => 1,
+                'kind' => 'booking_order',
+                'items' => [[
+                    'booking_id' => $booking->id,
+                    'facility_id' => $facility->id,
+                    'facility_name' => $facility->name,
+                    'booking_date' => $booking->booking_date->toDateString(),
+                    'start_time' => '10:00',
+                    'end_time' => '11:00',
+                    'duration_minutes' => 60,
+                    'subtotal' => 100000,
+                ]],
+            ],
+        ]);
+
+        try {
+            $results = $this->runPaymentRace([
+                'operation' => 'generate_booking_invoice',
+                'booking_order_id' => $order->id,
+            ], 2);
+            $diagnostic = $results->toJson(JSON_UNESCAPED_SLASHES);
+
+            $this->assertSame(2, $results->where('result', 'artifact_ready')->count(), $diagnostic);
+            $this->assertCount(1, $results->pluck('artifact_id')->unique(), $diagnostic);
+            $this->assertCount(1, $results->pluck('cache_key')->unique(), $diagnostic);
+            $this->assertCount(1, $results->pluck('sha256')->unique(), $diagnostic);
+            $artifact = InvoicePdfArtifact::query()
+                ->where('kind', 'booking')
+                ->where('subject_id', $order->id)
+                ->sole();
+            $binary = Storage::disk($artifact->disk)->get($artifact->path);
+
+            $this->assertStringStartsWith('%PDF-', $binary);
+            $this->assertSame($artifact->size_bytes, strlen($binary));
+            $this->assertSame($artifact->content_sha256, hash('sha256', $binary));
+        } finally {
+            $artifacts = InvoicePdfArtifact::query()
+                ->where('kind', 'booking')
+                ->where('subject_id', $order->id)
+                ->get();
+
+            foreach ($artifacts as $artifact) {
+                Storage::disk($artifact->disk)->delete($artifact->path);
+                $artifact->delete();
+            }
+
+            $transaction->delete();
+            $booking->delete();
+            $order->delete();
+            $facility->delete();
+            $category->delete();
+            $user->delete();
+        }
+    }
+
+    public function test_real_mariadb_does_not_lose_concurrent_performance_counter_increments(): void
+    {
+        $this->assertIsolatedMariaDb();
+        $sampledAt = now('UTC')->startOfMinute();
+
+        try {
+            $results = $this->runPaymentRace([
+                'operation' => 'record_request_metric',
+                'scope' => 'public_read',
+                'duration_ms' => 175,
+                'failed' => false,
+                'sampled_at' => $sampledAt->toIso8601String(),
+            ], 8);
+            $diagnostic = $results->toJson(JSON_UNESCAPED_SLASHES);
+
+            $this->assertSame(8, $results->where('result', 'metric_recorded')->count(), $diagnostic);
+            $bucket = DB::table('performance_request_buckets')
+                ->where('scope', 'public_read')
+                ->where('bucket_started_at', $sampledAt)
+                ->where('latency_upper_bound_ms', 200)
+                ->sole();
+            $this->assertSame(8, (int) $bucket->request_count);
+            $this->assertSame(1_400, (int) $bucket->duration_sum_ms);
+            $this->assertSame(0, (int) $bucket->error_count);
+        } finally {
+            DB::table('performance_request_buckets')
+                ->where('scope', 'public_read')
+                ->where('bucket_started_at', $sampledAt)
+                ->delete();
         }
     }
 

@@ -3,10 +3,10 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Public\PublicCheckoutController;
+use App\Http\Requests\StorePublicBookingCheckoutRequest;
 use App\Models\BookingOrder;
 use App\Models\User;
 use Illuminate\Contracts\Console\Kernel;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -55,12 +55,15 @@ try {
         }
     });
     $user = User::query()->findOrFail((int) $payload['user_id']);
-    $request = Request::create(
+    $request = StorePublicBookingCheckoutRequest::create(
         '/checkout/booking',
         'POST',
         $payload['request'],
     );
     $request->setUserResolver(static fn (): User => $user);
+    $request->setContainer($app);
+    $request->setRedirector($app->make('redirect'));
+    $request->validateResolved();
     $app->instance('request', $request);
     Auth::setUser($user);
 

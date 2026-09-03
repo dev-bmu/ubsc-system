@@ -15,6 +15,7 @@ class Booking extends Model
         'booking_order_id',
         'user_id',
         'customer_name',
+        'customer_phone',
         'facility_id',
         'facility_unit_id',
         'booking_date',

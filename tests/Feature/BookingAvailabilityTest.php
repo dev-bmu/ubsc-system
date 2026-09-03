@@ -162,6 +162,8 @@ class BookingAvailabilityTest extends TestCase
         ]))
             ->assertOk()
             ->assertJsonPath('dates.2026-07-21.facilities.0.status', 'limited')
+            ->assertJsonPath('dates.2026-07-21.facilities.0.capacity', 3)
+            ->assertJsonPath('dates.2026-07-21.facilities.0.shared_capacity', true)
             ->assertJsonPath('dates.2026-07-21.facilities.0.available_slot_count', 1)
             ->assertJsonPath('dates.2026-07-21.facilities.0.total_slot_count', 2)
             ->assertJsonPath('dates.2026-07-21.facilities.0.available_start_times', ['09:00']);
@@ -177,8 +179,12 @@ class BookingAvailabilityTest extends TestCase
 
         $this->assertSame('booked', $this->slot($slots, '08:00')['status']);
         $this->assertSame('fully_booked', $this->slot($slots, '08:00')['reason']);
+        $this->assertSame(3, $this->slot($slots, '08:00')['capacity']);
+        $this->assertTrue($this->slot($slots, '08:00')['shared_capacity']);
+        $this->assertSame(3, $this->slot($slots, '08:00')['occupied']);
         $this->assertSame(0, $this->slot($slots, '08:00')['remaining']);
         $this->assertSame('available', $this->slot($slots, '09:00')['status']);
+        $this->assertSame(2, $this->slot($slots, '09:00')['occupied']);
         $this->assertSame(1, $this->slot($slots, '09:00')['remaining']);
     }
 
