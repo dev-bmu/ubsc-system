@@ -1,0 +1,16 @@
+# Install as a drop-in for the actual Supervisor unit on each Linux node:
+#   /etc/systemd/system/supervisor.service.d/ubsc-recovery.conf
+# or, on distributions using that name:
+#   /etc/systemd/system/supervisord.service.d/ubsc-recovery.conf
+
+[Unit]
+StartLimitIntervalSec=60
+StartLimitBurst=10
+
+[Service]
+# Supervisor heals its PHP children; systemd must heal Supervisor itself.
+Restart=on-failure
+RestartSec=5s
+
+# The longest UBSC worker receives 1,100 seconds for graceful group shutdown.
+TimeoutStopSec=1200s
