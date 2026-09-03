@@ -7,6 +7,7 @@ import {
     CircleAlert,
     Crown,
     Images,
+    HeartPulse,
     LayoutDashboard,
     LockKeyhole,
     RotateCcw,
@@ -17,12 +18,12 @@ import {
     SlidersHorizontal,
     Sparkles,
     UsersRound,
-    X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import AdminLayout from "@/Layouts/AdminLayout";
 import { cn } from "@/lib/utils";
 import type { PageProps } from "@/types";
+import "./Roles.css";
 
 interface RoleData {
     id: number;
@@ -39,7 +40,6 @@ interface PermissionItem {
 
 interface PermissionGroup {
     id: string;
-    letter: string;
     label: string;
     summary: string;
     icon: typeof Shield;
@@ -52,7 +52,6 @@ type SaveStatus = "idle" | "saving" | "saved" | "error";
 const PERMISSION_GROUPS: PermissionGroup[] = [
     {
         id: "dashboard",
-        letter: "A",
         label: "Beranda & Dasbor",
         summary: "Akses ringkasan operasional dan laporan.",
         icon: LayoutDashboard,
@@ -63,7 +62,6 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
     },
     {
         id: "booking",
-        letter: "B",
         label: "Reservasi & Jadwal",
         summary: "Kontrol reservasi, kalender, dan batas booking.",
         icon: Activity,
@@ -75,7 +73,6 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
     },
     {
         id: "facility",
-        letter: "C",
         label: "Fasilitas & Lapangan",
         summary: "Kelola fasilitas, unit, harga, dan paket harga.",
         icon: SlidersHorizontal,
@@ -87,7 +84,6 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
     },
     {
         id: "cms",
-        letter: "D",
         label: "Konten & CMS",
         summary: "Atur berita, promo, sponsor, reels, dan publikasi.",
         icon: Sparkles,
@@ -98,7 +94,6 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
     },
     {
         id: "gallery",
-        letter: "E",
         label: "Gallery",
         summary: "Kelola media, kurasi section, jadwal, dan publikasi Gallery.",
         icon: Images,
@@ -111,7 +106,6 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
     },
     {
         id: "member",
-        letter: "F",
         label: "Member & Pelanggan",
         summary: "Akses member, pelanggan, dan payment link.",
         icon: UsersRound,
@@ -123,12 +117,20 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
     },
     {
         id: "identity",
-        letter: "G",
         label: "Verifikasi UBSC",
         summary: "Validasi dokumen warga kampus sebelum akses khusus.",
         icon: BadgeCheck,
         items: [
             { key: "verify-identity", label: "Validasi Identitas Warga UB (Identity Queue)" },
+        ],
+    },
+    {
+        id: "operations",
+        label: "System & Operations",
+        summary: "Akses cockpit health, performance, integritas, keamanan, dan SLO.",
+        icon: HeartPulse,
+        items: [
+            { key: "view-system-operations", label: "Melihat System Monitoring" },
         ],
     },
 ];
@@ -145,10 +147,6 @@ const ROLE_STYLES = `
         0% { background-position: -180% center; }
         100% { background-position: 220% center; }
     }
-    @keyframes roleSweep {
-        0% { transform: translateX(-120%); }
-        100% { transform: translateX(190%); }
-    }
     @keyframes rolePulse {
         0%, 100% { opacity: .78; transform: scale(1); }
         50% { opacity: 1; transform: scale(1.16); }
@@ -161,28 +159,6 @@ const ROLE_STYLES = `
         -webkit-background-clip: text;
         background-clip: text;
         animation: roleShine 5s linear infinite;
-    }
-    .role-card-glint { position: relative; }
-    .role-card-glint::before {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 18px;
-        right: 18px;
-        height: 1px;
-        background: linear-gradient(90deg, transparent, rgba(255,255,255,.96), transparent);
-        pointer-events: none;
-        z-index: 2;
-    }
-    .role-sheen { position: relative; overflow: hidden; }
-    .role-sheen::after {
-        content: "";
-        position: absolute;
-        inset-block: 0;
-        width: 48%;
-        background: linear-gradient(90deg, transparent, rgba(255,255,255,.32), transparent);
-        animation: roleSweep 1s ease-out .35s forwards;
-        pointer-events: none;
     }
     .role-live-dot {
         display: inline-block;
@@ -213,16 +189,8 @@ const ROLE_STYLES = `
     .role-delay-3 { animation-delay: 180ms; }
     .role-delay-4 { animation-delay: 240ms; }
     .role-delay-5 { animation-delay: 300ms; }
-    .role-grid-surface {
-        background-image:
-            radial-gradient(circle at 92% 8%, rgba(227,83,54,.16), transparent 28%),
-            linear-gradient(90deg, rgba(227,83,54,.06) 1px, transparent 1px),
-            linear-gradient(180deg, rgba(227,83,54,.045) 1px, transparent 1px),
-            linear-gradient(135deg, #FFFFFF 0%, #FFF9F7 100%);
-        background-size: auto, 22px 22px, 22px 22px, auto;
-    }
     @media (prefers-reduced-motion: reduce) {
-        .role-enter, .role-title-shine, .role-sheen::after, .role-live-dot {
+        .role-enter, .role-title-shine, .role-live-dot {
             animation: none !important;
             opacity: 1 !important;
             transform: none !important;
@@ -263,17 +231,17 @@ const ROLE_META: Record<string, { icon: typeof Shield; tone: string; note: strin
     },
     Finance: {
         icon: ShieldCheck,
-        tone: "from-emerald-500 to-emerald-700",
+        tone: "from-[#FFAA92] via-[#E35336] to-[#9A3022]",
         note: "Kontrol laporan dan transaksi",
     },
     "Staff Central": {
         icon: Activity,
-        tone: "from-sky-500 to-sky-700",
+        tone: "from-[#F3947F] via-[#D84A30] to-[#85271C]",
         note: "Operasional pusat dan data",
     },
     "Staff Front Office": {
         icon: UsersRound,
-        tone: "from-amber-500 to-[#B93D2A]",
+        tone: "from-[#FFC0AE] via-[#E96B4F] to-[#A93625]",
         note: "Pelayanan pelanggan harian",
     },
 };
@@ -293,7 +261,7 @@ function samePermissions(a: Iterable<string>, b: Iterable<string>): boolean {
 function roleMeta(roleName?: string) {
     return ROLE_META[roleName ?? ""] ?? {
         icon: Shield,
-        tone: "from-slate-600 to-slate-900",
+        tone: "from-[#F08C78] via-[#E35336] to-[#8F2E20]",
         note: "Akses khusus sistem",
     };
 }
@@ -308,22 +276,6 @@ function progressWidthClass(value: number): string {
     return PROGRESS_WIDTH_CLASSES[Math.round(safeValue / 5)] ?? "w-0";
 }
 
-function ShinyIcon({ children, className }: { children: ReactNode; className?: string }) {
-    return (
-        <div
-            className={cn(
-                "relative flex shrink-0 items-center justify-center overflow-hidden rounded-2xl",
-                "bg-[linear-gradient(135deg,#F08C78_0%,#E35336_52%,#B93D2A_100%)] text-white",
-                "shadow-[0_18px_34px_-24px_rgba(227,83,54,.98),inset_0_1px_0_rgba(255,255,255,.22)]",
-                className,
-            )}
-        >
-            {children}
-            <span className="pointer-events-none absolute left-2 right-2 top-1 h-1 rounded-full bg-white/35 blur-[1px]" />
-        </div>
-    );
-}
-
 function ToggleSwitch({
     enabled,
     readOnly,
@@ -335,48 +287,18 @@ function ToggleSwitch({
     onToggle: () => void;
     label: string;
 }) {
-    const switchClass = cn(
-        "relative inline-flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-[#E35336]/15",
-        enabled
-            ? "bg-[linear-gradient(135deg,#F08C78_0%,#E35336_58%,#B93D2A_100%)] shadow-[0_12px_22px_-17px_rgba(227,83,54,.95)]"
-            : "bg-slate-200 shadow-inner hover:bg-slate-300",
-        readOnly && "cursor-not-allowed opacity-70",
-    );
-    const knobClass = cn(
-        "flex h-5 w-5 items-center justify-center rounded-full bg-white text-[10px] shadow-sm transition",
-        enabled ? "translate-x-5 text-[#B93D2A]" : "translate-x-0 text-slate-400",
-    );
-
-    if (enabled) {
-        return (
-            <button
-                type="button"
-                role="switch"
-                aria-label={label}
-                aria-checked="true"
-                disabled={readOnly}
-                onClick={onToggle}
-                className={switchClass}
-            >
-                <span className={knobClass}>
-                    <Check size={13} />
-                </span>
-            </button>
-        );
-    }
-
     return (
         <button
             type="button"
             role="switch"
             aria-label={label}
-            aria-checked="false"
+            aria-checked={enabled}
             disabled={readOnly}
             onClick={onToggle}
-            className={switchClass}
+            className={cn("access-switch", enabled && "is-on", readOnly && "is-readonly")}
         >
-            <span className={knobClass}>
-                <X size={13} />
+            <span className="access-switch__track" aria-hidden="true">
+                <span className="access-switch__knob" />
             </span>
         </button>
     );
@@ -397,67 +319,58 @@ function RoleHero({
     const users = roles.reduce((sum, role) => sum + role.users_count, 0);
     const currentPct = percent(currentCount, TOTAL_PERMISSIONS);
 
-    return (
-        <section className="role-enter role-card-glint role-sheen relative overflow-hidden rounded-[24px] border border-[#F8B5A8]/70 bg-[linear-gradient(135deg,#E35336_0%,#B93D2A_58%,#8F2E20_100%)] p-3.5 text-white shadow-[0_22px_44px_-34px_rgba(227,83,54,.95)]">
-            <div className="pointer-events-none absolute -right-16 -top-24 h-60 w-60 rounded-full border border-white/18" />
-            <div className="pointer-events-none absolute -bottom-28 left-12 h-48 w-48 rounded-full bg-[#F8B5A8]/18 blur-3xl" />
+    const meta = roleMeta(activeRole?.name);
+    const ActiveIcon = meta.icon;
 
-            <div className="relative z-10 grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(320px,.45fr)] xl:items-center">
-                <div className="min-w-0">
-                    <div className="mb-3 flex flex-wrap items-center gap-2">
-                        <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/15 px-3 py-1.5 font-bdo text-[9px] font-bold uppercase tracking-widest text-white/90 backdrop-blur">
-                            <span className="role-live-dot h-1.5 w-1.5 bg-white text-white" />
-                            Role access control
-                        </span>
-                        <HeroStat icon={<Shield size={13} />} label="Role" value={roles.length} />
-                        <HeroStat icon={<UsersRound size={13} />} label="Akun" value={users} />
-                        <HeroStat icon={<Activity size={13} />} label="Online" value={online} />
-                    </div>
-                    <h2 className="max-w-4xl font-clash text-2xl font-semibold leading-[1.03] tracking-tight sm:text-3xl xl:text-[2.35rem]">
-                        Hak akses yang rapi, cepat dipahami, dan mudah dikendalikan.
+    return (
+        <section className="access-hero role-enter">
+            <div className="access-hero__mesh" aria-hidden="true" />
+            <div className="access-hero__topline">
+                <span className="access-hero__signal">
+                    <i className="role-live-dot" aria-hidden="true" />
+                    Access governance
+                </span>
+                <span className="access-hero__code">SEC / 01</span>
+            </div>
+
+            <div className="access-hero__body">
+                <div className="access-hero__copy">
+                    <span className="access-hero__eyebrow">Peran, izin, dan tanggung jawab</span>
+                    <h2>
+                        <span>Akses yang tegas.</span>
+                        <span>Operasional tetap tenang.</span>
                     </h2>
-                    <p className="mt-2 max-w-3xl font-bdo text-xs font-semibold leading-5 text-white/74 sm:text-sm">
-                        Pilih role, review grup izin, lalu simpan hanya saat perubahan sudah benar.
+                    <p>
+                        Setiap role melihat hal yang memang dibutuhkan—jelas untuk operator,
+                        mudah diaudit, dan aman saat tim terus bertumbuh.
                     </p>
                 </div>
 
-                <div className="rounded-[20px] border border-white/18 bg-white/12 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,.18)] backdrop-blur">
-                    <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                            <p className="font-bdo text-[9px] font-bold uppercase tracking-[0.18em] text-white/58">
-                                {isAdmin ? "Sedang diedit" : "Hak akses saya"}
-                            </p>
-                            <p className="mt-1 truncate font-clash text-xl font-semibold">{activeRole?.name ?? "Tidak ada role"}</p>
-                            <p className="mt-0.5 truncate font-bdo text-[11px] font-semibold text-white/62">{roleMeta(activeRole?.name).note}</p>
+                <div className="access-hero__focus">
+                    <div className="access-hero__focus-head">
+                        <span className={cn("access-hero__focus-icon bg-gradient-to-br", meta.tone)}>
+                            <ActiveIcon size={19} />
+                        </span>
+                        <div>
+                            <small>{isAdmin ? "Sedang dikurasi" : "Hak akses Anda"}</small>
+                            <strong>{activeRole?.name ?? "Tidak ada role"}</strong>
                         </div>
-                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white font-clash text-sm font-semibold text-[#B93D2A]">
-                            {currentPct}%
-                        </div>
+                        <span className="access-hero__percent">{currentPct}%</span>
                     </div>
-                    <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/16">
-                        <div className={cn("h-full rounded-full bg-white transition-all", progressWidthClass(currentPct))} />
-                    </div>
-                    <div className="mt-3 grid grid-cols-3 gap-2">
-                        {["Pilih role", "Review", "Simpan"].map((step, index) => (
-                            <div key={step} className="rounded-[14px] border border-white/14 bg-white/10 px-2.5 py-2">
-                                <p className="font-clash text-sm font-semibold">0{index + 1}</p>
-                                <p className="mt-0.5 truncate font-bdo text-[9px] font-bold uppercase tracking-wide text-white/66">{step}</p>
-                            </div>
-                        ))}
+                    <p>{meta.note}</p>
+                    <div className="access-hero__progress" aria-label={`${currentPct}% izin aktif`}>
+                        <span className={progressWidthClass(currentPct)} />
                     </div>
                 </div>
             </div>
-        </section>
-    );
-}
 
-function HeroStat({ icon, label, value }: { icon: ReactNode; label: string; value: string | number }) {
-    return (
-        <span className="inline-flex items-center gap-2 rounded-full border border-white/18 bg-white/12 px-3 py-1.5 font-bdo text-[10px] font-bold uppercase tracking-wide text-white/78 backdrop-blur">
-            {icon}
-            <span>{label}</span>
-            <span className="font-clash text-sm font-semibold text-white">{value}</span>
-        </span>
+            <div className="access-hero__metrics">
+                <div><span>Role terkelola</span><strong>{roles.length}</strong></div>
+                <div><span>Akun internal</span><strong>{users}</strong></div>
+                <div><span>Sedang aktif</span><strong>{online}</strong></div>
+                <div><span>Izin tersedia</span><strong>{TOTAL_PERMISSIONS}</strong></div>
+            </div>
+        </section>
     );
 }
 
@@ -480,53 +393,30 @@ function RoleSelector({
     };
 
     return (
-        <aside className="role-enter role-card-glint h-fit overflow-hidden rounded-[24px] border border-[#FFE0D8] bg-white shadow-[0_18px_42px_-38px_rgba(185,61,42,.58)]">
-            <div className="role-grid-surface border-b border-[#FFE0D8] p-3">
-                <div className="flex items-center justify-between gap-3">
-                    <div className="flex min-w-0 items-center gap-3">
-                    <ShinyIcon className="h-9 w-9 rounded-[14px]">
-                        <LockKeyhole size={15} />
-                    </ShinyIcon>
-                    <div className="min-w-0">
-                        <p className="font-bdo text-[9px] font-bold uppercase tracking-widest text-[#B93D2A]/70">Pilih peran</p>
-                        <h2 className="font-clash text-base font-semibold text-slate-950">Daftar Role</h2>
-                    </div>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1 xl:hidden">
-                        <button
-                            type="button"
-                            onClick={() => scrollRoles(-1)}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-[12px] border border-[#FFD5CD] bg-white text-[#B93D2A] shadow-sm"
-                            aria-label="Scroll role ke kiri"
-                        >
-                            <ChevronRight size={14} className="rotate-180" />
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => scrollRoles(1)}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-[12px] border border-[#FFD5CD] bg-white text-[#B93D2A] shadow-sm"
-                            aria-label="Scroll role ke kanan"
-                        >
-                            <ChevronRight size={14} />
-                        </button>
-                    </div>
+        <aside className="access-role-rail role-enter">
+            <div className="access-role-rail__head">
+                <div>
+                    <span>Role internal</span>
+                    <h2>Pilih ruang kerja</h2>
+                </div>
+                <div className="access-role-rail__arrows">
+                    <button type="button" onClick={() => scrollRoles(-1)} aria-label="Scroll role ke kiri">
+                        <ChevronRight size={14} className="rotate-180" />
+                    </button>
+                    <button type="button" onClick={() => scrollRoles(1)} aria-label="Scroll role ke kanan">
+                        <ChevronRight size={14} />
+                    </button>
                 </div>
             </div>
 
-            <div
-                ref={scrollerRef}
-                className="role-scrollbar role-touch-scroll flex max-w-full gap-2 overflow-x-auto scroll-smooth p-2.5 xl:max-h-[calc(100vh-220px)] xl:flex-col xl:overflow-x-hidden xl:overflow-y-auto"
-            >
-                <div className="w-[216px] shrink-0 rounded-[18px] border border-slate-200 bg-slate-50 p-2.5 xl:w-auto xl:min-w-0">
-                    <div className="flex items-center gap-3">
-                        <span className="flex h-8 w-8 items-center justify-center rounded-[13px] bg-white text-slate-300 ring-1 ring-slate-200">
-                            <Crown size={13} />
-                        </span>
-                        <div className="min-w-0">
-                            <p className="truncate font-clash text-[13px] font-semibold text-slate-400">Administrator</p>
-                            <p className="font-bdo text-[10px] font-semibold text-slate-300">Akses penuh, terkunci</p>
-                        </div>
-                    </div>
+            <div ref={scrollerRef} className="access-role-list role-scrollbar role-touch-scroll">
+                <div className="access-role-option is-locked">
+                    <span className="access-role-option__icon"><Crown size={14} /></span>
+                    <span className="access-role-option__copy">
+                        <strong>Administrator</strong>
+                        <small>Akses penuh · terkunci</small>
+                    </span>
+                    <LockKeyhole size={13} className="access-role-option__arrow" />
                 </div>
 
                 {roles.map((role) => {
@@ -535,57 +425,41 @@ function RoleSelector({
                     const Icon = meta.icon;
                     const count = localPerms[role.id]?.size ?? role.permissions.length;
                     const roleDirty = dirtyRoleIds.has(role.id);
+                    const accessPct = percent(count, TOTAL_PERMISSIONS);
 
                     return (
                         <button
                             key={role.id}
                             type="button"
                             onClick={() => onSelect(role.id)}
-                            className={cn(
-                                "w-[216px] shrink-0 rounded-[18px] border p-2.5 text-left transition xl:w-auto xl:min-w-0",
-                                active
-                                    ? "border-[#E35336] bg-[#FFF7F5] shadow-[0_18px_38px_-28px_rgba(227,83,54,.72)]"
-                                    : "border-[#FFE0D8] bg-white hover:border-[#F8B5A8] hover:bg-[#FFF7F5]",
-                            )}
+                            className={cn("access-role-option", active && "is-active", roleDirty && "is-dirty")}
                         >
-                            <div className="flex items-center gap-3">
-                                <span className={cn("flex h-9 w-9 items-center justify-center rounded-[14px] bg-gradient-to-br text-white shadow-[0_14px_28px_-20px_rgba(15,23,42,.45)]", meta.tone)}>
-                                    <Icon size={15} />
+                            <span className={cn("access-role-option__icon bg-gradient-to-br", meta.tone)}>
+                                <Icon size={14} />
+                            </span>
+                            <span className="access-role-option__copy">
+                                <span className="access-role-option__title">
+                                    <strong>{role.name}</strong>
+                                    {roleDirty && <i>Belum disimpan</i>}
                                 </span>
-                                <div className="min-w-0 flex-1">
-                                    <div className="flex items-center justify-between gap-2">
-                                        <p className="truncate font-clash text-[13px] font-semibold text-slate-950">{role.name}</p>
-                                        <span className="flex shrink-0 items-center gap-1.5">
-                                            {roleDirty && (
-                                                <span className="whitespace-nowrap rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 font-bdo text-[9px] font-bold uppercase tracking-wide text-amber-700">
-                                                    Belum simpan
-                                                </span>
-                                            )}
-                                            {active && <ChevronRight size={15} className="text-[#B93D2A]" />}
-                                        </span>
-                                    </div>
-                                    <p className="mt-0.5 truncate font-bdo text-[10px] font-semibold text-slate-400">{meta.note}</p>
-                                </div>
-                            </div>
-                            <div className="mt-2.5 grid grid-cols-3 gap-1.5">
-                                <RoleMiniStat label="Izin" value={count} active={active} />
-                                <RoleMiniStat label="Akun" value={role.users_count} active={active} />
-                                <RoleMiniStat label="Online" value={role.online_users_count} active={active} />
-                            </div>
+                                <small>{role.users_count} akun · {role.online_users_count} online</small>
+                                <span className="access-role-option__progress" aria-hidden="true">
+                                    <i className={progressWidthClass(accessPct)} />
+                                </span>
+                            </span>
+                            <span className="access-role-option__count">
+                                <strong>{count}</strong>
+                                <small>izin</small>
+                            </span>
                         </button>
                     );
                 })}
             </div>
-        </aside>
-    );
-}
 
-function RoleMiniStat({ label, value, active }: { label: string; value: number; active: boolean }) {
-    return (
-        <div className={cn("min-w-0 rounded-[13px] border px-2 py-1.5", active ? "border-[#FFD5CD] bg-white" : "border-slate-100 bg-slate-50")}>
-            <p className="truncate font-clash text-sm font-semibold leading-none text-slate-950">{value}</p>
-            <p className="mt-0.5 truncate font-bdo text-[8px] font-bold uppercase tracking-wide text-slate-400">{label}</p>
-        </div>
+            <p className="access-role-rail__note">
+                Perubahan disimpan terpisah untuk setiap role.
+            </p>
+        </aside>
     );
 }
 
@@ -612,95 +486,54 @@ function CommandBar({
     onReset: () => void;
     onSave: () => void;
 }) {
+    const currentPct = percent(count, TOTAL_PERMISSIONS);
+
     return (
-        <section className="role-enter role-card-glint overflow-hidden rounded-[24px] border border-[#FFE0D8] bg-white shadow-[0_18px_42px_-38px_rgba(185,61,42,.48)]">
-            <div className="role-grid-surface flex flex-col gap-3 border-b border-[#FFE0D8] p-3 2xl:grid 2xl:grid-cols-[minmax(0,1fr)_auto] 2xl:items-center">
-                <div className="grid min-w-0 grid-cols-[42px_minmax(0,1fr)] gap-3 sm:grid-cols-[46px_minmax(0,1fr)] sm:items-center">
-                    <ShinyIcon className="h-10 w-10 rounded-[15px] sm:h-11 sm:w-11">
-                        <ShieldCheck size={17} />
-                    </ShinyIcon>
-                    <div className="min-w-0">
-                        <p className="font-bdo text-[9px] font-bold uppercase tracking-widest text-[#B93D2A]/70">
-                            {isAdmin ? "Edit hak akses" : "Akses yang diberikan"}
-                        </p>
-                        <h2 className="font-clash text-xl font-semibold leading-tight text-slate-950 sm:text-2xl 2xl:truncate">{role?.name ?? "Tidak ada role"}</h2>
-                        <p className="mt-0.5 max-w-2xl truncate font-bdo text-[11px] font-semibold text-slate-400">
-                            Tekan status izin, review perubahan, lalu simpan.
-                        </p>
-                    </div>
+        <section className="access-command role-enter">
+            <div className="access-command__identity">
+                <span className="access-command__shield"><ShieldCheck size={18} /></span>
+                <div className="access-command__copy">
+                    <span>{isAdmin ? "Kurasi hak akses" : "Akses yang diberikan"}</span>
+                    <h2>{role?.name ?? "Tidak ada role"}</h2>
+                    <p>{isAdmin ? "Aktifkan hanya izin yang diperlukan oleh pekerjaan role ini." : "Daftar ini hanya dapat dilihat."}</p>
                 </div>
-
-                <div className="grid gap-2 sm:grid-cols-3 2xl:min-w-[570px] 2xl:grid-cols-[minmax(210px,1fr)_auto_auto_auto]">
-                    <label className="flex h-10 min-w-0 items-center gap-2 rounded-[15px] border border-slate-200 bg-white/95 px-3 shadow-sm sm:col-span-3 2xl:col-span-1">
-                        <Search size={14} className="shrink-0 text-slate-400" />
-                        <input
-                            value={query}
-                            onChange={(event) => setQuery(event.target.value)}
-                            placeholder="Cari izin..."
-                            className="min-w-0 flex-1 border-0 bg-transparent p-0 font-bdo text-[13px] font-semibold text-slate-700 outline-none placeholder:text-slate-400 focus:ring-0"
-                        />
-                    </label>
-
-                    {isAdmin && (
-                        <>
-                            <button
-                                type="button"
-                                onClick={onEnableAll}
-                                className="inline-flex h-10 min-w-0 items-center justify-center gap-2 rounded-[15px] border border-[#FFD5CD] bg-[#FFF1EE] px-3 font-clash text-xs font-semibold text-[#B93D2A] transition hover:border-[#F8B5A8] hover:bg-[#FFE5DE] sm:px-4"
-                            >
-                                <Check size={14} />
-                                Aktifkan
-                            </button>
-                            <button
-                                type="button"
-                                onClick={onReset}
-                                disabled={!dirty || saveStatus === "saving"}
-                                className="inline-flex h-10 min-w-0 items-center justify-center gap-2 rounded-[15px] border border-slate-200 bg-white px-3 font-clash text-xs font-semibold text-slate-600 transition hover:border-[#F8B5A8] hover:text-[#B93D2A] disabled:cursor-not-allowed disabled:opacity-45 sm:px-4"
-                            >
-                                <RotateCcw size={14} />
-                                Reset
-                            </button>
-                            <button
-                                type="button"
-                                onClick={onSave}
-                                disabled={!dirty || saveStatus === "saving"}
-                                className={cn(
-                                    "inline-flex h-10 min-w-0 items-center justify-center gap-2 rounded-[15px] px-3 font-clash text-xs font-semibold transition sm:px-5",
-                                    dirty
-                                        ? "bg-[linear-gradient(135deg,#F08C78_0%,#E35336_52%,#B93D2A_100%)] text-white shadow-[0_18px_34px_-24px_rgba(227,83,54,.95)] hover:-translate-y-0.5"
-                                        : "cursor-not-allowed bg-slate-100 text-slate-400",
-                                )}
-                            >
-                                <Save size={14} />
-                                {saveStatus === "saving" ? "Menyimpan..." : saveStatus === "saved" ? "Tersimpan" : "Simpan"}
-                            </button>
-                        </>
-                    )}
+                <div className="access-command__score">
+                    <strong>{count}<small>/{TOTAL_PERMISSIONS}</small></strong>
+                    <span>izin aktif</span>
                 </div>
             </div>
 
-            <div className="grid gap-2 p-3 md:grid-cols-3">
-                <CommandStat label="Izin aktif" value={`${count}/${TOTAL_PERMISSIONS}`} tone="terracotta" />
-                <CommandStat label="Status edit" value={dirty ? "Belum simpan" : "Sinkron"} tone={dirty ? "amber" : "emerald"} />
-                <CommandStat label="Mode" value={isAdmin ? "Bisa edit" : "Read only"} tone="slate" />
+            <div className="access-command__progress" aria-label={`${currentPct}% izin aktif`}>
+                <span className={progressWidthClass(currentPct)} />
+            </div>
+
+            <div className="access-command__toolbar">
+                <label className="access-command__search">
+                    <Search size={15} />
+                    <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Cari izin atau area kerja..." />
+                </label>
+
+                <div className="access-command__state">
+                    <i className={dirty ? "is-dirty" : "is-synced"} aria-hidden="true" />
+                    <span>{dirty ? "Ada perubahan" : saveStatus === "saved" ? "Tersimpan" : "Semua sinkron"}</span>
+                </div>
+
+                {isAdmin && (
+                    <div className="access-command__actions">
+                        <button type="button" onClick={onEnableAll} className="is-secondary">
+                            <Check size={14} /> Semua izin
+                        </button>
+                        <button type="button" onClick={onReset} disabled={!dirty || saveStatus === "saving"} className="is-ghost">
+                            <RotateCcw size={14} /> Reset
+                        </button>
+                        <button type="button" onClick={onSave} disabled={!dirty || saveStatus === "saving"} className="is-primary">
+                            <Save size={14} />
+                            {saveStatus === "saving" ? "Menyimpan..." : saveStatus === "saved" ? "Tersimpan" : "Simpan perubahan"}
+                        </button>
+                    </div>
+                )}
             </div>
         </section>
-    );
-}
-
-function CommandStat({ label, value, tone }: { label: string; value: string; tone: "terracotta" | "emerald" | "amber" | "slate" }) {
-    const styles = {
-        terracotta: "border-[#FFD5CD] bg-[#FFF7F5] text-[#B93D2A]",
-        emerald: "border-emerald-200 bg-emerald-50 text-emerald-700",
-        amber: "border-amber-200 bg-amber-50 text-amber-700",
-        slate: "border-slate-200 bg-slate-50 text-slate-600",
-    }[tone];
-
-    return (
-        <div className={cn("rounded-[18px] border p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,.8)]", styles)}>
-            <p className="font-bdo text-[9px] font-bold uppercase tracking-widest opacity-65">{label}</p>
-            <p className="mt-0.5 font-clash text-lg font-semibold text-slate-950">{value}</p>
-        </div>
     );
 }
 
@@ -728,27 +561,45 @@ function PermissionGrid({
 
     if (visibleGroups.length === 0) {
         return (
-            <div className="role-enter rounded-[24px] border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-                <CircleAlert className="mx-auto h-9 w-9 text-slate-300" />
-                <p className="mt-3 font-clash text-base font-semibold text-slate-800">Izin tidak ditemukan</p>
-                <p className="mt-1 font-bdo text-sm font-semibold text-slate-400">Coba kata kunci lain.</p>
-            </div>
+            <section className="access-ledger-empty role-enter">
+                <span><CircleAlert size={20} /></span>
+                <div>
+                    <h2>Izin tidak ditemukan</h2>
+                    <p>Coba nama fitur, area kerja, atau kode izin yang lain.</p>
+                </div>
+            </section>
         );
     }
 
     return (
-        <section className="grid gap-3 2xl:grid-cols-2">
-            {visibleGroups.map((group, index) => (
-                <PermissionGroupCard
-                    key={group.id}
-                    group={group}
-                    perms={perms}
-                    readOnly={readOnly}
-                    onToggle={onToggle}
-                    onSetGroup={onSetGroup}
-                    index={index}
-                />
-            ))}
+        <section className="access-ledger role-enter">
+            <header className="access-ledger__head">
+                <div>
+                    <span>Matriks kewenangan</span>
+                    <h2>Izin berdasarkan area kerja</h2>
+                    <p>Setiap baris menjelaskan satu tindakan yang dapat dilakukan oleh role terpilih.</p>
+                </div>
+                <strong>{String(visibleGroups.length).padStart(2, "0")} area</strong>
+            </header>
+
+            <div className="access-ledger__body">
+                {visibleGroups.map((group, index) => (
+                    <PermissionGroupCard
+                        key={group.id}
+                        group={group}
+                        perms={perms}
+                        readOnly={readOnly}
+                        onToggle={onToggle}
+                        onSetGroup={onSetGroup}
+                        index={index}
+                    />
+                ))}
+            </div>
+
+            <footer className="access-ledger__foot">
+                <span><ShieldCheck size={14} /> Prinsip akses minimum</span>
+                <p>Berikan izin secukupnya agar pekerjaan tetap lancar tanpa membuka area yang tidak diperlukan.</p>
+            </footer>
         </section>
     );
 }
@@ -771,88 +622,57 @@ function PermissionGroupCard({
     const activeCount = group.items.filter((item) => perms.has(item.key)).length;
     const allOn = activeCount === group.items.length;
     const allOff = activeCount === 0;
+    const activePct = percent(activeCount, group.items.length);
     const Icon = group.icon;
 
     return (
         <article
             className={cn(
-                "role-enter role-card-glint overflow-hidden rounded-[24px] border border-[#FFE0D8] bg-white shadow-[0_16px_38px_-36px_rgba(185,61,42,.48)]",
+                "access-group role-enter",
+                allOn && "is-complete",
+                allOff && "is-empty",
+                !allOn && !allOff && "is-partial",
                 `role-delay-${Math.min(index, 5)}`,
             )}
         >
-            <div className="role-grid-surface border-b border-[#FFE0D8] p-3">
-                <div className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="flex min-w-0 items-center gap-3">
-                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[15px] border border-[#FFD5CD] bg-[#FFF1EE] text-[#B93D2A]">
-                            <Icon size={16} />
-                        </span>
-                        <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#E35336] font-clash text-[9px] font-semibold text-white">
-                                    {group.letter}
-                                </span>
-                                <h3 className="truncate font-clash text-base font-semibold text-slate-950">{group.label}</h3>
-                            </div>
-                            <p className="mt-0.5 font-bdo text-[11px] font-semibold leading-4 text-slate-500">{group.summary}</p>
-                        </div>
-                    </div>
+            <header className="access-group__head">
+                <span className="access-group__icon"><Icon size={17} /></span>
 
-                    <div className="flex items-center gap-2">
-                        <span
-                            className={cn(
-                                "whitespace-nowrap rounded-full border px-3 py-1.5 font-bdo text-[10px] font-bold uppercase tracking-wide",
-                                allOn
-                                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                                    : allOff
-                                      ? "border-slate-200 bg-slate-50 text-slate-400"
-                                      : "border-[#FFD5CD] bg-[#FFF1EE] text-[#B93D2A]",
-                            )}
-                        >
-                            {activeCount}/{group.items.length} aktif
-                        </span>
-                        {!readOnly && (
-                            <button
-                                type="button"
-                                onClick={() => onSetGroup(group, !allOn)}
-                                className="whitespace-nowrap rounded-full border border-slate-200 bg-white px-3 py-1.5 font-bdo text-[10px] font-bold uppercase tracking-wide text-slate-500 transition hover:border-[#F8B5A8] hover:text-[#B93D2A]"
-                            >
-                                {allOn ? "Matikan" : "Semua"}
-                            </button>
-                        )}
-                    </div>
+                <div className="access-group__copy">
+                    <span>Area {String(index + 1).padStart(2, "0")}</span>
+                    <h3>{group.label}</h3>
+                    <p>{group.summary}</p>
                 </div>
 
-                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white ring-1 ring-[#FFE0D8]">
-                    <div
-                        className={cn(
-                            "h-full rounded-full bg-[linear-gradient(90deg,#E35336,#F08C78)] transition-all",
-                            progressWidthClass(percent(activeCount, group.items.length)),
-                        )}
-                    />
+                <div className="access-group__control">
+                    <span className={cn("access-group__status", allOn && "is-complete", allOff && "is-empty")}>
+                        <strong>{activeCount}</strong> dari {group.items.length} aktif
+                    </span>
+                    {!readOnly && (
+                        <button type="button" onClick={() => onSetGroup(group, !allOn)} className="access-group__bulk">
+                            {allOn ? "Nonaktifkan area" : "Aktifkan area"}
+                        </button>
+                    )}
                 </div>
+            </header>
+
+            <div className="access-group__progress" aria-label={`${activePct}% izin area aktif`}>
+                <span className={progressWidthClass(activePct)} />
             </div>
 
-            <div className="space-y-1.5 p-2">
-                {group.items.map((item) => {
+            <div className="access-group__permissions">
+                {group.items.map((item, itemIndex) => {
                     const active = perms.has(item.key);
 
                     return (
-                        <div
-                            key={item.key}
-                            className={cn(
-                                "grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[18px] border px-3 py-2.5 text-left transition",
-                                active
-                                    ? "border-[#FFD5CD] bg-[#FFF9F7] shadow-[0_10px_24px_-22px_rgba(227,83,54,.42)]"
-                                    : "border-slate-100 bg-white",
-                            )}
-                        >
-                            <span className="flex min-w-0 items-start gap-3">
-                                <span className={cn("mt-1 h-2 w-2 shrink-0 rounded-full", active ? "bg-[#E35336] shadow-[0_0_10px_rgba(227,83,54,.32)]" : "bg-slate-200")} />
-                                <span>
-                                    <span className={cn("block font-bdo text-[13px] font-semibold leading-5", active ? "text-slate-800" : "text-slate-400")}>{item.label}</span>
-                                    <span className="mt-0.5 block font-bdo text-[10px] font-semibold text-slate-300">{item.key}</span>
-                                </span>
+                        <div key={item.key} className={cn("access-permission", active && "is-active")}>
+                            <span className="access-permission__index">{String(itemIndex + 1).padStart(2, "0")}</span>
+                            <span className="access-permission__signal" aria-hidden="true" />
+                            <span className="access-permission__copy">
+                                <strong>{item.label}</strong>
+                                <small>{item.key}</small>
                             </span>
+                            <span className="access-permission__state">{active ? "Diizinkan" : "Dibatasi"}</span>
                             <ToggleSwitch enabled={active} readOnly={readOnly} onToggle={() => onToggle(item.key)} label={item.label} />
                         </div>
                     );
@@ -971,10 +791,10 @@ export default function RolesPage() {
         >
             <Head title="Role & Access" />
 
-            <div className="flex flex-col gap-3.5 overflow-x-hidden pb-20 pt-4 text-[0.94rem]">
+            <div className="access-page flex flex-col overflow-x-hidden pb-20 pt-4 text-[0.94rem]">
                 <RoleHero roles={roles} activeRole={sourceRole} currentCount={currentPerms.size} isAdmin={isAdmin} />
 
-                <div className={cn("grid gap-3.5", isAdmin && "xl:grid-cols-[300px_minmax(0,1fr)]")}>
+                <div className={cn("access-workspace", isAdmin && "is-admin")}>
                     {isAdmin && (
                         <RoleSelector
                             roles={roles}
@@ -989,7 +809,7 @@ export default function RolesPage() {
                         />
                     )}
 
-                    <main className="flex min-w-0 flex-col gap-3">
+                    <main className="access-main">
                         <CommandBar
                             role={sourceRole}
                             count={currentPerms.size}
@@ -1004,7 +824,7 @@ export default function RolesPage() {
                         />
 
                         {saveStatus === "error" && (
-                            <div className="role-enter flex items-start gap-3 rounded-[20px] border border-rose-200 bg-rose-50 p-3.5">
+                            <div className="access-error role-enter">
                                 <CircleAlert size={18} className="mt-0.5 shrink-0 text-rose-600" />
                                 <p className="font-bdo text-sm font-semibold leading-6 text-rose-700">
                                     Perubahan belum tersimpan. Periksa koneksi atau izin administrator, lalu coba lagi.

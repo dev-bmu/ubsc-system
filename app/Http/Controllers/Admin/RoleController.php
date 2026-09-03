@@ -3,10 +3,9 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Services\AdminPresenceService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
 use Spatie\Permission\Models\Role;
@@ -15,39 +14,40 @@ class RoleController extends Controller
 {
     private const ROLE_ORDER = ['Manager', 'Finance', 'Staff Central', 'Staff Front Office'];
 
-    public function index(): Response
+    public function index(AdminPresenceService $presence): Response
     {
         $order = self::ROLE_ORDER;
         $user = auth()->user();
 
-        $roles = Role::with('permissions')
+        $roles = Role::with([
+            'permissions',
+            'users:id,staff_last_seen_at',
+        ])
             ->whereNotIn('name', ['Administrator'])
             ->when(! $user?->hasRole('Administrator'), function ($query) use ($user) {
                 $query->where('name', $user?->getRoleNames()->first());
             })
             ->get()
             ->sortBy(fn (Role $r) => array_search($r->name, $order))
-            ->values()
-            ->map(function (Role $r) {
-                // Requires SESSION_DRIVER=database + sessions table
-                $userIds = $r->users()->pluck('users.id');
-                $onlineCount = Schema::hasTable('sessions')
-                    ? DB::table('sessions')
-                        ->whereIn('user_id', $userIds)
-                        ->where('last_activity', '>=', now()->subMinutes(15)->getTimestamp())
-                        ->whereNotNull('user_id')
-                        ->distinct('user_id')
-                        ->count('user_id')
-                    : 0;
+            ->values();
+        $presenceByUser = $presence->snapshotsFor(
+            $roles->pluck('users')->flatten()->unique('id')->values(),
+        );
 
-                return [
-                    'id'                 => $r->id,
-                    'name'               => $r->name,
-                    'permissions'        => $r->permissions->pluck('name')->sort()->values(),
-                    'users_count'        => $userIds->count(),
-                    'online_users_count' => $onlineCount,
-                ];
-            });
+        $roles = $roles->map(function (Role $r) use ($presenceByUser) {
+            $userIds = $r->users->pluck('id');
+            $onlineCount = $userIds->filter(
+                static fn ($userId): bool => ($presenceByUser[(int) $userId]['is_online'] ?? false) === true,
+            )->count();
+
+            return [
+                'id' => $r->id,
+                'name' => $r->name,
+                'permissions' => $r->permissions->pluck('name')->sort()->values(),
+                'users_count' => $userIds->count(),
+                'online_users_count' => $onlineCount,
+            ];
+        });
 
         return Inertia::render('Admin/Settings/Roles', [
             'roles' => $roles,
@@ -69,7 +69,7 @@ class RoleController extends Controller
         );
 
         $data = $request->validate([
-            'permissions'   => ['required', 'array'],
+            'permissions' => ['required', 'array'],
             'permissions.*' => ['string', 'exists:permissions,name'],
         ]);
 

@@ -29,6 +29,7 @@ class RoleAndPermissionSeeder extends Seeder
             'delete-facility-gallery',
             // Beranda & Dasbor
             'view-stats',           // dashboard stat visibility (no controller gate yet)
+            'view-system-operations', // bounded internal monitoring cockpit
             'view-reports',         // FinanceReportController — was: view-finance-reports
 
             // Reservasi & Jadwal

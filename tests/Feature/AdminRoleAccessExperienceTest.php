@@ -6,15 +6,21 @@ use App\Models\Facility;
 use App\Models\FacilityCategory;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Inertia\Testing\AssertableInertia as Assert;
+use OTPHP\TOTP;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
+use Symfony\Component\Clock\NativeClock;
 use Tests\TestCase;
 
 class AdminRoleAccessExperienceTest extends TestCase
 {
     use RefreshDatabase;
+
+    private const MFA_SECRET = 'JBSWY3DPEHPK3PXP';
 
     public function test_non_admin_can_view_only_their_own_role_access_matrix(): void
     {
@@ -108,6 +114,50 @@ class AdminRoleAccessExperienceTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->component('Errors/Forbidden'));
     }
 
+    public function test_administrator_password_change_revokes_target_staff_credentials(): void
+    {
+        config(['session.driver' => 'database']);
+
+        $admin = $this->staffUser('Administrator', []);
+        $manager = $this->staffUser('Manager', []);
+        $manager->forceFill(['remember_token' => 'previous-remember-token'])->save();
+        $setting = $manager->adminMfaSetting()->create([
+            'totp_secret' => 'TARGETMFASECRET',
+            'totp_confirmed_at' => now(),
+            'recovery_codes' => [hash('sha256', 'target-recovery-code')],
+            'recovery_codes_acknowledged_at' => now(),
+            'enabled_at' => now(),
+            'version' => 7,
+        ]);
+        DB::table((string) config('session.table', 'sessions'))->insert([
+            'id' => 'target-staff-session',
+            'user_id' => $manager->getKey(),
+            'ip_address' => '127.0.0.1',
+            'user_agent' => 'Target browser',
+            'payload' => base64_encode('target-session'),
+            'last_activity' => now()->timestamp,
+        ]);
+
+        $this->actingAs($admin);
+        $this->grantStaffAccountManagement($admin);
+
+        $this->put(route('admin.settings.users.update', $manager), [
+            'name' => $manager->name,
+            'email' => $manager->email,
+            'password' => 'replacement-password',
+            'role' => 'Manager',
+        ])
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertTrue(Hash::check('replacement-password', $manager->refresh()->password));
+        $this->assertNotSame('previous-remember-token', $manager->remember_token);
+        $this->assertSame(8, (int) $setting->refresh()->version);
+        $this->assertDatabaseMissing((string) config('session.table', 'sessions'), [
+            'id' => 'target-staff-session',
+        ]);
+    }
+
     public function test_checked_operational_permissions_unlock_their_admin_features(): void
     {
         $scheduler = $this->staffUser('Staff Central', ['manage-booking-limits']);
@@ -172,7 +222,7 @@ class AdminRoleAccessExperienceTest extends TestCase
     }
 
     /**
-     * @param array<int, string> $permissions
+     * @param  array<int, string>  $permissions
      */
     private function staffUser(string $roleName, array $permissions): User
     {
@@ -189,5 +239,24 @@ class AdminRoleAccessExperienceTest extends TestCase
         $user->assignRole($roleName);
 
         return $user;
+    }
+
+    private function grantStaffAccountManagement(User $admin): void
+    {
+        $admin->adminMfaSetting()->firstOrFail()->forceFill([
+            'totp_secret' => self::MFA_SECRET,
+            'totp_confirmed_at' => now(),
+            'totp_last_used_step' => null,
+            'recovery_codes_acknowledged_at' => now(),
+            'enabled_at' => now(),
+        ])->save();
+
+        $code = TOTP::createFromSecret(self::MFA_SECRET, new NativeClock)
+            ->at(now()->timestamp);
+
+        $this->postJson('/ubsc-staff/account/security/mfa/step-up/totp', [
+            'code' => $code,
+            'purpose' => 'manage_staff_accounts',
+        ])->assertOk();
     }
 }
