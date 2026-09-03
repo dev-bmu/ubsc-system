@@ -9,6 +9,7 @@ interface PricingSectionHeadlineProps {
     className?: string;
     delay?: number;
     id?: string;
+    mobileNatural?: boolean;
     stagger?: number;
     theme?: "dark" | "light";
 }
@@ -18,6 +19,7 @@ export default function PricingSectionHeadline({
     className = "",
     delay = 110,
     id,
+    mobileNatural = false,
     stagger = 95,
     theme = "light",
 }: PricingSectionHeadlineProps) {
@@ -27,14 +29,39 @@ export default function PricingSectionHeadline({
             aria-label={children}
             className={`${PRICING_SECTION_HEADING_CLASS} pricing-membership__heading--${theme} ${className}`}
         >
-            <ScrollTextReveal
-                split="lines"
-                delay={delay}
-                stagger={stagger}
-                className="pricing-membership__heading-reveal"
-            >
-                {children}
-            </ScrollTextReveal>
+            {mobileNatural ? (
+                <>
+                    <span className="block md:hidden">
+                        <ScrollTextReveal
+                            split="words"
+                            delay={delay}
+                            stagger={16}
+                            className="pricing-membership__heading-reveal pricing-membership__heading-reveal--mobile-natural"
+                        >
+                            {children}
+                        </ScrollTextReveal>
+                    </span>
+                    <span className="hidden md:block">
+                        <ScrollTextReveal
+                            split="lines"
+                            delay={delay}
+                            stagger={stagger}
+                            className="pricing-membership__heading-reveal"
+                        >
+                            {children}
+                        </ScrollTextReveal>
+                    </span>
+                </>
+            ) : (
+                <ScrollTextReveal
+                    split="lines"
+                    delay={delay}
+                    stagger={stagger}
+                    className="pricing-membership__heading-reveal"
+                >
+                    {children}
+                </ScrollTextReveal>
+            )}
         </h2>
     );
 }

@@ -7,6 +7,7 @@ import {
     type MouseEvent as ReactMouseEvent,
     type SyntheticEvent,
 } from "react";
+import { flushSync } from "react-dom";
 import SectionDivider from "@/Components/Landing/SectionDivider";
 import ScrollTextReveal from "@/Components/Landing/ScrollTextReveal";
 import PricingFacilityChapter, {
@@ -71,6 +72,19 @@ interface ActiveThumbnailState {
     itemId: string | null;
     revealDirection: ThumbnailRevealDirection;
 }
+
+interface MobilePanelMotion {
+    previousId: string | null;
+    nextId: string;
+    previousIndex: number;
+    nextIndex: number;
+    previousHeight: number;
+    nextHeight: number;
+}
+
+const MOBILE_PANEL_OPEN_DURATION = 840;
+const MOBILE_PANEL_CLOSE_DURATION = 500;
+const MOBILE_PANEL_EASE = "cubic-bezier(0.16, 1, 0.3, 1)";
 
 const FALLBACK_IMAGE = "/assets/images/comingsoon.avif";
 const preparedAccordionImages = new Set<string>();
@@ -558,6 +572,8 @@ export default function PricingAccordionSection({ facilities = [] }: Props) {
     );
     const activeItemId = activeThumbnail.itemId;
     const [mobileOpenItemId, setMobileOpenItemId] = useState<string | null>(null);
+    const mobileOpenItemIdRef = useRef<string | null>(mobileOpenItemId);
+    mobileOpenItemIdRef.current = mobileOpenItemId;
     const [hasMobileEntered, setHasMobileEntered] = useState(false);
     const sectionRef = useRef<HTMLElement | null>(null);
     const mobileToggleLockRef = useRef<number | null>(null);
@@ -569,6 +585,226 @@ export default function PricingAccordionSection({ facilities = [] }: Props) {
     const scrollDirection = useRef<ThumbnailRevealDirection>("down");
     const revealDirectionByItem = useRef(
         new Map<string, ThumbnailRevealDirection>(),
+    );
+    const mobilePanelAnimationsRef = useRef<Animation[]>([]);
+    const mobilePanelMotionTimerRef = useRef<number | null>(null);
+    const mobilePanelMotionActiveRef = useRef(false);
+
+    const clearMobilePanelMotion = useCallback(() => {
+        if (mobilePanelMotionTimerRef.current !== null) {
+            window.clearTimeout(mobilePanelMotionTimerRef.current);
+            mobilePanelMotionTimerRef.current = null;
+        }
+
+        mobilePanelAnimationsRef.current.forEach((animation) => {
+            animation.cancel();
+        });
+        mobilePanelAnimationsRef.current = [];
+        mobilePanelMotionActiveRef.current = false;
+
+        const section = sectionRef.current;
+        if (section) delete section.dataset.pfaPanelMotion;
+        chapterNodes.current.forEach((chapter) => {
+            delete chapter.dataset.pfaPanelExiting;
+        });
+    }, []);
+
+    const prepareMobilePanelMotion = useCallback(
+        (previousId: string | null, nextId: string): MobilePanelMotion | null => {
+            if (previousId === nextId) return null;
+            if (!window.matchMedia("(max-width: 63.999rem)").matches) return null;
+            if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+                return null;
+            }
+            if (
+                typeof HTMLElement.prototype.animate !== "function" ||
+                typeof CSS === "undefined" ||
+                !CSS.supports("translate", "0 1px") ||
+                !CSS.supports("clip-path", "inset(0 0 100% 0)")
+            ) {
+                return null;
+            }
+
+            const section = sectionRef.current;
+            const previousChapter = previousId
+                ? chapterNodes.current.get(previousId)
+                : undefined;
+            const nextChapter = chapterNodes.current.get(nextId);
+            const previousPanel = previousChapter?.querySelector<HTMLElement>(
+                ".pfa-chapter__panel",
+            );
+            const previousInner = previousChapter?.querySelector<HTMLElement>(
+                ".pfa-chapter__panel-inner",
+            );
+            const nextPanel = nextChapter?.querySelector<HTMLElement>(
+                ".pfa-chapter__panel",
+            );
+            const nextInner = nextChapter?.querySelector<HTMLElement>(
+                ".pfa-chapter__panel-inner",
+            );
+            if (
+                !section ||
+                !nextChapter ||
+                !nextPanel ||
+                !nextInner ||
+                (previousId !== null &&
+                    (!previousChapter || !previousPanel || !previousInner))
+            ) {
+                return null;
+            }
+
+            const previousHeight = previousInner?.scrollHeight ?? 0;
+            const nextHeight = nextInner.scrollHeight;
+            if (
+                (previousId !== null && previousHeight <= 0) ||
+                nextHeight <= 0
+            ) {
+                return null;
+            }
+
+            clearMobilePanelMotion();
+            previousPanel?.style.setProperty(
+                "--pfa-panel-height",
+                `${previousHeight}px`,
+            );
+            nextPanel.style.setProperty("--pfa-panel-height", `${nextHeight}px`);
+            section.dataset.pfaPanelMotion = "compositor";
+            if (previousChapter) {
+                previousChapter.dataset.pfaPanelExiting = "true";
+            }
+            mobilePanelMotionActiveRef.current = true;
+
+            return {
+                previousId,
+                nextId,
+                previousIndex:
+                    previousId === null
+                        ? -1
+                        : items.findIndex((item) => item.id === previousId),
+                nextIndex: items.findIndex((item) => item.id === nextId),
+                previousHeight,
+                nextHeight,
+            };
+        },
+        [clearMobilePanelMotion, items],
+    );
+
+    const startMobilePanelMotion = useCallback(
+        (motion: MobilePanelMotion) => {
+            const animations: Animation[] = [];
+
+            items.forEach((item, itemIndex) => {
+                const chapter = chapterNodes.current.get(item.id);
+                if (!chapter) return;
+
+                /*
+                 * The two independent compositor properties reproduce the old
+                 * motion exactly: closing shifts following cards up in 500ms,
+                 * while opening shifts its following cards down in 840ms.
+                 */
+                if (
+                    motion.previousId !== null &&
+                    itemIndex > motion.previousIndex
+                ) {
+                    animations.push(
+                        chapter.animate(
+                            [
+                                { translate: `0 ${motion.previousHeight}px` },
+                                { translate: "0 0px" },
+                            ],
+                            {
+                                duration: MOBILE_PANEL_CLOSE_DURATION,
+                                easing: MOBILE_PANEL_EASE,
+                                fill: "both",
+                            },
+                        ),
+                    );
+                }
+
+                if (itemIndex > motion.nextIndex) {
+                    animations.push(
+                        chapter.animate(
+                            [
+                                {
+                                    transform: `translate3d(0, ${-motion.nextHeight}px, 0)`,
+                                },
+                                { transform: "translate3d(0, 0, 0)" },
+                            ],
+                            {
+                                duration: MOBILE_PANEL_OPEN_DURATION,
+                                easing: MOBILE_PANEL_EASE,
+                                fill: "both",
+                            },
+                        ),
+                    );
+                }
+            });
+
+            const incomingPanel = chapterNodes.current
+                .get(motion.nextId)
+                ?.querySelector<HTMLElement>(".pfa-chapter__panel");
+            if (incomingPanel) {
+                animations.push(
+                    incomingPanel.animate(
+                        [
+                            { clipPath: "inset(0 0 100% 0)" },
+                            { clipPath: "inset(0 0 0% 0)" },
+                        ],
+                        {
+                            duration: MOBILE_PANEL_OPEN_DURATION,
+                            easing: MOBILE_PANEL_EASE,
+                            fill: "both",
+                        },
+                    ),
+                );
+            }
+
+            const outgoingInner = motion.previousId
+                ? chapterNodes.current
+                      .get(motion.previousId)
+                      ?.querySelector<HTMLElement>(
+                          ".pfa-chapter__panel-inner",
+                      )
+                : null;
+            if (outgoingInner) {
+                animations.push(
+                    outgoingInner.animate(
+                        [
+                            { clipPath: "inset(0 0 0% 0)" },
+                            { clipPath: "inset(0 0 100% 0)" },
+                        ],
+                        {
+                            duration: MOBILE_PANEL_CLOSE_DURATION,
+                            easing: MOBILE_PANEL_EASE,
+                            fill: "both",
+                        },
+                    ),
+                    outgoingInner.animate([{ opacity: 1 }, { opacity: 0 }], {
+                        duration: 160,
+                        easing: MOBILE_PANEL_EASE,
+                        fill: "both",
+                    }),
+                    outgoingInner.animate(
+                        [
+                            { transform: "translate3d(0, 0, 0)" },
+                            { transform: "translate3d(0, -0.5rem, 0)" },
+                        ],
+                        {
+                            duration: 200,
+                            easing: MOBILE_PANEL_EASE,
+                            fill: "both",
+                        },
+                    ),
+                );
+            }
+
+            mobilePanelAnimationsRef.current = animations;
+            mobilePanelMotionTimerRef.current = window.setTimeout(
+                clearMobilePanelMotion,
+                MOBILE_PANEL_OPEN_DURATION + 40,
+            );
+        },
+        [clearMobilePanelMotion, items],
     );
 
     const activateItemWithReveal = useCallback(
@@ -595,8 +831,9 @@ export default function PricingAccordionSection({ facilities = [] }: Props) {
             if (mobileToggleLockRef.current !== null) {
                 window.clearTimeout(mobileToggleLockRef.current);
             }
+            clearMobilePanelMotion();
         };
-    }, []);
+    }, [clearMobilePanelMotion]);
 
     useEffect(() => {
         const node = sectionRef.current;
@@ -611,12 +848,22 @@ export default function PricingAccordionSection({ facilities = [] }: Props) {
             const firstItem = items[0];
             if (!firstItem) return;
 
-            setHasMobileEntered(true);
-            setMobileOpenItemId((current) => {
-                const nextId = current ?? firstItem.id;
+            const current = mobileOpenItemIdRef.current;
+            const nextId = current ?? firstItem.id;
+            const panelMotion = current
+                ? null
+                : prepareMobilePanelMotion(null, nextId);
+            const commitEntrance = () => {
+                setHasMobileEntered(true);
+                setMobileOpenItemId(nextId);
+            };
 
-                return nextId;
-            });
+            if (panelMotion) {
+                flushSync(commitEntrance);
+                startMobilePanelMotion(panelMotion);
+            } else {
+                commitEntrance();
+            }
         };
 
         if (!("IntersectionObserver" in window)) {
@@ -640,7 +887,12 @@ export default function PricingAccordionSection({ facilities = [] }: Props) {
         observer.observe(node);
 
         return () => observer.disconnect();
-    }, [hasMobileEntered, items]);
+    }, [
+        hasMobileEntered,
+        items,
+        prepareMobilePanelMotion,
+        startMobilePanelMotion,
+    ]);
 
     useEffect(() => {
         if (items.length === 0) {
@@ -722,6 +974,8 @@ export default function PricingAccordionSection({ facilities = [] }: Props) {
                         visibleEntries.current.delete(itemId);
                     }
                 });
+
+                if (mobilePanelMotionActiveRef.current) return;
 
                 const anchorLine = window.innerHeight * 0.26;
                 const activeItem = Array.from(visibleEntries.current.keys()).sort(
@@ -1030,13 +1284,13 @@ export default function PricingAccordionSection({ facilities = [] }: Props) {
         return () => observer.disconnect();
     }, []);
 
-    const registerChapter = (itemId: string, node: HTMLElement | null) => {
+    const registerChapter = useCallback((itemId: string, node: HTMLElement | null) => {
         if (node) {
             chapterNodes.current.set(itemId, node);
         } else {
             chapterNodes.current.delete(itemId);
         }
-    };
+    }, []);
 
     const handleIndexClick = (
         event: ReactMouseEvent<HTMLAnchorElement>,
@@ -1079,22 +1333,27 @@ export default function PricingAccordionSection({ facilities = [] }: Props) {
         );
     };
 
-    const handleMobileToggle = (itemId: string) => {
+    const handleMobileToggle = useCallback((itemId: string) => {
         if (mobileToggleLockRef.current !== null || items.length === 0) return;
 
-        setHasMobileEntered(true);
-        setMobileOpenItemId((current) => {
-            const clickedIndex = items.findIndex((item) => item.id === itemId);
-            const currentOpenIndex = items.findIndex((item) => item.id === current);
-            const nextItem =
-                current === itemId
-                    ? items[(clickedIndex + 1) % items.length]
-                    : items[clickedIndex];
-            const nextId = nextItem?.id ?? items[0].id;
-            const nextIndex = items.findIndex((item) => item.id === nextId);
-            const direction: ThumbnailRevealDirection =
-                currentOpenIndex >= 0 && nextIndex < currentOpenIndex ? "up" : "down";
+        const current = mobileOpenItemIdRef.current;
+        const clickedIndex = items.findIndex((item) => item.id === itemId);
+        const currentOpenIndex = items.findIndex((item) => item.id === current);
+        const nextItem =
+            current === itemId
+                ? items[(clickedIndex + 1) % items.length]
+                : items[clickedIndex];
+        const nextId = nextItem?.id ?? items[0].id;
+        const nextIndex = items.findIndex((item) => item.id === nextId);
+        const direction: ThumbnailRevealDirection =
+            currentOpenIndex >= 0 && nextIndex < currentOpenIndex ? "up" : "down";
+        const panelMotion = current
+            ? prepareMobilePanelMotion(current, nextId)
+            : null;
 
+        const commitSelection = () => {
+            setHasMobileEntered(true);
+            setMobileOpenItemId(nextId);
             scrollDirection.current = direction;
             activateItemWithReveal(nextId, direction);
             window.history.replaceState(
@@ -1102,14 +1361,24 @@ export default function PricingAccordionSection({ facilities = [] }: Props) {
                 "",
                 `#price-${nextId}`,
             );
+        };
 
-            return nextId;
-        });
+        if (panelMotion) {
+            flushSync(commitSelection);
+            startMobilePanelMotion(panelMotion);
+        } else {
+            commitSelection();
+        }
 
         mobileToggleLockRef.current = window.setTimeout(() => {
             mobileToggleLockRef.current = null;
-        }, 180);
-    };
+        }, panelMotion ? MOBILE_PANEL_OPEN_DURATION + 40 : 180);
+    }, [
+        activateItemWithReveal,
+        items,
+        prepareMobilePanelMotion,
+        startMobilePanelMotion,
+    ]);
 
     const activeDirectoryIndex = Math.max(
         0,
@@ -1299,12 +1568,8 @@ export default function PricingAccordionSection({ facilities = [] }: Props) {
                                             : (revealDirectionByItem.current.get(item.id) ??
                                               "down")
                                     }
-                                    onMobileToggle={() =>
-                                        handleMobileToggle(item.id)
-                                    }
-                                    registerChapter={(node) =>
-                                        registerChapter(item.id, node)
-                                    }
+                                    onMobileToggle={handleMobileToggle}
+                                    registerChapter={registerChapter}
                                 />
                             ))}
                         </div>

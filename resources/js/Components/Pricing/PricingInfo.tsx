@@ -12,11 +12,11 @@ import PricingSectionHeadline from "./PricingSectionHeadline";
 import "./PricingInfo.css";
 
 const PRICING_MEMBERSHIP_HEADING =
-    "Temukan ritme terbaik untuk latihan Anda bersama fasilitas modern, program terarah, dan membership fleksibel agar tetap konsisten, meningkatkan performa, dan mencapai target.";
+    "Temukan ritme terbaik untuk rutinitas latihan Anda bersama fasilitas modern yang lengkap, program latihan terarah, serta membership yang fleksibel sesuai dengan kebutuhan Anda.";
 
 function PricingMembershipHeadline() {
     return (
-        <PricingSectionHeadline>
+        <PricingSectionHeadline mobileNatural>
             {PRICING_MEMBERSHIP_HEADING}
         </PricingSectionHeadline>
     );

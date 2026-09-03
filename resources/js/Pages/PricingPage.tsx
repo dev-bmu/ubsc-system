@@ -6,7 +6,7 @@ import PricingClassSection from "@/Components/Pricing/PricingClassSection";
 import PricingAccordionSection from "@/Components/Pricing/PricingAccordionSection";
 import "@/Components/Pricing/PricingFacilities.css";
 import NewsShowcaseBridge from "@/Components/News/NewsShowcaseBridge";
-import SectionEight from "@/Components/Landing/SectionEight";
+import DeferredSectionEight from "@/Components/Landing/DeferredSectionEight";
 import Footer from "@/Components/Landing/Footer";
 import HeroCurtainEdge from "@/Components/Landing/HeroCurtainEdge";
 import SeoHead from "@/Components/SeoHead";
@@ -481,7 +481,7 @@ export default function PricingPage() {
                     <NewsShowcaseBridge />
                 </section>
                 <div className="home-footer-reveal-stage">
-                    <SectionEight deferLoopAnimations />
+                    <DeferredSectionEight deferLoopAnimations />
                 </div>
                 <div className="home-footer-reveal-footer">
                     <Footer deferLoopAnimations />

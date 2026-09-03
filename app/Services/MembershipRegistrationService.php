@@ -140,7 +140,7 @@ class MembershipRegistrationService
             );
 
             return ['membership' => $membership, 'replayed' => false];
-        }, 3);
+        }, (int) config('resilience.database.transaction_attempts', 3));
     }
 
     /**
@@ -313,7 +313,7 @@ class MembershipRegistrationService
             );
 
             return ['membership' => $membership, 'expired' => false];
-        }, 3);
+        }, (int) config('resilience.database.transaction_attempts', 3));
 
         return $result;
     }

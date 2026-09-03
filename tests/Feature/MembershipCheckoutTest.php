@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\MembershipInvoiceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -21,6 +22,7 @@ class MembershipCheckoutTest extends TestCase
         parent::setUp();
 
         Carbon::setTestNow('2026-07-28 10:00:00');
+        Storage::fake('invoice-pdf');
         config([
             'services.payment.mock' => true,
             'services.payment.membership_window_hours' => 24,
@@ -321,7 +323,7 @@ class MembershipCheckoutTest extends TestCase
             'no-store',
             (string) $response->headers->get('Cache-Control'),
         );
-        $this->assertStringStartsWith('%PDF-', $response->getContent());
+        $this->assertStringStartsWith('%PDF-', $response->streamedContent());
 
         $membership->update(['status' => 'expired']);
         $this->actingAs($user)

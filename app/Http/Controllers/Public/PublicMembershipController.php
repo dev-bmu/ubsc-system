@@ -28,7 +28,7 @@ class PublicMembershipController extends Controller
             $request->validated(),
         );
 
-        return $this->noStore(response()->json([
+        $response = response()->json([
             'message' => $result['replayed']
                 ? 'Pendaftaran yang sama telah diproses sebelumnya.'
                 : 'Pendaftaran membership berhasil dibuat.',
@@ -36,7 +36,13 @@ class PublicMembershipController extends Controller
                 $result['membership'],
                 $result['replayed'],
             ),
-        ], $result['replayed'] ? 200 : 201));
+        ], $result['replayed'] ? 200 : 201);
+        $response->headers->set(
+            (string) config('resilience.idempotency.replay_header', 'Idempotent-Replay'),
+            $result['replayed'] ? 'true' : 'false',
+        );
+
+        return $this->noStore($response);
     }
 
     public function show(Request $request, Membership $membership): JsonResponse

@@ -1,4 +1,7 @@
 import {
+    memo,
+    useCallback,
+    useLayoutEffect,
     useRef,
     type PointerEvent as ReactPointerEvent,
     type SyntheticEvent,
@@ -48,8 +51,8 @@ interface Props {
     isActive: boolean;
     isMobileOpen: boolean;
     revealDirection: "up" | "down";
-    onMobileToggle: () => void;
-    registerChapter: (node: HTMLElement | null) => void;
+    onMobileToggle: (itemId: string) => void;
+    registerChapter: (itemId: string, node: HTMLElement | null) => void;
 }
 
 const FALLBACK_IMAGE = "/assets/images/comingsoon.avif";
@@ -72,7 +75,7 @@ const venueLabel = (venueType: string) =>
         .replace(/^\s*\/+|\/+\s*$/g, "")
         .trim() || "Fasilitas";
 
-export default function PricingFacilityChapter({
+function PricingFacilityChapter({
     item,
     itemIndex,
     isActive,
@@ -88,6 +91,9 @@ export default function PricingFacilityChapter({
         scrollY: number;
         time: number;
     } | null>(null);
+    const panelRef = useRef<HTMLDivElement | null>(null);
+    const panelInnerRef = useRef<HTMLDivElement | null>(null);
+    const panelResizeFrameRef = useRef<number | null>(null);
     const chapterId = `price-${item.id}`;
     const headingId = `${chapterId}-heading`;
     const triggerId = `${chapterId}-trigger`;
@@ -97,6 +103,78 @@ export default function PricingFacilityChapter({
     const displayTitle = facilityTitleName(item.title);
     const formattedTitle = formatFacilityTitle(item.title);
     const prioritizeMedia = isActive || isMobileOpen;
+
+    /*
+     * Keep the accordion's moving box independent from its (much heavier)
+     * contents. Animating a measured height lets the browser lay out the rate
+     * table once, instead of recalculating a fractional CSS-grid track on every
+     * animation frame.
+     */
+    const syncPanelHeight = useCallback((withoutTransition = false) => {
+        const panel = panelRef.current;
+        const inner = panelInnerRef.current;
+        if (!panel || !inner) return;
+
+        const nextHeight = inner.scrollHeight;
+        const currentHeight = Number.parseFloat(
+            panel.style.getPropertyValue("--pfa-panel-height"),
+        );
+        if (Number.isFinite(currentHeight) && Math.abs(currentHeight - nextHeight) < 1) {
+            return;
+        }
+
+        if (withoutTransition) {
+            panel.dataset.pfaPanelResizing = "true";
+        }
+        panel.style.setProperty("--pfa-panel-height", `${nextHeight}px`);
+
+        if (!withoutTransition) return;
+        if (panelResizeFrameRef.current !== null) {
+            window.cancelAnimationFrame(panelResizeFrameRef.current);
+        }
+        panelResizeFrameRef.current = window.requestAnimationFrame(() => {
+            delete panel.dataset.pfaPanelResizing;
+            panelResizeFrameRef.current = null;
+        });
+    }, []);
+
+    useLayoutEffect(() => {
+        if (!isMobileOpen) return;
+
+        syncPanelHeight();
+        const inner = panelInnerRef.current;
+        if (!inner) return;
+
+        if (typeof ResizeObserver === "undefined") {
+            const handleResize = () => syncPanelHeight(true);
+            window.addEventListener("resize", handleResize, { passive: true });
+            return () => window.removeEventListener("resize", handleResize);
+        }
+
+        const observer = new ResizeObserver(() => syncPanelHeight(true));
+        observer.observe(inner);
+
+        return () => observer.disconnect();
+    }, [isMobileOpen, syncPanelHeight]);
+
+    useLayoutEffect(
+        () => () => {
+            if (panelResizeFrameRef.current !== null) {
+                window.cancelAnimationFrame(panelResizeFrameRef.current);
+            }
+        },
+        [],
+    );
+
+    const handleMobileToggle = () => {
+        if (!isMobileOpen) syncPanelHeight();
+        onMobileToggle(item.id);
+    };
+
+    const handleChapterRef = useCallback(
+        (node: HTMLElement | null) => registerChapter(item.id, node),
+        [item.id, registerChapter],
+    );
 
     const shouldIgnorePanelTarget = (target: EventTarget | null) => {
         if (!(target instanceof HTMLElement)) return true;
@@ -146,12 +224,12 @@ export default function PricingFacilityChapter({
         if (deltaX > 10 || deltaY > 10) return;
         if (scrollDelta > 2 || elapsed > 700) return;
 
-        onMobileToggle();
+        handleMobileToggle();
     };
 
     return (
         <article
-            ref={registerChapter}
+            ref={handleChapterRef}
             id={chapterId}
             className="pfa-chapter"
             data-pfa-chapter
@@ -168,7 +246,7 @@ export default function PricingFacilityChapter({
                 type="button"
                 aria-expanded={isMobileOpen}
                 aria-controls={panelId}
-                onClick={onMobileToggle}
+                onClick={handleMobileToggle}
             >
                 <span className="pfa-chapter__mobile-thumbnail" aria-hidden="true">
                     <img
@@ -216,12 +294,14 @@ export default function PricingFacilityChapter({
             </button>
 
             <div
+                ref={panelRef}
                 id={panelId}
                 className="pfa-chapter__panel"
                 role="region"
                 aria-labelledby={triggerId}
             >
                 <div
+                    ref={panelInnerRef}
                     className="pfa-chapter__panel-inner"
                     onPointerDown={handlePanelPointerDown}
                     onPointerUp={handlePanelPointerUp}
@@ -306,10 +386,6 @@ export default function PricingFacilityChapter({
                         </div>
                     </dl>
 
-                    <PricingBookingLink
-                        className="pfa-chapter__booking"
-                        label="Reservasi fasilitas"
-                    />
                 </header>
 
                 <div className="pfa-chapter__catalog">
@@ -375,6 +451,11 @@ export default function PricingFacilityChapter({
                             </div>
                         </div>
                     )}
+
+                    <PricingBookingLink
+                        className="pfa-chapter__booking"
+                        label="Reservasi fasilitas"
+                    />
                 </div>
 
                 {item.facts.length > 0 && (
@@ -393,3 +474,5 @@ export default function PricingFacilityChapter({
         </article>
     );
 }
+
+export default memo(PricingFacilityChapter);

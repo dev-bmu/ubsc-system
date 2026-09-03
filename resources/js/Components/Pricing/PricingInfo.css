@@ -150,6 +150,21 @@
     display: block;
 }
 
+@media (max-width: 639.98px) {
+    .pricing-membership__heading-reveal--mobile-natural {
+        --pricing-membership-heading-indent: clamp(1.4rem, 7vw, 2.275rem);
+        text-indent: var(--pricing-membership-heading-indent);
+    }
+
+    .pricing-membership__heading-reveal--mobile-natural
+        >.ubsc-text-reveal__word-clip,
+    .pricing-membership__heading-reveal--mobile-natural
+        >.ubsc-text-reveal__word-clip
+        >.ubsc-text-reveal__word {
+        text-indent: 0;
+    }
+}
+
 .pricing-membership__results {
     position: relative;
     grid-template-columns: minmax(13.75rem, 0.36fr) minmax(0, 1fr);
