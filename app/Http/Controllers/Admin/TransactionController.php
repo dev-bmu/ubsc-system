@@ -113,7 +113,13 @@ class TransactionController extends Controller
             ]);
 
             $lockedSubject->update(['status' => 'confirmed']);
-        }, 3);
+            $this->bookingInventory->assertPersistedBookingsWithinCapacity(
+                collect([$lockedSubject]),
+                $lockedResources['facilities'],
+                $lockedResources['units'],
+                'payment_status',
+            );
+        }, (int) config('resilience.database.transaction_attempts', 3));
 
         return back()->with('success', 'Pembayaran berhasil dikonfirmasi (Simulasi).');
     }

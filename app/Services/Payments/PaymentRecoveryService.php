@@ -362,10 +362,18 @@ final class PaymentRecoveryService
                 $order->update(['status' => 'paid']);
             }
 
-            Booking::query()
-                ->whereKey($bookings->modelKeys())
-                ->where('status', 'pending')
-                ->update(['status' => 'confirmed']);
+            foreach ($bookings as $booking) {
+                if ($booking->status === 'pending') {
+                    $booking->update(['status' => 'confirmed']);
+                }
+            }
+
+            $this->inventory->assertPersistedBookingsWithinCapacity(
+                $bookings,
+                $lockedResources['facilities'],
+                $lockedResources['units'],
+                'payment_recovery',
+            );
 
             if ($changed) {
                 $this->operationalLog->recordAfterCommit('reservation_confirmed', [
@@ -377,7 +385,7 @@ final class PaymentRecoveryService
             }
 
             return $changed;
-        }, 3);
+        }, (int) config('resilience.database.transaction_attempts', 3));
     }
 
     private function recoverDirectBookingCandidate(int $bookingId): bool
@@ -480,6 +488,13 @@ final class PaymentRecoveryService
                 $booking->update(['status' => 'confirmed']);
             }
 
+            $this->inventory->assertPersistedBookingsWithinCapacity(
+                collect([$booking]),
+                $lockedResources['facilities'],
+                $lockedResources['units'],
+                'payment_recovery',
+            );
+
             if ($changed) {
                 $this->operationalLog->recordAfterCommit('reservation_confirmed', [
                     'booking_id' => $booking->id,
@@ -490,7 +505,7 @@ final class PaymentRecoveryService
             }
 
             return $changed;
-        }, 3);
+        }, (int) config('resilience.database.transaction_attempts', 3));
     }
 
     private function recoverMembershipCandidate(int $membershipId): bool

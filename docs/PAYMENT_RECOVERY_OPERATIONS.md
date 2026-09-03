@@ -33,21 +33,16 @@ php artisan schedule:list
 
 ## Production scheduler
 
-The application schedule is durable, but Laravel cannot start an operating
-system process by itself. Production must run one scheduler trigger that also
-returns after machine reboot. The most portable option is cron:
+Laravel cannot start an operating-system process by itself. Production runs
+one automatically restarted `schedule:work` process on every node using the
+selected artifact under `deploy/supervisor/`. Shared `onOneServer` and bounded
+overlap locks elect the executor; another node remains ready to take over.
+Database row locks and idempotency remain the final safety layer if ownership
+changes around a failure boundary.
 
-```cron
-* * * * * cd /absolute/path/to/ubsc-pro && php artisan schedule:run >> /dev/null 2>&1
-```
-
-For container or process-manager deployments, `php artisan schedule:work` may
-be supervised with automatic restart. Only one scheduler should be elected per
-shared environment; database row locks and idempotency remain the final safety
-layer if two runners briefly overlap.
-
-Queue workers must also use the hosting platform's restart policy. Payment
-recovery itself does not depend on a queue worker.
+The scheduler dispatches recovery to the isolated `critical` queue. At least
+two critical workers per node are supervised with automatic restart, so media,
+document, notification, and maintenance backlogs cannot starve reconciliation.
 
 ## Deployment sequence
 

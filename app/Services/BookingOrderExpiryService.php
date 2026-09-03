@@ -63,9 +63,15 @@ class BookingOrderExpiryService
 
         // A confirmed child under an unpaid order is an invalid legacy state;
         // release it together with normal pending holds when the order expires.
-        $order->bookings()
+        $bookings = $order->bookings()
             ->whereIn('status', ['pending', 'confirmed'])
-            ->update(['status' => 'cancelled']);
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+
+        foreach ($bookings as $booking) {
+            $booking->update(['status' => 'cancelled']);
+        }
 
         if ($transaction && $transaction->payment_status !== 'EXPIRED') {
             $this->paymentAttempts->expireOpenAttempts($transaction);
@@ -112,7 +118,7 @@ class BookingOrderExpiryService
                             ->first();
 
                         return $this->expire($order, $transaction, $at);
-                    }, 3);
+                    }, (int) config('resilience.database.transaction_attempts', 3));
 
                     if ($expired) {
                         $expiredCount++;
@@ -148,6 +154,6 @@ class BookingOrderExpiryService
                 ->first();
 
             return $this->expire($order, $transaction, $at);
-        }, 3);
+        }, (int) config('resilience.database.transaction_attempts', 3));
     }
 }
