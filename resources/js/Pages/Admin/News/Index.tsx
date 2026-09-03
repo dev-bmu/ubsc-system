@@ -10,7 +10,6 @@ import {
     ChevronRight,
     ChevronUp,
     Clock3,
-    Edit3,
     Eye,
     FileText,
     Filter,
@@ -27,6 +26,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import AdminLayout from "@/Layouts/AdminLayout";
+import HeroCurationPanel from "./HeroCurationPanel";
 import type { InfoBannerItem, NewsCategory, NewsItem, NewsStatus, PageProps } from "@/types";
 import { cn } from "@/lib/utils";
 import "./Index.css";
@@ -38,6 +38,7 @@ type Props = PageProps<{
 }>;
 
 type StatusFilter = NewsStatus | "all";
+type NewsMode = "news" | "hero";
 type BannerModalState = {
     open: boolean;
     editing: InfoBannerItem | null;
@@ -220,41 +221,49 @@ function NewsRowActions({ article }: { article: NewsItem }) {
     };
 
     return (
-        <div className="flex items-center gap-2">
-            {canViewPublic ? (
-                <a
-                    href={route("news.show", article.slug)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-sky-100 bg-sky-50 text-sky-600 transition-all duration-200 hover:-translate-y-0.5 hover:border-sky-200 hover:bg-white hover:text-sky-800 hover:shadow-sm"
-                    aria-label={`Lihat halaman publik ${article.title}`}
-                >
-                    <Eye size={14} />
-                </a>
-            ) : (
-                <span
-                    className="inline-flex h-9 w-9 cursor-not-allowed items-center justify-center rounded-xl border border-slate-100 bg-slate-50 text-slate-300"
-                    aria-label={`${article.title} belum tampil publik`}
-                    title="Belum tampil publik"
-                >
-                    <Eye size={14} />
-                </span>
-            )}
+        <div className="editorial-article__actions">
             <Link
                 href={route("admin.news.edit", article.id)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:text-slate-950 hover:shadow-sm"
-                aria-label={`Edit ${article.title}`}
+                className="editorial-action editorial-action--primary"
+                aria-label={`Edit artikel ${article.title}`}
             >
                 <Pencil size={14} />
+                <span>Edit artikel</span>
+                <ArrowUpRight size={13} aria-hidden="true" />
             </Link>
-            <ActionButton
-                disabled={deleting}
-                onClick={handleDelete}
-                className="border-rose-200 bg-rose-50 text-rose-500 hover:border-rose-300 hover:bg-rose-100"
-                aria-label={`Hapus ${article.title}`}
-            >
-                <Trash2 size={14} />
-            </ActionButton>
+
+            <div className="editorial-article__secondary-actions">
+                {canViewPublic ? (
+                    <a
+                        href={route("news.show", article.slug)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="editorial-action editorial-action--icon editorial-action--view"
+                        aria-label={`Lihat halaman publik ${article.title}`}
+                        title="Lihat halaman publik"
+                    >
+                        <Eye size={14} />
+                    </a>
+                ) : (
+                    <span
+                        className="editorial-action editorial-action--icon editorial-action--disabled"
+                        aria-label={`${article.title} belum tampil publik`}
+                        title="Belum tampil publik"
+                    >
+                        <Eye size={14} />
+                    </span>
+                )}
+                <button
+                    type="button"
+                    disabled={deleting}
+                    onClick={handleDelete}
+                    className="editorial-action editorial-action--icon editorial-action--delete"
+                    aria-label={`Hapus artikel ${article.title}`}
+                    title="Hapus artikel"
+                >
+                    <Trash2 size={14} />
+                </button>
+            </div>
         </div>
     );
 }
@@ -300,13 +309,17 @@ function NewsHero({
     published,
     draft,
     archived,
-    featured,
+    banners,
+    onCreateBanner,
+    onEditBanner,
 }: {
     total: number;
     published: number;
     draft: number;
     archived: number;
-    featured: NewsItem | null;
+    banners: InfoBannerItem[];
+    onCreateBanner: () => void;
+    onEditBanner: (banner: InfoBannerItem) => void;
 }) {
     const statusBars = [
         {
@@ -448,65 +461,12 @@ function NewsHero({
                     </div>
                 </div>
 
-                <div className="news-card-glint grid overflow-hidden rounded-[22px] border border-white/20 bg-white p-2.5 text-slate-950 shadow-[0_26px_52px_-36px_rgba(15,23,42,.55)] sm:grid-cols-[minmax(156px,.42fr)_minmax(0,1fr)] sm:gap-3 xl:block">
-                    <div className="flex flex-col gap-3">
-                        <div className="flex items-center justify-between gap-3">
-                            <span className="inline-flex items-center gap-2 rounded-full border border-[#FFD5CD] bg-white/88 px-3 py-1.5 font-bdo text-[10px] font-bold uppercase tracking-wide text-[#B93D2A] shadow-sm backdrop-blur">
-                                <Sparkles size={12} />
-                                Spotlight
-                            </span>
-                            {featured && <StatusBadge status={featured.status} />}
-                        </div>
-
-                        <div className="relative h-[112px] overflow-hidden rounded-[16px] bg-[linear-gradient(135deg,#FFF1EE,#F0F9FF)] ring-1 ring-slate-200/80 sm:h-full sm:min-h-[136px] xl:h-[118px] xl:min-h-0">
-                            {featured?.thumbnail ? (
-                                <img
-                                    src={featured.thumbnail}
-                                    alt=""
-                                    className="h-full w-full object-cover"
-                                />
-                            ) : (
-                                <div className="h-full w-full bg-[linear-gradient(135deg,#FFF1EE,#F0F9FF),repeating-linear-gradient(90deg,rgba(227,83,54,.08)_0,rgba(227,83,54,.08)_1px,transparent_1px,transparent_18px)]" />
-                            )}
-                            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-white/20 via-transparent to-transparent" />
-                        </div>
-                    </div>
-
-                    <div className="flex min-w-0 flex-col justify-between gap-2 pt-2.5 sm:pt-1 xl:pt-2.5">
-                        <div>
-                            <p className="font-bdo text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                                Artikel terbaru
-                            </p>
-                            {featured && (
-                                <div className="mt-2 flex items-center gap-2 rounded-[16px] border border-slate-100 bg-slate-50 p-1.5">
-                                    <AuthorAvatar author={featured.author} size="sm" />
-                                    <div className="min-w-0">
-                                        <p className="font-bdo text-[10px] font-bold uppercase tracking-wide text-slate-400">Penulis</p>
-                                        <p className="min-w-0 truncate font-clash text-sm font-semibold text-slate-900">
-                                            {featured.author.name}
-                                        </p>
-                                    </div>
-                                </div>
-                            )}
-                            <h2 className="mt-2 line-clamp-2 font-clash text-base font-bold leading-[1.08] text-slate-950 sm:text-lg xl:text-[1.05rem]">
-                                {featured?.title ?? "Belum ada artikel"}
-                            </h2>
-                            <p className="mt-2 line-clamp-2 font-bdo text-xs leading-5 text-slate-500 sm:text-sm">
-                                {featured?.excerpt ?? "Artikel pertama akan muncul di sini setelah dibuat."}
-                            </p>
-                        </div>
-
-                        {featured && (
-                            <Link
-                                href={route("admin.news.edit", featured.id)}
-                                className="inline-flex w-fit items-center gap-2 rounded-xl border border-[#FFD5CD] bg-[#FFF1EE] px-3 py-2 font-clash text-xs font-semibold text-[#B93D2A] transition hover:border-[#F8B5A8] hover:bg-[#FFE5DE]"
-                            >
-                                <Edit3 size={13} />
-                                Edit artikel
-                            </Link>
-                        )}
-                    </div>
-                </div>
+                <BannerPanel
+                    banners={banners}
+                    onCreate={onCreateBanner}
+                    onEdit={onEditBanner}
+                    embedded
+                />
             </div>
         </section>
     );
@@ -925,10 +885,12 @@ function BannerPanel({
     banners,
     onCreate,
     onEdit,
+    embedded = false,
 }: {
     banners: InfoBannerItem[];
     onCreate: () => void;
     onEdit: (banner: InfoBannerItem) => void;
+    embedded?: boolean;
 }) {
     const moveBanner = (index: number, direction: -1 | 1) => {
         const target = index + direction;
@@ -966,7 +928,14 @@ function BannerPanel({
     };
 
     return (
-        <section className="news-enter delay-200 news-card-glint relative overflow-hidden rounded-[22px] border border-[#FFE0D8] bg-white p-3.5 shadow-[0_18px_42px_-36px_rgba(185,61,42,.48)] sm:p-4">
+        <section
+            className={cn(
+                "news-card-glint relative overflow-hidden rounded-[22px] border bg-white text-slate-950",
+                embedded
+                    ? "news-hero-banner-panel h-full border-white/25 p-3 shadow-[0_26px_52px_-36px_rgba(15,23,42,.55)] sm:p-3.5"
+                    : "news-enter delay-200 border-[#FFE0D8] p-3.5 shadow-[0_18px_42px_-36px_rgba(185,61,42,.48)] sm:p-4",
+            )}
+        >
             <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-[#FFF7F4] to-transparent" />
             <div className="pointer-events-none absolute inset-y-6 left-0 w-[3px] rounded-r-full bg-gradient-to-b from-[#F8B5A8] via-[#E35336] to-transparent" />
             <div className="relative z-10 flex flex-wrap items-start justify-between gap-3">
@@ -994,7 +963,12 @@ function BannerPanel({
                 </button>
             </div>
 
-            <div className="news-scrollbar relative z-10 mt-4 max-h-[318px] space-y-2.5 overflow-y-auto pr-1">
+            <div
+                className={cn(
+                    "news-scrollbar relative z-10 space-y-2.5 overflow-y-auto pr-1",
+                    embedded ? "mt-3 max-h-[332px]" : "mt-4 max-h-[318px]",
+                )}
+            >
                 {banners.length === 0 ? (
                     <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-5 text-center font-bdo text-sm text-slate-400">
                         Belum ada info banner.
@@ -1003,7 +977,10 @@ function BannerPanel({
                     banners.map((banner, index) => (
                         <div
                             key={banner.id}
-                        className="grid gap-3 rounded-[17px] border border-slate-200/80 bg-slate-50/70 p-3 transition hover:border-[#F8B5A8] hover:bg-white hover:shadow-[0_16px_32px_-28px_rgba(185,61,42,.5)] sm:grid-cols-[minmax(0,1fr)_auto]"
+                            className={cn(
+                                "grid gap-3 rounded-[17px] border border-slate-200/80 bg-slate-50/70 p-3 transition hover:border-[#F8B5A8] hover:bg-white hover:shadow-[0_16px_32px_-28px_rgba(185,61,42,.5)]",
+                                embedded ? "news-hero-banner-item" : "sm:grid-cols-[minmax(0,1fr)_auto]",
+                            )}
                         >
                             <div className="min-w-0">
                                 <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -1032,7 +1009,7 @@ function BannerPanel({
                                 </p>
                             </div>
 
-                            <div className="flex items-center gap-1.5 sm:justify-end">
+                            <div className={cn("flex items-center gap-1.5", !embedded && "sm:justify-end")}>
                                 <ActionButton
                                     disabled={index === 0}
                                     onClick={() => moveBanner(index, -1)}
@@ -1083,96 +1060,97 @@ function BannerPanel({
     );
 }
 
-function ArticleCard({ article }: { article: NewsItem }) {
+function ArticleCard({
+    article,
+    ordinal,
+}: {
+    article: NewsItem;
+    ordinal: number;
+}) {
+    const [thumbnailFailed, setThumbnailFailed] = useState(false);
     const categoryName = article.category?.name ?? "Tanpa kategori";
+    const normalizedCategory = categoryName.trim().toLowerCase();
+    const categoryTone = normalizedCategory === "artikel"
+        ? "artikel"
+        : normalizedCategory === "berita"
+          ? "berita"
+          : undefined;
+    const hasThumbnail = Boolean(article.thumbnail) && !thumbnailFailed;
 
     return (
-        <article className="group news-card-glint relative overflow-hidden rounded-[22px] border border-[#FFE0D8] bg-[linear-gradient(180deg,#FFFFFF_0%,#FFF7F4_130%)] shadow-[0_14px_36px_-32px_rgba(185,61,42,.5)] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#F8B5A8] hover:shadow-[0_28px_60px_-38px_rgba(185,61,42,.68)] sm:grid sm:grid-cols-[172px_minmax(0,1fr)] lg:block">
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-[#FFF7F4] to-transparent" />
-            <div className="pointer-events-none absolute right-0 top-0 h-28 w-28 bg-[repeating-linear-gradient(90deg,rgba(227,83,54,.06)_0,rgba(227,83,54,.06)_1px,transparent_1px,transparent_14px)]" />
+        <article className={cn("editorial-article", article.is_hero_featured && "is-featured")}>
+            <div className="editorial-article__ordinal" aria-hidden="true">
+                {String(ordinal).padStart(2, "0")}
+            </div>
 
-            <div className="relative m-2.5 h-[142px] overflow-hidden rounded-[18px] bg-[#FFF7F4] ring-1 ring-[#FFE0D8] sm:h-[calc(100%-1.25rem)] sm:min-h-[184px] lg:aspect-[16/9] lg:h-auto lg:min-h-0">
-                {article.thumbnail ? (
+            <div className="editorial-article__media">
+                {hasThumbnail ? (
                     <img
-                        src={article.thumbnail}
-                        alt=""
-                        className="h-full w-full object-cover transition duration-700 group-hover:scale-105"
+                        src={article.thumbnail ?? undefined}
+                        alt={`Sampul artikel ${article.title}`}
+                        onError={() => setThumbnailFailed(true)}
+                        className="editorial-article__image"
                     />
                 ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-[linear-gradient(135deg,#FFF1EE,#F0F9FF),repeating-linear-gradient(90deg,rgba(227,83,54,.08)_0,rgba(227,83,54,.08)_1px,transparent_1px,transparent_18px)] text-[#E35336]/35">
-                        <Newspaper className="h-12 w-12" />
+                    <div className="editorial-article__fallback">
+                        <Newspaper size={25} />
+                        <span>Belum ada sampul</span>
                     </div>
                 )}
-                <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-slate-950/38 to-transparent" />
-                <div className="absolute left-3 top-3 flex max-w-[calc(100%-1.5rem)] flex-wrap gap-2">
+                {article.is_hero_featured && (
+                    <span className="editorial-article__featured">
+                        <Sparkles size={11} />
+                        Hero {article.hero_sort_order ?? "-"}
+                    </span>
+                )}
+            </div>
+
+            <div className="editorial-article__content">
+                <div className="editorial-article__labels">
                     <StatusBadge status={article.status} />
-                    {article.is_hero_featured && (
-                        <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50/92 px-2.5 py-1 font-bdo text-[10px] font-bold uppercase tracking-wide text-amber-700 shadow-sm backdrop-blur">
-                            <Sparkles size={11} />
-                            Hero {article.hero_sort_order ?? "-"}
-                        </span>
-                    )}
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-white/70 bg-white/88 px-2.5 py-1 font-bdo text-[10px] font-bold uppercase tracking-wide text-slate-600 shadow-sm backdrop-blur">
+                    <span
+                        className={cn(
+                            "editorial-article__category",
+                            categoryTone && "news-gradient-badge news-gradient-badge--story",
+                        )}
+                        data-tone={categoryTone}
+                    >
                         <Tag size={11} />
-                        <span className="max-w-[140px] truncate">{categoryName}</span>
+                        <span>{categoryName}</span>
                     </span>
                 </div>
-                <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between gap-3">
-                    <div className="min-w-0">
-                        <p className="font-bdo text-[10px] font-bold uppercase tracking-wide text-white/78">
-                            Updated
-                        </p>
-                        <p className="truncate font-bdo text-xs font-semibold text-white">
-                            {article.updated_at}
-                        </p>
-                    </div>
-                    <div className="rounded-2xl border border-white/50 bg-white/22 p-1 backdrop-blur">
-                        <AuthorAvatar author={article.author} size="sm" />
-                    </div>
-                </div>
-            </div>
 
-            <div className="relative z-10 flex min-w-0 flex-col px-3.5 pb-3.5 pt-1 sm:py-3 sm:pr-3.5 lg:px-4 lg:pb-4 lg:pt-1.5">
-                <div className="mb-2.5 flex items-center gap-2.5 rounded-[16px] border border-[#FFE0D8] bg-white/86 p-2 shadow-sm">
-                    <AuthorAvatar author={article.author} size="md" />
-                    <div className="min-w-0">
-                        <p className="font-bdo text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                            Dipublikasikan oleh
-                        </p>
-                        <p className="truncate font-clash text-sm font-semibold text-slate-900">
-                            {article.author.name}
-                        </p>
-                        <p className="mt-0.5 truncate font-bdo text-[11px] font-semibold text-[#B93D2A]">
-                            {article.published_at ? "Penulis publikasi" : "Penulis editorial"}
-                        </p>
-                    </div>
-                </div>
-                {article.is_hero_featured && (
-                    <div className="mb-2 inline-flex w-fit items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 font-bdo text-[10px] font-bold uppercase tracking-wide text-amber-700">
-                        <Sparkles size={11} />
-                        Hero newspage slot {article.hero_sort_order ?? "-"}
-                    </div>
-                )}
-
-                <h3 className="line-clamp-2 font-clash text-[1.05rem] font-bold leading-[1.08] text-slate-950 sm:text-[1.16rem] lg:text-[1.05rem] xl:text-[1.16rem]">
+                <Link
+                    href={route("admin.news.edit", article.id)}
+                    className="editorial-article__title line-clamp-2"
+                >
                     {article.title}
-                </h3>
-                <p className="mt-2 line-clamp-2 font-bdo text-xs font-medium leading-5 text-slate-500 sm:text-sm">
-                    {article.excerpt || article.slug}
+                </Link>
+                <p className="editorial-article__excerpt line-clamp-2">
+                    {article.excerpt || "Belum ada ringkasan untuk artikel ini."}
                 </p>
 
-                <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-t border-[#FFE0D8] pt-3">
+                <div className="editorial-article__meta">
+                    <AuthorAvatar author={article.author} size="sm" />
                     <div className="min-w-0">
-                        <p className="truncate font-bdo text-[11px] font-bold uppercase tracking-wide text-[#B93D2A]">
-                            /{article.slug}
-                        </p>
-                        <p className="mt-0.5 font-bdo text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                            Artikel #{article.id}
-                        </p>
+                        <span className="editorial-article__meta-label">Penulis</span>
+                        <strong>{article.author.name}</strong>
                     </div>
-                    <NewsRowActions article={article} />
+                    <span className="editorial-article__meta-divider" aria-hidden="true" />
+                    <Clock3 size={13} aria-hidden="true" />
+                    <div className="min-w-0">
+                        <span className="editorial-article__meta-label">Diperbarui</span>
+                        <strong>{article.updated_at}</strong>
+                    </div>
                 </div>
+
+                <p className="editorial-article__slug" title={`/${article.slug}`}>
+                    /{article.slug}
+                    <span>Artikel #{article.id}</span>
+                </p>
             </div>
+
+            <NewsRowActions article={article} />
         </article>
     );
 }
@@ -1219,63 +1197,72 @@ function ArticleCollection({
     const pageStart = (safePage - 1) * ARTICLE_PAGE_SIZE;
     const paginatedArticles = filteredArticles.slice(pageStart, pageStart + ARTICLE_PAGE_SIZE);
     const pageEnd = Math.min(pageStart + paginatedArticles.length, filteredArticles.length);
+    const statusCounts = useMemo<Record<StatusFilter, number>>(() => ({
+        all: articles.length,
+        published: articles.filter((article) => article.status === "published").length,
+        draft: articles.filter((article) => article.status === "draft").length,
+        archived: articles.filter((article) => article.status === "archived").length,
+    }), [articles]);
+    const hasActiveFilters = query.trim().length > 0 || status !== "all" || category !== "all";
+
+    const resetFilters = () => {
+        setQuery("");
+        setStatus("all");
+        setCategory("all");
+    };
 
     return (
-        <section className="news-enter delay-250 news-card-glint relative overflow-hidden rounded-[22px] border border-[#FFE0D8] bg-white p-3 shadow-[0_20px_46px_-38px_rgba(185,61,42,.48)] sm:p-4">
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-[#FFF7F4] to-transparent" />
-            <div className="relative z-10 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                <div className="flex items-center gap-3">
-                    <ShinyIcon className="h-10 w-10">
-                        <Newspaper className="h-[18px] w-[18px]" />
-                    </ShinyIcon>
-                    <div>
-                        <p className="font-bdo text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                            Arsip Editorial
-                        </p>
-                        <h2 className="font-clash text-base font-semibold leading-tight text-slate-950">
-                            Daftar Artikel
-                        </h2>
-                    </div>
+        <section className="editorial-archive news-enter delay-250">
+            <header className="editorial-archive__header">
+                <div className="editorial-archive__heading">
+                    <p className="editorial-archive__eyebrow">
+                        <span aria-hidden="true" />
+                        Arsip Editorial
+                    </p>
+                    <h2 className="editorial-archive__title">Daftar Artikel</h2>
+                    <p className="editorial-archive__description">
+                        Tinjau, temukan, dan kelola seluruh publikasi dari satu ruang kerja editorial.
+                    </p>
                 </div>
 
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(220px,1fr)_auto_auto] xl:min-w-[660px]">
-                    <label className="news-input flex h-10 min-w-0 items-center gap-2 rounded-[16px] px-3.5">
-                        <Search size={15} className="shrink-0 text-slate-400" />
+                <div className="editorial-archive__counter" aria-live="polite">
+                    <span className="editorial-archive__counter-index">INDEX</span>
+                    <strong>{String(filteredArticles.length).padStart(2, "0")}</strong>
+                    <span>{hasActiveFilters ? "hasil terpilih" : "artikel tersimpan"}</span>
+                    <small>{String(articles.length).padStart(2, "0")} total koleksi</small>
+                </div>
+            </header>
+
+            <div className="editorial-archive__toolbar">
+                <div className="editorial-archive__primary-controls">
+                    <label className="editorial-control editorial-search">
+                        <Search size={17} aria-hidden="true" />
+                        <span className="sr-only">Cari artikel</span>
                         <input
                             value={query}
                             onChange={(event) => setQuery(event.target.value)}
-                            placeholder="Cari artikel, slug, penulis..."
+                            placeholder="Cari judul, slug, penulis, atau kategori..."
                             aria-label="Cari artikel"
-                            title="Cari artikel"
-                            className="min-w-0 flex-1 border-0 bg-transparent p-0 font-bdo text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:ring-0"
                         />
+                        {query.length > 0 && (
+                            <button
+                                type="button"
+                                onClick={() => setQuery("")}
+                                className="editorial-search__clear"
+                                aria-label="Hapus kata pencarian"
+                            >
+                                <X size={13} />
+                            </button>
+                        )}
                     </label>
 
-                    <label className="news-input flex h-10 items-center gap-2 rounded-[16px] px-3 sm:col-span-1">
-                        <Filter size={14} className="shrink-0 text-slate-400" />
-                        <select
-                            value={status}
-                            onChange={(event) => setStatus(event.target.value as StatusFilter)}
-                            aria-label="Filter status artikel"
-                            title="Filter status artikel"
-                            className="min-w-0 border-0 bg-transparent p-0 font-bdo text-sm text-slate-700 outline-none focus:ring-0"
-                        >
-                            {FILTERS.map((filter) => (
-                                <option key={filter.value} value={filter.value}>
-                                    {filter.label}
-                                </option>
-                            ))}
-                        </select>
-                    </label>
-
-                    <label className="news-input flex h-10 items-center gap-2 rounded-[16px] px-3 sm:col-span-2 lg:col-span-1">
-                        <Bookmark size={14} className="shrink-0 text-slate-400" />
+                    <label className="editorial-control editorial-category-select">
+                        <Bookmark size={15} aria-hidden="true" />
+                        <span className="sr-only">Filter kategori artikel</span>
                         <select
                             value={category}
                             onChange={(event) => setCategory(event.target.value)}
                             aria-label="Filter kategori artikel"
-                            title="Filter kategori artikel"
-                            className="min-w-0 border-0 bg-transparent p-0 font-bdo text-sm text-slate-700 outline-none focus:ring-0"
                         >
                             <option value="all">Semua kategori</option>
                             <option value="uncat">Tanpa kategori</option>
@@ -1285,87 +1272,206 @@ function ArticleCollection({
                                 </option>
                             ))}
                         </select>
+                        <ChevronDown size={14} aria-hidden="true" />
                     </label>
+                </div>
+
+                <div className="editorial-archive__filter-row">
+                    <div className="editorial-status-switch" role="group" aria-label="Filter status artikel">
+                        {FILTERS.map((filter) => (
+                            <button
+                                key={filter.value}
+                                type="button"
+                                onClick={() => setStatus(filter.value)}
+                                aria-pressed={status === filter.value}
+                            >
+                                <span>{filter.label}</span>
+                                <small>{String(statusCounts[filter.value]).padStart(2, "0")}</small>
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="editorial-archive__filter-meta">
+                        <span>
+                            <Filter size={13} aria-hidden="true" />
+                            {filteredArticles.length} artikel sesuai pilihan
+                        </span>
+                        {hasActiveFilters && (
+                            <button type="button" onClick={resetFilters}>
+                                <X size={13} />
+                                Reset filter
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
 
-            <div className="relative z-10 mt-4 flex flex-wrap items-center gap-2">
-                {FILTERS.map((filter) => (
-                    <button
-                        key={filter.value}
-                        type="button"
-                        onClick={() => setStatus(filter.value)}
-                        className={cn(
-                            "rounded-full border px-2.5 py-1.5 font-bdo text-[10px] font-bold uppercase tracking-wide transition",
-                            status === filter.value
-                                ? "border-[#E35336] bg-[#FFF1EE] text-[#B93D2A]"
-                                : "border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300 hover:bg-white",
-                        )}
-                    >
-                        {filter.label}
-                    </button>
-                ))}
-                <span className="ml-auto rounded-full bg-slate-100 px-3 py-1.5 font-bdo text-[11px] font-bold text-slate-500">
-                    {filteredArticles.length} hasil
-                </span>
+            <div className="editorial-archive__list-heading">
+                <div>
+                    <span className="editorial-archive__list-rule" aria-hidden="true" />
+                    <p>Koleksi editorial</p>
+                </div>
+                {filteredArticles.length > 0 && (
+                    <span>Menampilkan {pageStart + 1}–{pageEnd} dari {filteredArticles.length}</span>
+                )}
             </div>
 
-            <div className="relative z-10 mt-4 grid gap-2.5 lg:grid-cols-2 2xl:grid-cols-3">
+            <div className="editorial-archive__list">
                 {filteredArticles.length === 0 ? (
-                    <div className="rounded-[22px] border border-dashed border-slate-200 bg-slate-50 p-8 text-center lg:col-span-2 2xl:col-span-3">
-                        <FileText className="mx-auto h-9 w-9 text-slate-300" />
-                        <p className="mt-3 font-clash text-base font-semibold text-slate-800">Artikel tidak ditemukan</p>
-                        <p className="mt-1 font-bdo text-sm text-slate-400">Coba ubah kata kunci atau filter.</p>
+                    <div className="editorial-archive__empty">
+                        <span className="editorial-archive__empty-icon">
+                            <FileText size={24} />
+                        </span>
+                        <p className="editorial-archive__empty-kicker">Tidak ada kecocokan</p>
+                        <h3>Artikel tidak ditemukan</h3>
+                        <p>Coba gunakan kata kunci lain atau kembalikan filter ke tampilan awal.</p>
+                        {hasActiveFilters && (
+                            <button type="button" onClick={resetFilters}>
+                                <X size={14} />
+                                Reset semua filter
+                            </button>
+                        )}
                     </div>
                 ) : (
-                    paginatedArticles.map((article) => (
-                        <ArticleCard key={article.id} article={article} />
+                    paginatedArticles.map((article, index) => (
+                        <ArticleCard
+                            key={article.id}
+                            article={article}
+                            ordinal={pageStart + index + 1}
+                        />
                     ))
                 )}
             </div>
 
             {filteredArticles.length > 0 && (
-                <div className="relative z-10 mt-4 flex flex-col gap-3 rounded-[18px] border border-[#FFE0D8] bg-[#FFF7F4]/75 p-2.5 sm:flex-row sm:items-center sm:justify-between">
-                    <p className="font-bdo text-xs font-semibold text-slate-500">
-                        Menampilkan {pageStart + 1}-{pageEnd} dari {filteredArticles.length} artikel
+                <footer className="editorial-pagination">
+                    <p>
+                        <span>{pageStart + 1}–{pageEnd}</span>
+                        dari {filteredArticles.length} artikel
                     </p>
-                    <div className="grid grid-cols-[36px_minmax(0,1fr)_36px] items-center gap-2 sm:flex">
-                        <ActionButton
+                    <div className="editorial-pagination__controls">
+                        <button
+                            type="button"
                             disabled={safePage <= 1}
                             onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                            className="border-slate-200 bg-white text-slate-500 hover:text-[#B93D2A]"
+                            className="editorial-pagination__button"
                             aria-label="Halaman artikel sebelumnya"
                         >
                             <ChevronLeft size={15} />
-                        </ActionButton>
-                        <div className="flex h-9 min-w-[92px] items-center justify-center rounded-xl border border-slate-200 bg-white px-3 font-bdo text-xs font-bold text-slate-600">
-                            {safePage} / {pageCount}
+                            <span>Sebelumnya</span>
+                        </button>
+                        <div className="editorial-pagination__page" aria-current="page">
+                            <strong>{String(safePage).padStart(2, "0")}</strong>
+                            <small>/ {String(pageCount).padStart(2, "0")}</small>
                         </div>
-                        <ActionButton
+                        <button
+                            type="button"
                             disabled={safePage >= pageCount}
                             onClick={() => setCurrentPage((page) => Math.min(pageCount, page + 1))}
-                            className="border-slate-200 bg-white text-slate-500 hover:text-[#B93D2A]"
+                            className="editorial-pagination__button"
                             aria-label="Halaman artikel berikutnya"
                         >
+                            <span>Berikutnya</span>
                             <ChevronRight size={15} />
-                        </ActionButton>
+                        </button>
                     </div>
-                </div>
+                </footer>
             )}
         </section>
     );
 }
 
+function NewsModeSwitcher({
+    activeMode,
+    onChange,
+    newsCount,
+    heroCount,
+}: {
+    activeMode: NewsMode;
+    onChange: (mode: NewsMode) => void;
+    newsCount: number;
+    heroCount: number;
+}) {
+    const modes = [
+        {
+            value: "news" as const,
+            label: "News",
+            description: "Konten & kategori",
+            icon: Newspaper,
+            count: newsCount,
+        },
+        {
+            value: "hero" as const,
+            label: "Highlight hero",
+            description: "Sorotan halaman publik",
+            icon: Sparkles,
+            count: heroCount,
+        },
+    ];
+    return (
+        <section
+            className="news-enter delay-100 flex w-full items-center gap-1 rounded-[14px] border border-slate-100 bg-slate-50 p-1"
+            role="group"
+            aria-label="Mode pengelolaan News"
+        >
+            {modes.map((mode) => {
+                const Icon = mode.icon;
+                const active = activeMode === mode.value;
+
+                return (
+                    <button
+                        key={mode.value}
+                        id={`news-mode-${mode.value}`}
+                        type="button"
+                        onClick={() => onChange(mode.value)}
+                        aria-pressed={active}
+                        className={cn(
+                            "group flex h-9 min-w-0 flex-1 items-center justify-center gap-2 rounded-[10px] bg-white px-2.5 text-center shadow-sm ring-1 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E35336] focus-visible:ring-offset-1 sm:px-3",
+                            active
+                                ? "bg-[#FFF7F5] text-[#B93D2A] ring-[#F8B5A8]"
+                                : "text-slate-600 ring-slate-100 hover:bg-slate-100 hover:text-[#B93D2A] hover:ring-[#F8B5A8]",
+                        )}
+                        title={mode.description}
+                    >
+                        <Icon
+                            size={15}
+                            className={cn(
+                                "shrink-0 transition-transform group-hover:scale-110",
+                                active ? "text-[#E35336]" : "text-slate-400 group-hover:text-[#E35336]",
+                            )}
+                            aria-hidden="true"
+                        />
+                        <span className="min-w-0 flex-1 truncate font-clash text-[13px] font-medium">
+                            {mode.label}
+                        </span>
+                        <span
+                            className={cn(
+                                "hidden min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 font-bdo text-[10px] font-bold min-[420px]:inline-flex",
+                                active ? "bg-white text-[#B93D2A]" : "bg-slate-100 text-slate-500 group-hover:bg-white",
+                            )}
+                        >
+                            {mode.count}
+                        </span>
+                        <span className="sr-only"> — {mode.description}</span>
+                    </button>
+                );
+            })}
+        </section>
+    );
+}
+
 export default function NewsIndex() {
-    const { news, categories, info_banners = [] } = usePage<Props>().props;
+    const { news, categories, info_banners = [], auth } = usePage<Props>().props;
     const [bannerModal, setBannerModal] = useState<BannerModalState>({ open: false, editing: null });
+    const [activeMode, setActiveMode] = useState<NewsMode>("news");
 
     const published = news.filter((article) => article.status === "published").length;
     const draft = news.filter((article) => article.status === "draft").length;
     const archived = news.filter((article) => article.status === "archived").length;
     const heroArticles = useMemo(() => getHeroOrderedArticles(news), [news]);
-    const activeBanners = info_banners.filter((banner) => banner.is_active).length;
-    const featured = heroArticles[0] ?? news[0] ?? null;
+    const canCurateHero =
+        auth.user?.role === "Administrator" ||
+        (auth.user?.permissions?.includes("publish-news") ?? false);
 
     return (
         <AdminLayout
@@ -1407,27 +1513,40 @@ export default function NewsIndex() {
                     published={published}
                     draft={draft}
                     archived={archived}
-                    featured={featured}
+                    banners={info_banners}
+                    onCreateBanner={() => setBannerModal({ open: true, editing: null })}
+                    onEditBanner={(banner) => setBannerModal({ open: true, editing: banner })}
                 />
 
-                <EditorialMetrics
-                    total={news.length}
-                    published={published}
-                    draft={draft}
-                    archived={archived}
-                    activeBanners={activeBanners}
+                <NewsModeSwitcher
+                    activeMode={activeMode}
+                    onChange={setActiveMode}
+                    newsCount={news.length}
+                    heroCount={heroArticles.length}
                 />
 
-                <div className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,.95fr)]">
-                    <CategoryManager categories={categories} />
-                    <BannerPanel
-                        banners={info_banners}
-                        onCreate={() => setBannerModal({ open: true, editing: null })}
-                        onEdit={(banner) => setBannerModal({ open: true, editing: banner })}
-                    />
-                </div>
-
-                <ArticleCollection articles={news} categories={categories} />
+                {activeMode === "news" ? (
+                    <div
+                        id="news-management-mode"
+                        role="region"
+                        aria-labelledby="news-mode-news"
+                        className="flex flex-col gap-4"
+                    >
+                        <ArticleCollection articles={news} categories={categories} />
+                    </div>
+                ) : (
+                    <div
+                        id="news-hero-mode"
+                        role="region"
+                        aria-labelledby="news-mode-hero"
+                        className="min-w-0"
+                    >
+                        <HeroCurationPanel
+                            articles={news}
+                            canCurate={canCurateHero}
+                        />
+                    </div>
+                )}
             </div>
         </AdminLayout>
     );
