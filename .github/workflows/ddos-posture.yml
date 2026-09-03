@@ -1,0 +1,63 @@
+name: External DDoS posture
+
+on:
+  schedule:
+    - cron: "41 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ubsc-external-ddos-posture
+  cancel-in-progress: false
+
+jobs:
+  posture:
+    name: Edge and origin isolation proof
+    runs-on: ubuntu-latest
+    environment: production-observability
+    timeout-minutes: 8
+    env:
+      UBSC_BASE_URL: ${{ vars.UBSC_PRODUCTION_URL }}
+      EDGE_ORIGIN_IPS: ${{ secrets.EDGE_ORIGIN_IPS }}
+
+    steps:
+      - name: Check out verifier-only repository state
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Install the bounded verifier runtime
+        uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
+        with:
+          php-version: "8.3"
+          coverage: none
+
+      - name: Require bounded external targets
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ ! "${UBSC_BASE_URL}" =~ ^https://[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?/?$ ]]; then
+            echo "UBSC_PRODUCTION_URL must be one canonical HTTPS origin." >&2
+            exit 64
+          fi
+          if [[ -z "${EDGE_ORIGIN_IPS}" ]]; then
+            echo "EDGE_ORIGIN_IPS must contain the protected origin addresses." >&2
+            exit 64
+          fi
+
+      - name: Verify public TLS, cache, security headers, and readiness
+        shell: bash
+        run: bash deploy/scripts/verify-edge-security.sh "${UBSC_BASE_URL}"
+
+      - name: Prove that protected origins reject edge bypass
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          origin_file="${RUNNER_TEMP}/ubsc-protected-origins.txt"
+          cleanup() { rm -f -- "${origin_file}"; }
+          trap cleanup EXIT INT TERM
+          printf '%s' "${EDGE_ORIGIN_IPS}" | tr ',' '\n' >"${origin_file}"
+          chmod 600 "${origin_file}"
+          bash deploy/scripts/verify-origin-isolation.sh "${UBSC_BASE_URL}" "${origin_file}"
