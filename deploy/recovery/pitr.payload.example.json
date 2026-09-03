@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "evidence_type": "pitr_observation",
+  "operation_id": "pitr-observation-20260824-0200",
+  "provider": "managed-db",
+  "verifier": "ubsc-recovery-verifier-v1",
+  "dataset_id": "ubsc-relational-v1",
+  "backup_destination_id": "ubsc-vault-v1",
+  "primary_region": "ap-southeast-3",
+  "recovery_region": "ap-southeast-1",
+  "latest_recovery_point_at": "2026-08-24T01:59:00Z",
+  "checked_at": "2026-08-24T02:00:00Z",
+  "continuous": true,
+  "restorable": true
+}

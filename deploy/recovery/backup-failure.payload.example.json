@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "evidence_type": "backup_failed",
+  "operation_id": "backup-run-20260824-002",
+  "backup_id": "backup-20260824-002",
+  "provider": "managed-db",
+  "verifier": "ubsc-recovery-verifier-v1",
+  "dataset_id": "ubsc-relational-v1",
+  "backup_destination_id": "ubsc-vault-v1",
+  "primary_region": "ap-southeast-3",
+  "recovery_region": "ap-southeast-1",
+  "failure_code": "checksum_mismatch",
+  "checked_at": "2026-08-24T03:00:00Z"
+}
