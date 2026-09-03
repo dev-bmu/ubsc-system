@@ -1,0 +1,15 @@
+# Availability, data integrity, and deployment controls require an explicit
+# owner review in addition to passing automated gates.
+# Add a real independent organization maintainer/team before enabling required
+# CODEOWNERS review; the author of a pull request cannot self-approve.
+/.github/ @ibamzjr
+/app/Services/Production/ @ibamzjr
+/app/Services/Capacity/ @ibamzjr
+/app/Services/Resilience/ @ibamzjr
+/config/database_replication.php @ibamzjr
+/config/disaster_recovery.php @ibamzjr
+/config/high_availability.php @ibamzjr
+/config/observability.php @ibamzjr
+/config/resilience_drills.php @ibamzjr
+/deploy/ @ibamzjr
+/database/migrations/ @ibamzjr
