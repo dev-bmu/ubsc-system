@@ -4,6 +4,7 @@ import {
     Copy,
     Crown,
     Edit3,
+    Moon,
     Plus,
     Search,
     Shield,
@@ -13,7 +14,8 @@ import {
     UsersRound,
     X,
 } from "lucide-react";
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from "react";
+import AdminMfaStepUpDialog from "@/Components/Admin/AdminMfaStepUpDialog";
 import SlideOver from "@/Components/Admin/SlideOver";
 import AdminLayout from "@/Layouts/AdminLayout";
 import { cn } from "@/lib/utils";
@@ -26,6 +28,11 @@ interface InternalUser {
     role: string;
     avatar?: string | null;
     avatar_url?: string | null;
+    presence?: {
+        status: "online" | "idle" | "offline";
+        is_online: boolean;
+        last_seen_at: string | null;
+    };
 }
 
 interface StaffForm {
@@ -34,6 +41,11 @@ interface StaffForm {
     password: string;
     role: string;
 }
+
+type PendingStaffAction =
+    | { kind: "create"; payload: StaffForm }
+    | { kind: "update"; userId: number; payload: StaffForm }
+    | { kind: "delete"; userId: number; name: string };
 
 type Props = PageProps<{
     users: InternalUser[];
@@ -62,6 +74,10 @@ const USER_STYLES = `
     @keyframes userPulse {
         0%, 100% { opacity: .76; transform: scale(1); }
         50% { opacity: 1; transform: scale(1.16); }
+    }
+    @keyframes userStatusMarquee {
+        from { transform: translate3d(0, 0, 0); }
+        to { transform: translate3d(calc(-50% - 12px), 0, 0); }
     }
     .user-enter { animation: userRise .58s cubic-bezier(.16,1,.3,1) both; will-change: opacity, transform; }
     .user-title-shine {
@@ -100,6 +116,19 @@ const USER_STYLES = `
         animation: userPulse 2.6s ease-in-out infinite;
         box-shadow: 0 0 0 1px rgba(255,255,255,.72), 0 0 13px currentColor;
     }
+    .user-status-viewport {
+        mask-image: linear-gradient(90deg, transparent 0, #000 8px, #000 calc(100% - 8px), transparent 100%);
+        -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 8px, #000 calc(100% - 8px), transparent 100%);
+    }
+    .user-status-marquee {
+        animation: userStatusMarquee var(--user-status-duration, 8s) linear infinite;
+        will-change: transform;
+    }
+    .user-status-viewport:hover .user-status-marquee,
+    .user-status-viewport:focus .user-status-marquee,
+    .user-status-marquee.is-paused {
+        animation-play-state: paused;
+    }
     .user-scrollbar {
         scrollbar-width: thin;
         scrollbar-color: rgba(227,83,54,.34) transparent;
@@ -120,11 +149,24 @@ const USER_STYLES = `
         background-size: auto, 22px 22px, 22px 22px, auto;
     }
     @media (prefers-reduced-motion: reduce) {
-        .user-enter, .user-title-shine, .user-sheen::after, .user-live-dot {
+        .user-enter, .user-title-shine, .user-sheen::after, .user-live-dot, .user-status-marquee {
             animation: none !important;
             opacity: 1 !important;
             transform: none !important;
         }
+        .user-status-viewport {
+            mask-image: none !important;
+            -webkit-mask-image: none !important;
+        }
+        .user-status-marquee {
+            display: block !important;
+            min-width: 0 !important;
+            max-width: 100% !important;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .user-status-marquee > [aria-hidden="true"] { display: none !important; }
     }
 `;
 
@@ -181,8 +223,199 @@ function roleRank(role: string): number {
     return index === -1 ? ROLE_ORDER.length : index;
 }
 
+function formatLastSeen(value: string | null | undefined, now = Date.now()): string {
+    if (!value) return "belum tercatat";
+
+    const timestamp = new Date(value).getTime();
+    if (!Number.isFinite(timestamp)) return "belum tercatat";
+
+    const elapsedSeconds = Math.max(0, Math.floor((now - timestamp) / 1_000));
+    if (elapsedSeconds < 60) return "baru saja";
+
+    const elapsedMinutes = Math.floor(elapsedSeconds / 60);
+    if (elapsedMinutes < 60) return `${elapsedMinutes} menit lalu`;
+
+    const elapsedHours = Math.floor(elapsedMinutes / 60);
+    if (elapsedHours < 24) return `${elapsedHours} jam lalu`;
+
+    const elapsedDays = Math.floor(elapsedHours / 24);
+    if (elapsedDays < 7) return `${elapsedDays} hari lalu`;
+
+    const lastSeenDate = new Date(timestamp);
+    const currentDate = new Date(now);
+
+    return new Intl.DateTimeFormat("id-ID", {
+        day: "2-digit",
+        month: "short",
+        year: lastSeenDate.getFullYear() === currentDate.getFullYear() ? undefined : "numeric",
+    }).format(lastSeenDate);
+}
+
+function StatusTicker({ text, compact = false }: { text: string; compact?: boolean }) {
+    const viewportRef = useRef<HTMLSpanElement>(null);
+    const measureRef = useRef<HTMLSpanElement>(null);
+    const [overflowing, setOverflowing] = useState(false);
+    const [paused, setPaused] = useState(false);
+
+    useEffect(() => {
+        const viewport = viewportRef.current;
+        const measure = measureRef.current;
+        if (!viewport || !measure) return;
+
+        const update = () => setOverflowing(measure.scrollWidth > viewport.clientWidth + 1);
+        update();
+
+        if (typeof ResizeObserver === "undefined") {
+            window.addEventListener("resize", update);
+            return () => window.removeEventListener("resize", update);
+        }
+
+        const observer = new ResizeObserver(update);
+        observer.observe(viewport);
+        observer.observe(measure);
+
+        return () => observer.disconnect();
+    }, [text]);
+
+    return (
+        <span
+            ref={viewportRef}
+            className={cn(
+                "relative block min-w-0 overflow-hidden whitespace-nowrap font-bdo text-[10px] font-normal italic leading-[1.05] tracking-[0.005em] text-slate-500 tabular-nums",
+                compact ? "max-w-[78px] sm:max-w-[96px]" : "max-w-[94px] xl:max-w-[112px]",
+                overflowing && "user-status-viewport cursor-pointer rounded-[2px] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#176B91]/35 focus-visible:ring-offset-1",
+            )}
+            title={`Terakhir online · ${text}`}
+            tabIndex={overflowing ? 0 : undefined}
+            role={overflowing ? "button" : undefined}
+            aria-pressed={overflowing ? paused : undefined}
+            aria-label={overflowing ? `${text}. Teks bergerak dapat dijeda.` : undefined}
+            onClick={() => overflowing && setPaused((current) => !current)}
+            onKeyDown={(event) => {
+                if (!overflowing || (event.key !== "Enter" && event.key !== " ")) return;
+                event.preventDefault();
+                setPaused((current) => !current);
+            }}
+        >
+            <span
+                ref={measureRef}
+                className="pointer-events-none invisible absolute left-0 top-0 inline-block w-max whitespace-nowrap"
+                aria-hidden="true"
+            >
+                {text}
+            </span>
+            <span
+                className={cn(
+                    "inline-flex min-w-max",
+                    overflowing && "user-status-marquee gap-6",
+                    paused && "is-paused",
+                )}
+                style={overflowing
+                    ? { "--user-status-duration": `${Math.max(7, text.length * 0.24)}s` } as CSSProperties
+                    : undefined}
+            >
+                <span>{text}</span>
+                {overflowing && <span aria-hidden="true">{text}</span>}
+            </span>
+        </span>
+    );
+}
+
+function presenceMeta(user: InternalUser) {
+    const status = user.presence?.status ?? "offline";
+    const lastSeen = formatLastSeen(user.presence?.last_seen_at);
+    const indicatorLabel = status === "online"
+        ? "Sedang aktif"
+        : status === "idle"
+            ? "Sedang idle"
+            : "Offline";
+
+    return {
+        status,
+        lastSeen,
+        indicatorLabel,
+        tooltip: status === "online" ? indicatorLabel : `${indicatorLabel}. Terakhir online: ${lastSeen}`,
+    };
+}
+
+function PresenceIndicator({ user, size }: { user: InternalUser; size: "sm" | "md" | "lg" }) {
+    const { status, indicatorLabel, tooltip } = presenceMeta(user);
+    const shellSize = size === "lg" ? "h-[15px] w-[15px]" : size === "sm" ? "h-[12px] w-[12px]" : "h-[14px] w-[14px]";
+
+    return (
+        <span
+            className={cn(
+                "absolute -bottom-0.5 -right-0.5 z-10 grid shrink-0 place-items-center rounded-full bg-white",
+                "ring-1 ring-white shadow-[0_3px_9px_rgba(15,23,42,.24)]",
+                shellSize,
+            )}
+            role="img"
+            aria-label={indicatorLabel}
+            title={tooltip}
+        >
+            {status === "online" ? (
+                <span className={cn(
+                    "user-live-dot shrink-0 bg-emerald-500 text-emerald-400",
+                    size === "sm" ? "h-[6px] w-[6px]" : "h-2 w-2",
+                )} aria-hidden="true" />
+            ) : status === "idle" ? (
+                <Moon
+                    className={cn(
+                        "shrink-0 fill-amber-400 text-amber-400 drop-shadow-[0_2px_4px_rgba(245,158,11,.3)]",
+                        size === "sm" ? "h-[8px] w-[8px]" : "h-[10px] w-[10px]",
+                    )}
+                    strokeWidth={1.7}
+                    aria-hidden="true"
+                />
+            ) : (
+                <span
+                    className={cn(
+                        "shrink-0 rounded-full border border-slate-400 bg-white shadow-[inset_0_0_0_1px_rgba(148,163,184,.14)]",
+                        size === "sm" ? "h-[7px] w-[7px]" : "h-[9px] w-[9px]",
+                    )}
+                    aria-hidden="true"
+                />
+            )}
+        </span>
+    );
+}
+
+function LastSeenStatus({ user, compact = false }: { user: InternalUser; compact?: boolean }) {
+    const { status, lastSeen } = presenceMeta(user);
+    if (status === "online") return null;
+
+    return (
+        <span className={cn(
+            "group/lastseen relative flex h-[27px] min-w-0 shrink-0 items-center gap-2 pl-2.5",
+            compact ? "max-w-[104px] sm:max-w-[122px]" : "max-w-[122px] xl:max-w-[140px]",
+        )} title={`Terakhir online · ${lastSeen}`}>
+            <span className="absolute inset-y-0 left-0 flex w-[5px] items-center justify-center" aria-hidden="true">
+                <span className="h-[22px] w-px bg-[linear-gradient(180deg,rgba(16,96,132,.18)_0%,rgba(16,96,132,.82)_43%,rgba(227,83,54,.72)_100%)] shadow-[0_0_8px_rgba(16,96,132,.12)]" />
+                <span className="absolute top-[11px] h-[4px] w-[4px] -translate-y-1/2 rotate-45 border border-white bg-[linear-gradient(135deg,#176B91,#E35336)] shadow-[0_2px_7px_rgba(23,107,145,.32)]" />
+            </span>
+            <span className="flex min-w-0 flex-1 flex-col justify-center gap-[3px]">
+                <span className="whitespace-nowrap font-bdo text-[9px] font-normal leading-none tracking-[0.025em] text-slate-400">
+                    Terakhir online
+                </span>
+                <StatusTicker text={lastSeen} compact={compact} />
+            </span>
+        </span>
+    );
+}
+
 function isAdministrator(role: string): boolean {
     return role === "Administrator";
+}
+
+function requiresFreshMfa(errors: Record<string, string>): boolean {
+    return Boolean(errors.mfa_step_up);
+}
+
+function actionLabel(action: PendingStaffAction | null): string {
+    if (!action) return "mengelola akun staff";
+    if (action.kind === "create") return `membuat akun ${action.payload.name || "staff baru"}`;
+    if (action.kind === "update") return `memperbarui akun ${action.payload.name}`;
+    return `menghapus akun ${action.name}`;
 }
 
 function ShinyIcon({ children, className }: { children: ReactNode; className?: string }) {
@@ -209,18 +442,27 @@ function UserAvatar({ user, size = "md" }: { user: InternalUser; size?: "sm" | "
     return (
         <span
             className={cn(
-                "relative flex shrink-0 items-center justify-center overflow-hidden border border-white bg-[#FFF1EE] font-clash font-semibold text-white",
-                "shadow-[0_14px_28px_-22px_rgba(227,83,54,.88),inset_0_1px_0_rgba(255,255,255,.7)]",
+                "relative block shrink-0",
                 sizeClass,
             )}
         >
-            {avatarUrl && !failed ? (
-                <img src={avatarUrl} alt={user.name} className="h-full w-full object-cover" loading="lazy" onError={() => setFailed(true)} />
-            ) : (
-                <span className="flex h-full w-full items-center justify-center bg-[linear-gradient(135deg,#F8B5A8,#E35336)] text-sm">
-                    {initials(user.name)}
-                </span>
-            )}
+            <span className={cn(
+                "flex h-full w-full items-center justify-center overflow-hidden border border-white bg-[#FFF1EE] font-clash font-semibold text-white",
+                "shadow-[0_14px_28px_-22px_rgba(227,83,54,.88),inset_0_1px_0_rgba(255,255,255,.7)]",
+                size === "lg" ? "rounded-[18px]" : size === "sm" ? "rounded-xl" : "rounded-2xl",
+            )}>
+                {avatarUrl && !failed ? (
+                    <img src={avatarUrl} alt="" className="h-full w-full object-cover" loading="lazy" onError={() => setFailed(true)} />
+                ) : (
+                    <span
+                        className="flex h-full w-full items-center justify-center bg-[linear-gradient(135deg,#F8B5A8,#E35336)] text-sm"
+                        aria-hidden="true"
+                    >
+                        {initials(user.name)}
+                    </span>
+                )}
+            </span>
+            <PresenceIndicator user={user} size={size} />
         </span>
     );
 }
@@ -374,25 +616,27 @@ function StaffCard({
 
     return (
         <article className={cn(
-            "rounded-[22px] border bg-white p-3.5 shadow-[0_14px_32px_-30px_rgba(185,61,42,.55)] transition hover:-translate-y-0.5 hover:shadow-[0_24px_48px_-38px_rgba(185,61,42,.65)]",
+            "min-w-0 w-full max-w-full rounded-[22px] border bg-white p-3.5 shadow-[0_14px_32px_-30px_rgba(185,61,42,.55)] transition hover:-translate-y-0.5 hover:shadow-[0_24px_48px_-38px_rgba(185,61,42,.65)]",
             authority ? "border-[#F8B5A8] bg-[linear-gradient(180deg,#FFFFFF_0%,#FFF7F5_120%)]" : "border-[#FFE0D8] hover:border-[#F8B5A8]",
         )}>
-            <div className="flex items-start justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-3">
+            <div className="grid min-w-0 w-full max-w-full gap-2.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start sm:gap-3">
+                <div className="flex min-w-0 w-full max-w-full flex-1 items-center gap-3 overflow-hidden">
                     <UserAvatar user={user} size="lg" />
-                    <div className="min-w-0">
-                        <p className="flex min-w-0 items-center gap-2 truncate font-clash text-base font-semibold leading-tight text-slate-950">
-                            <span className="truncate">{user.name}</span>
+                    <div className="min-w-0 flex-1 overflow-hidden">
+                        <div className="flex min-w-0 items-center gap-2 font-clash text-base font-semibold leading-tight text-slate-950">
+                            <span className="min-w-0 flex-1 truncate" title={user.name}>{user.name}</span>
                             {authority && <Crown className="h-4 w-4 shrink-0 text-[#B93D2A]" />}
-                        </p>
+                            <span className="hidden shrink-0 sm:inline-flex"><LastSeenStatus user={user} compact /></span>
+                        </div>
+                        <span className="mt-1.5 flex min-w-0 sm:hidden"><LastSeenStatus user={user} compact /></span>
                         <p className="mt-1 truncate font-bdo text-xs font-semibold text-slate-400">{user.email}</p>
                     </div>
                 </div>
-                <div className="flex shrink-0 gap-1.5">
-                    <IconButton label={authority ? "Administrator dikunci" : `Edit ${user.name}`} disabled={!canManage || authority} onClick={() => onEdit(user)}>
+                <div className="flex shrink-0 justify-self-end gap-1.5 sm:justify-self-auto">
+                    <IconButton mobileFriendly label={authority ? "Administrator dikunci" : `Edit ${user.name}`} disabled={!canManage || authority} onClick={() => onEdit(user)}>
                         <Edit3 size={14} />
                     </IconButton>
-                    <IconButton label={authority ? "Administrator tidak dapat dihapus" : `Hapus ${user.name}`} danger disabled={!canManage || isDeleting || authority} onClick={() => onDelete(user)}>
+                    <IconButton mobileFriendly label={authority ? "Administrator tidak dapat dihapus" : `Hapus ${user.name}`} danger disabled={!canManage || isDeleting || authority} onClick={() => onDelete(user)}>
                         <Trash2 size={14} />
                     </IconButton>
                 </div>
@@ -407,7 +651,7 @@ function StaffCard({
                     "inline-flex items-center justify-center gap-2 rounded-[16px] border px-3 py-2 font-bdo text-[10px] font-bold",
                     authority ? "border-[#F8B5A8] bg-[#FFF1EE] text-[#B93D2A]" : "border-slate-200 bg-slate-50 text-slate-500",
                 )}>
-                    <span className={cn("h-1.5 w-1.5 rounded-full", authority ? "bg-[#E35336]" : "bg-emerald-500")} />
+                    {authority ? <Crown size={11} /> : <Shield size={11} />}
                     {authority ? "Kuasa penuh" : "Internal"}
                 </span>
             </div>
@@ -434,7 +678,7 @@ function StaffTable({
                 <table className="w-full min-w-[820px]">
                     <thead className="sticky top-0 z-10">
                         <tr className="border-b border-[#FFE0D8] bg-[#FFF9F7] text-left">
-                            {["Staff", "Email", "Role", "Status", "Aksi"].map((header) => (
+                            {["Staff", "Email", "Role", "Akses", "Aksi"].map((header) => (
                                 <th key={header} className="px-3.5 py-2.5 font-bdo text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400">{header}</th>
                             ))}
                         </tr>
@@ -456,12 +700,13 @@ function StaffTable({
                                             <UserAvatar user={user} size="sm" />
                                             <div className="min-w-0">
                                                 <p className="flex min-w-0 items-center gap-2 font-clash text-[13px] font-semibold text-slate-950">
-                                                    <span className="truncate">{user.name}</span>
+                                                    <span className="min-w-0 flex-1 truncate">{user.name}</span>
                                                     {authority && (
                                                         <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-lg bg-[linear-gradient(135deg,#7A2F23,#E35336)] text-white shadow-[0_10px_18px_-14px_rgba(185,61,42,.85)]">
                                                             <Crown size={10} />
                                                         </span>
                                                     )}
+                                                    <LastSeenStatus user={user} />
                                                 </p>
                                                 {authority && <p className="mt-0.5 font-bdo text-[9px] font-bold uppercase tracking-wide text-[#B93D2A]">Pemegang kuasa penuh</p>}
                                             </div>
@@ -474,7 +719,7 @@ function StaffTable({
                                             "inline-flex items-center gap-2 rounded-full border px-2.5 py-1 font-bdo text-[10px] font-bold",
                                             authority ? "border-[#F8B5A8] bg-[#FFF1EE] text-[#B93D2A]" : "border-emerald-200 bg-emerald-50 text-emerald-700",
                                         )}>
-                                            <span className={cn("h-1.5 w-1.5 rounded-full", authority ? "bg-[#E35336]" : "bg-emerald-500")} />
+                                            {authority ? <Crown size={11} /> : <Shield size={11} />}
                                             {authority ? "Kuasa penuh" : "Internal"}
                                         </span>
                                     </td>
@@ -502,12 +747,14 @@ function IconButton({
     children,
     label,
     danger = false,
+    mobileFriendly = false,
     disabled,
     onClick,
 }: {
     children: ReactNode;
     label: string;
     danger?: boolean;
+    mobileFriendly?: boolean;
     disabled?: boolean;
     onClick: () => void;
 }) {
@@ -519,7 +766,8 @@ function IconButton({
             disabled={disabled}
             onClick={onClick}
             className={cn(
-                "inline-flex h-8 w-8 items-center justify-center rounded-[13px] border transition disabled:cursor-not-allowed disabled:opacity-45",
+                "inline-flex items-center justify-center rounded-[13px] border transition disabled:cursor-not-allowed disabled:opacity-45",
+                mobileFriendly ? "h-10 w-10 sm:h-8 sm:w-8" : "h-8 w-8",
                 danger
                     ? "border-rose-200 bg-rose-50 text-rose-500 hover:bg-rose-100"
                     : "border-slate-200 bg-white text-slate-500 hover:border-[#F8B5A8] hover:bg-[#FFF7F5] hover:text-[#B93D2A]",
@@ -607,6 +855,9 @@ export default function UsersIndex() {
     const [saving, setSaving] = useState(false);
     const [createdCreds, setCreatedCreds] = useState<{ email: string; password: string } | null>(null);
     const [deletingId, setDeletingId] = useState<number | null>(null);
+    const [pendingAction, setPendingAction] = useState<PendingStaffAction | null>(null);
+    const [stepUpOpen, setStepUpOpen] = useState(false);
+    const [actionError, setActionError] = useState("");
 
     const filterRoles = useMemo(() => {
         const available = new Set([...roles, ...users.map((user) => user.role)].filter(Boolean));
@@ -636,11 +887,14 @@ export default function UsersIndex() {
     }, [orderedUsers, query, roleFilter]);
 
     useEffect(() => {
-        if (showSlideOver || saving || deletingId !== null || createdCreds) return;
+        if (showSlideOver || stepUpOpen || saving || deletingId !== null || createdCreds) return;
 
         const reloadUsers = () => {
             if (document.visibilityState !== "visible") return;
-            router.reload({ only: ["users"] });
+            router.reload({
+                only: ["users"],
+                headers: { "X-UBSC-Background-Poll": "1" },
+            });
         };
 
         const interval = window.setInterval(reloadUsers, 20000);
@@ -652,7 +906,7 @@ export default function UsersIndex() {
             window.removeEventListener("focus", reloadUsers);
             document.removeEventListener("visibilitychange", reloadUsers);
         };
-    }, [createdCreds, deletingId, saving, showSlideOver]);
+    }, [createdCreds, deletingId, saving, showSlideOver, stepUpOpen]);
 
     const updateForm = (key: keyof StaffForm) => (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         setForm((current) => ({ ...current, [key]: event.target.value }));
@@ -684,24 +938,13 @@ export default function UsersIndex() {
         event?.preventDefault();
         if (!canManage) return;
 
-        setSaving(true);
-        const captured = { email: form.email, password: form.password };
-        const options = {
-            preserveScroll: true,
-            onSuccess: () => {
-                closeSlideOver();
-                if (!editingUser) setCreatedCreds(captured);
-            },
-            onError: (serverErrors: Record<string, string>) => setErrors(serverErrors as Partial<Record<keyof StaffForm, string>>),
-            onFinish: () => setSaving(false),
-        };
-
-        if (editingUser) {
-            router.put(route("admin.settings.users.update", editingUser.id), { ...form }, options);
-            return;
-        }
-
-        router.post(route("admin.settings.users.store"), { ...form }, options);
+        const payload = { ...form };
+        setErrors({});
+        setActionError("");
+        setPendingAction(editingUser
+            ? { kind: "update", userId: editingUser.id, payload }
+            : { kind: "create", payload });
+        setStepUpOpen(true);
     };
 
     const handleDelete = (user: InternalUser) => {
@@ -709,11 +952,69 @@ export default function UsersIndex() {
         if (isAdministrator(user.role)) return;
         if (!confirm(`Hapus akun "${user.name}"? Tindakan ini tidak dapat dibatalkan.`)) return;
 
-        setDeletingId(user.id);
-        router.delete(route("admin.settings.users.destroy", user.id), {
+        setActionError("");
+        setPendingAction({ kind: "delete", userId: user.id, name: user.name });
+        setStepUpOpen(true);
+    };
+
+    const executePendingAction = () => {
+        const action = pendingAction;
+        if (!action || !canManage) return;
+
+        setStepUpOpen(false);
+        setActionError("");
+
+        if (action.kind === "delete") {
+            setDeletingId(action.userId);
+            router.delete(route("admin.settings.users.destroy", action.userId), {
+                preserveScroll: true,
+                onSuccess: () => setPendingAction(null),
+                onError: (serverErrors: Record<string, string>) => {
+                    if (requiresFreshMfa(serverErrors)) {
+                        setStepUpOpen(true);
+                        return;
+                    }
+                    setPendingAction(null);
+                    setActionError(Object.values(serverErrors)[0] || "Akun staff belum dapat dihapus. Silakan coba lagi.");
+                },
+                onFinish: () => setDeletingId(null),
+            });
+            return;
+        }
+
+        setSaving(true);
+        const options = {
             preserveScroll: true,
-            onFinish: () => setDeletingId(null),
-        });
+            onSuccess: () => {
+                setPendingAction(null);
+                closeSlideOver();
+                if (action.kind === "create") {
+                    setCreatedCreds({ email: action.payload.email, password: action.payload.password });
+                }
+            },
+            onError: (serverErrors: Record<string, string>) => {
+                if (requiresFreshMfa(serverErrors)) {
+                    setStepUpOpen(true);
+                    return;
+                }
+                setPendingAction(null);
+                setErrors(serverErrors as Partial<Record<keyof StaffForm, string>>);
+            },
+            onFinish: () => setSaving(false),
+        };
+
+        if (action.kind === "update") {
+            router.put(route("admin.settings.users.update", action.userId), { ...action.payload }, options);
+            return;
+        }
+
+        router.post(route("admin.settings.users.store"), { ...action.payload }, options);
+    };
+
+    const cancelStepUp = () => {
+        if (saving || deletingId !== null) return;
+        setStepUpOpen(false);
+        setPendingAction(null);
     };
 
     return (
@@ -749,7 +1050,17 @@ export default function UsersIndex() {
                     </div>
                 )}
 
-                <section className="user-enter grid gap-2.5 lg:hidden">
+                {actionError && (
+                    <div className="user-enter flex items-start gap-3 rounded-[18px] border border-rose-100 bg-rose-50 px-4 py-3 font-bdo text-sm font-semibold leading-6 text-rose-700" role="alert">
+                        <Shield size={17} className="mt-1 shrink-0" />
+                        <span className="min-w-0 flex-1">{actionError}</span>
+                        <button type="button" onClick={() => setActionError("")} className="mt-0.5 text-rose-500 transition hover:text-rose-800" aria-label="Tutup pesan kesalahan">
+                            <X size={15} />
+                        </button>
+                    </div>
+                )}
+
+                <section className="user-enter grid min-w-0 w-full max-w-full gap-2.5 lg:hidden">
                     {filteredUsers.length === 0 ? (
                         <div className="rounded-[22px] border border-dashed border-slate-200 bg-slate-50 p-7 text-center font-bdo text-sm font-semibold text-slate-400">
                             Tidak ada staff yang cocok dengan filter.
@@ -864,6 +1175,14 @@ export default function UsersIndex() {
             </SlideOver>
 
             {createdCreds && <CredentialModal creds={createdCreds} onClose={() => setCreatedCreds(null)} />}
+
+            <AdminMfaStepUpDialog
+                open={stepUpOpen && pendingAction !== null}
+                purpose="manage_staff_accounts"
+                actionLabel={actionLabel(pendingAction)}
+                onCancel={cancelStepUp}
+                onVerified={executePendingAction}
+            />
         </AdminLayout>
     );
 }

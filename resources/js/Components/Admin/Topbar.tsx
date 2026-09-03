@@ -17,6 +17,7 @@ import {
     FileText,
     Film,
     ImagePlus,
+    HeartPulse,
     LayoutDashboard,
     LifeBuoy,
     LogOut,
@@ -26,7 +27,6 @@ import {
     Package,
     RefreshCw,
     Search,
-    Settings,
     ShieldCheck,
     Sparkles,
     UserCog,
@@ -168,7 +168,7 @@ const pageRegistry: SearchItem[] = [
     },
     {
         id: "membership-plans",
-        title: "Paket Membership",
+        title: "Membership Plans",
         description: "Atur paket, harga, durasi, benefit, dan urutan tampil.",
         routeName: "admin.memberships.plans.index",
         group: "Customers",
@@ -247,6 +247,16 @@ const pageRegistry: SearchItem[] = [
         icon: MessageSquare,
     },
     {
+        id: "system-monitoring",
+        title: "System Monitoring",
+        description: "Pantau health, availability, performance, integritas data, security, SLO, dan kapasitas.",
+        routeName: "admin.settings.monitoring.index",
+        group: "Settings",
+        kind: "setting",
+        keywords: ["monitoring", "health", "uptime", "performance", "incident", "security", "slo", "queue"],
+        icon: HeartPulse,
+    },
+    {
         id: "schedule-control",
         title: "Schedule Control",
         description: "Kontrol jadwal buka, tanggal tutup, dan slot operasional.",
@@ -293,6 +303,7 @@ const pageTitleMap = [
     { pattern: "admin.sponsors.*", title: "Sponsors", section: "Content" },
     { pattern: "admin.reels.*", title: "Video Reels", section: "Content" },
     { pattern: "admin.testimonials.*", title: "Testimonials", section: "Content" },
+    { pattern: "admin.settings.monitoring.*", title: "System Monitoring", section: "Settings" },
     { pattern: "admin.settings.schedules", title: "Schedule Control", section: "Settings" },
     { pattern: "admin.settings.roles", title: "Role & Access", section: "Settings" },
     { pattern: "admin.settings.users", title: "Internal Users", section: "Settings" },
@@ -1118,15 +1129,6 @@ export default function Topbar({ onMobileMenuClick }: TopbarProps) {
                                     >
                                         <UserRound size={17} className="text-slate-400" />
                                         Profile
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => openProfileModal("security")}
-                                        className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-950"
-                                    >
-                                        <Settings size={17} className="text-slate-400" />
-                                        Account settings
                                     </button>
 
                                     {safeRoute("admin.settings.roles") && (

@@ -1,15 +1,12 @@
 import { router, useForm, usePage } from "@inertiajs/react";
 import {
-    AlertTriangle,
     Camera,
     CheckCircle2,
-    Eye,
-    EyeOff,
+    CircleHelp,
     LockKeyhole,
     Mail,
     Save,
     ShieldCheck,
-    Trash2,
     UserRound,
     X,
 } from "lucide-react";
@@ -24,8 +21,9 @@ import {
 import { createPortal } from "react-dom";
 import type { PageProps } from "@/types";
 import { cn } from "@/lib/utils";
+import AdminSecurityCenter from "./AdminSecurityCenter";
 
-export type AdminProfileTab = "profile" | "security" | "danger";
+export type AdminProfileTab = "profile" | "security" | "account";
 
 interface ProfileModalProps {
     initialTab?: AdminProfileTab;
@@ -37,9 +35,9 @@ const tabs: Array<{
     label: string;
     icon: typeof UserRound;
 }> = [
-    { id: "profile", label: "Profile", icon: UserRound },
-    { id: "security", label: "Security", icon: LockKeyhole },
-    { id: "danger", label: "Danger", icon: AlertTriangle },
+    { id: "profile", label: "Profil", icon: UserRound },
+    { id: "security", label: "Keamanan", icon: LockKeyhole },
+    { id: "account", label: "Akun", icon: CircleHelp },
 ];
 
 function getInitials(name?: string | null): string {
@@ -68,12 +66,8 @@ export default function ProfileModal({
     const user = auth.user;
     const [activeTab, setActiveTab] = useState<AdminProfileTab>(initialTab);
     const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-    const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-    const [showNewPassword, setShowNewPassword] = useState(false);
-    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [mounted, setMounted] = useState(false);
     const avatarInputRef = useRef<HTMLInputElement | null>(null);
-    const deletePasswordRef = useRef<HTMLInputElement | null>(null);
 
     const profileForm = useForm<{
         _method: "patch";
@@ -85,16 +79,6 @@ export default function ProfileModal({
         name: user?.name ?? "",
         email: user?.email ?? "",
         avatar: null,
-    });
-
-    const passwordForm = useForm({
-        current_password: "",
-        password: "",
-        password_confirmation: "",
-    });
-
-    const deleteForm = useForm({
-        password: "",
     });
 
     const initials = getInitials(profileForm.data.name || user?.name);
@@ -148,32 +132,13 @@ export default function ProfileModal({
     const submitProfile: FormEventHandler = (event) => {
         event.preventDefault();
 
-        profileForm.post(route("profile.update"), {
+        profileForm.post(route("admin.account.profile.update"), {
             forceFormData: true,
             preserveScroll: true,
             onSuccess: () => {
                 profileForm.setData("avatar", null);
                 if (avatarInputRef.current) avatarInputRef.current.value = "";
             },
-        });
-    };
-
-    const submitPassword: FormEventHandler = (event) => {
-        event.preventDefault();
-
-        passwordForm.put(route("password.update"), {
-            preserveScroll: true,
-            onSuccess: () => passwordForm.reset(),
-        });
-    };
-
-    const submitDelete: FormEventHandler = (event) => {
-        event.preventDefault();
-
-        deleteForm.delete(route("profile.destroy"), {
-            preserveScroll: true,
-            onError: () => deletePasswordRef.current?.focus(),
-            onFinish: () => deleteForm.reset("password"),
         });
     };
 
@@ -190,7 +155,12 @@ export default function ProfileModal({
                 role="dialog"
                 aria-modal="true"
                 aria-label="Admin profile settings"
-                className="relative flex h-[calc(100dvh-32px)] max-h-[760px] w-full max-w-4xl flex-col overflow-hidden rounded-[28px] border border-white/70 bg-white shadow-[0_30px_100px_rgba(15,23,42,0.3)] ring-1 ring-slate-950/5 sm:h-[calc(100dvh-48px)]"
+                className={cn(
+                    "relative flex h-[calc(100dvh-32px)] w-full flex-col overflow-hidden rounded-[28px] border border-white/70 bg-white shadow-[0_30px_100px_rgba(15,23,42,0.3)] ring-1 ring-slate-950/5 transition-[max-width] duration-300 sm:h-[calc(100dvh-48px)]",
+                    activeTab === "security"
+                        ? "max-h-[820px] max-w-[1120px]"
+                        : "max-h-[760px] max-w-4xl",
+                )}
             >
                 <div className="shrink-0 border-b border-slate-100 bg-gradient-to-br from-slate-950 via-navy-900 to-orange-800 px-5 py-4 text-white sm:px-6">
                     <div className="flex items-start justify-between gap-4">
@@ -281,7 +251,7 @@ export default function ProfileModal({
                         </div>
                     </aside>
 
-                    <div className="min-h-0 overflow-y-auto p-4 sm:p-6" data-lenis-prevent="true">
+                    <div className="min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6" data-lenis-prevent="true">
                         {activeTab === "profile" && (
                             <form onSubmit={submitProfile} className="space-y-5">
                                 <div>
@@ -324,8 +294,9 @@ export default function ProfileModal({
                                     </label>
 
                                     <label className="space-y-2">
-                                        <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                                            Email address
+                                        <span className="flex items-center justify-between gap-3 text-xs font-bold uppercase tracking-wider text-slate-500">
+                                            <span>Alamat email</span>
+                                            <span className="normal-case tracking-normal text-slate-400">Dikelola Administrator</span>
                                         </span>
                                         <div className="relative">
                                             <Mail
@@ -335,10 +306,11 @@ export default function ProfileModal({
                                             <input
                                                 type="email"
                                                 value={profileForm.data.email}
-                                                onChange={(event) => profileForm.setData("email", event.target.value)}
+                                                readOnly
+                                                aria-readonly="true"
                                                 autoComplete="email"
                                                 className={cn(
-                                                    "w-full rounded-2xl border bg-white py-3 pl-11 pr-4 text-sm font-semibold text-slate-900 shadow-sm outline-none transition focus:border-orange-300 focus:ring-4 focus:ring-orange-100",
+                                                    "w-full cursor-default rounded-2xl border bg-slate-50 py-3 pl-11 pr-4 text-sm font-semibold text-slate-600 shadow-sm outline-none",
                                                     profileForm.errors.email
                                                         ? "border-rose-300"
                                                         : "border-slate-200",
@@ -399,168 +371,31 @@ export default function ProfileModal({
                             </form>
                         )}
 
-                        {activeTab === "security" && (
-                            <form onSubmit={submitPassword} className="space-y-5">
-                                <div>
-                                    <h3 className="font-clash text-lg font-semibold text-slate-950">
-                                        Password & security
-                                    </h3>
-                                    <p className="mt-1 text-sm font-medium leading-6 text-slate-500">
-                                        Update password admin menggunakan validasi password existing.
-                                    </p>
-                                </div>
+                        {activeTab === "security" && <AdminSecurityCenter />}
 
-                                <div className="space-y-4">
-                                    <label className="block space-y-2">
-                                        <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                                            Current password
-                                        </span>
-                                        <div className="relative">
-                                            <input
-                                                type={showCurrentPassword ? "text" : "password"}
-                                                value={passwordForm.data.current_password}
-                                                onChange={(event) =>
-                                                    passwordForm.setData("current_password", event.target.value)
-                                                }
-                                                autoComplete="current-password"
-                                                className={cn(
-                                                    "w-full rounded-2xl border bg-white px-4 py-3 pr-12 text-sm font-semibold text-slate-900 shadow-sm outline-none transition focus:border-orange-300 focus:ring-4 focus:ring-orange-100",
-                                                    passwordForm.errors.current_password
-                                                        ? "border-rose-300"
-                                                        : "border-slate-200",
-                                                )}
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowCurrentPassword((value) => !value)}
-                                                className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
-                                                aria-label="Toggle current password visibility"
-                                            >
-                                                {showCurrentPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                                            </button>
-                                        </div>
-                                        {passwordForm.errors.current_password && (
-                                            <span className="block text-xs font-semibold text-rose-600">
-                                                {passwordForm.errors.current_password}
-                                            </span>
-                                        )}
-                                    </label>
-
-                                    <div className="grid gap-4 sm:grid-cols-2">
-                                        <label className="space-y-2">
-                                            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                                                New password
-                                            </span>
-                                            <div className="relative">
-                                                <input
-                                                    type={showNewPassword ? "text" : "password"}
-                                                    value={passwordForm.data.password}
-                                                    onChange={(event) =>
-                                                        passwordForm.setData("password", event.target.value)
-                                                    }
-                                                    autoComplete="new-password"
-                                                    className={cn(
-                                                        "w-full rounded-2xl border bg-white px-4 py-3 pr-12 text-sm font-semibold text-slate-900 shadow-sm outline-none transition focus:border-orange-300 focus:ring-4 focus:ring-orange-100",
-                                                        passwordForm.errors.password
-                                                            ? "border-rose-300"
-                                                            : "border-slate-200",
-                                                    )}
-                                                />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setShowNewPassword((value) => !value)}
-                                                    className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
-                                                    aria-label="Toggle new password visibility"
-                                                >
-                                                    {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                                                </button>
-                                            </div>
-                                            {passwordForm.errors.password && (
-                                                <span className="block text-xs font-semibold text-rose-600">
-                                                    {passwordForm.errors.password}
-                                                </span>
-                                            )}
-                                        </label>
-
-                                        <label className="space-y-2">
-                                            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                                                Confirm password
-                                            </span>
-                                            <input
-                                                type="password"
-                                                value={passwordForm.data.password_confirmation}
-                                                onChange={(event) =>
-                                                    passwordForm.setData("password_confirmation", event.target.value)
-                                                }
-                                                autoComplete="new-password"
-                                                className={cn(
-                                                    "w-full rounded-2xl border bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none transition focus:border-orange-300 focus:ring-4 focus:ring-orange-100",
-                                                    passwordForm.errors.password_confirmation
-                                                        ? "border-rose-300"
-                                                        : "border-slate-200",
-                                                )}
-                                            />
-                                            {passwordForm.errors.password_confirmation && (
-                                                <span className="block text-xs font-semibold text-rose-600">
-                                                    {passwordForm.errors.password_confirmation}
-                                                </span>
-                                            )}
-                                        </label>
-                                    </div>
-                                </div>
-
-                                <div className="flex flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
-                                    <div className="min-h-5">
-                                        {passwordForm.recentlySuccessful && (
-                                            <p className="inline-flex items-center gap-2 text-sm font-bold text-emerald-600">
-                                                <CheckCircle2 size={16} />
-                                                Password updated.
-                                            </p>
-                                        )}
-                                    </div>
-                                    <button
-                                        type="submit"
-                                        disabled={passwordForm.processing}
-                                        className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-bold text-white shadow-[0_14px_34px_rgba(15,23,42,0.22)] transition hover:-translate-y-0.5 hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
-                                    >
-                                        <LockKeyhole size={16} />
-                                        {passwordForm.processing ? "Updating..." : "Update password"}
-                                    </button>
-                                </div>
-                            </form>
-                        )}
-
-                        {activeTab === "danger" && (
+                        {activeTab === "account" && (
                             <div className="space-y-5">
                                 <div>
                                     <h3 className="font-clash text-lg font-semibold text-slate-950">
-                                        Danger zone
+                                        Tata kelola akun staf
                                     </h3>
                                     <p className="mt-1 text-sm font-medium leading-6 text-slate-500">
-                                        Fitur ini sama seperti halaman profile lama: akun akan dihapus permanen setelah password valid.
+                                        Penonaktifan akun, perubahan peran, dan pencabutan akses dikelola Administrator agar jejak audit organisasi tetap utuh.
                                     </p>
                                 </div>
 
-                                <div className="rounded-3xl border border-rose-100 bg-rose-50/70 p-4">
+                                <div className="rounded-[20px] border border-sky-100 bg-gradient-to-br from-sky-50/80 via-white to-slate-50 p-4 sm:p-5">
                                     <div className="flex items-start gap-3">
-                                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-rose-600 ring-1 ring-rose-100">
-                                            <Trash2 size={18} />
+                                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-white text-sky-700 ring-1 ring-sky-100">
+                                            <ShieldCheck size={18} />
                                         </span>
                                         <div className="min-w-0 flex-1">
-                                            <p className="font-clash text-base font-semibold text-rose-950">
-                                                Delete account
+                                            <p className="font-clash text-base font-semibold text-slate-950">
+                                                Akun tidak dapat dihapus sendiri
                                             </p>
-                                            <p className="mt-1 text-sm font-medium leading-6 text-rose-700/80">
-                                                Setelah akun dihapus, sesi akan logout dan data akun tidak bisa dikembalikan dari modal ini.
+                                            <p className="mt-1 text-sm font-medium leading-6 text-slate-500">
+                                                Hubungi Administrator untuk menonaktifkan akun. Seluruh sesi, faktor MFA, dan hak akses akan dicabut melalui prosedur terkontrol tanpa menghapus histori operasional.
                                             </p>
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowDeleteConfirm(true)}
-                                                className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-rose-600 px-4 py-2.5 text-sm font-bold text-white shadow-[0_14px_34px_rgba(225,29,72,0.2)] transition hover:-translate-y-0.5 hover:bg-rose-700"
-                                            >
-                                                <Trash2 size={16} />
-                                                Delete account
-                                            </button>
                                         </div>
                                     </div>
                                 </div>
@@ -570,77 +405,6 @@ export default function ProfileModal({
                 </div>
             </section>
 
-            {showDeleteConfirm && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 py-6">
-                    <button
-                        type="button"
-                        className="absolute inset-0 bg-slate-950/50 backdrop-blur-sm"
-                        onClick={() => {
-                            setShowDeleteConfirm(false);
-                            deleteForm.clearErrors();
-                            deleteForm.reset();
-                        }}
-                        aria-label="Cancel delete account"
-                    />
-                    <form
-                        onSubmit={submitDelete}
-                        className="relative w-full max-w-md rounded-3xl border border-white/70 bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.25)]"
-                    >
-                        <div className="flex items-start gap-3">
-                            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 ring-1 ring-rose-100">
-                                <AlertTriangle size={20} />
-                            </span>
-                            <div>
-                                <h4 className="font-clash text-lg font-semibold text-slate-950">
-                                    Confirm account deletion
-                                </h4>
-                                <p className="mt-1 text-sm font-medium leading-6 text-slate-500">
-                                    Masukkan password akun untuk menghapus akun secara permanen.
-                                </p>
-                            </div>
-                        </div>
-
-                        <input
-                            ref={deletePasswordRef}
-                            type="password"
-                            value={deleteForm.data.password}
-                            onChange={(event) => deleteForm.setData("password", event.target.value)}
-                            placeholder="Current password"
-                            className={cn(
-                                "mt-5 w-full rounded-2xl border bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm outline-none transition focus:border-rose-300 focus:ring-4 focus:ring-rose-100",
-                                deleteForm.errors.password ? "border-rose-300" : "border-slate-200",
-                            )}
-                            autoComplete="current-password"
-                        />
-                        {deleteForm.errors.password && (
-                            <p className="mt-2 text-xs font-semibold text-rose-600">
-                                {deleteForm.errors.password}
-                            </p>
-                        )}
-
-                        <div className="mt-5 flex justify-end gap-2">
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setShowDeleteConfirm(false);
-                                    deleteForm.clearErrors();
-                                    deleteForm.reset();
-                                }}
-                                className="rounded-2xl px-4 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-100"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="submit"
-                                disabled={deleteForm.processing}
-                                className="rounded-2xl bg-rose-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                                {deleteForm.processing ? "Deleting..." : "Delete permanently"}
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            )}
         </div>
     );
 
