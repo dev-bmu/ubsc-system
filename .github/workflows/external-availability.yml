@@ -1,0 +1,124 @@
+name: External production availability
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "HTTPS origin to probe; leave empty to use the repository variable"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: ubsc-external-production-availability
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    name: Probe production from outside the application
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    env:
+      UBSC_BASE_URL: ${{ inputs.base_url || vars.UBSC_PRODUCTION_URL || 'https://ubsportcenter.co.id' }}
+      UPTIME_PATHS: /up,/health/ready,/
+      UPTIME_ATTEMPTS: "3"
+      UPTIME_TIMEOUT_MS: "8000"
+      UPTIME_MAX_LATENCY_MS: "5000"
+      UPTIME_RESULT_PATH: artifacts/uptime-result.json
+
+    steps:
+      - name: Check out the probe implementation
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Use the supported Node runtime
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+
+      - name: Probe liveness, readiness, and the public page
+        id: availability
+        continue-on-error: true
+        run: node scripts/uptime-probe.mjs
+
+      - name: Verify canonical TLS, certificate lifetime, cache isolation, and browser protections
+        id: edge
+        continue-on-error: true
+        shell: bash
+        run: bash deploy/scripts/verify-edge-security.sh "$UBSC_BASE_URL"
+
+      - name: Retain the latest synthetic evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ubsc-external-availability-${{ github.run_id }}
+          path: artifacts/uptime-result.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Publish the authenticated SLI sample
+        id: sli_ingest
+        if: always()
+        continue-on-error: true
+        env:
+          UBSC_EXTERNAL_SLI_KEY_ID: ${{ secrets.UBSC_EXTERNAL_SLI_KEY_ID }}
+          UBSC_EXTERNAL_SLI_SIGNING_KEY: ${{ secrets.UBSC_EXTERNAL_SLI_SIGNING_KEY }}
+        run: node scripts/publish-uptime-sli.mjs
+
+      - name: Open, retain, or resolve the availability incident
+        id: incident
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PROBE_OUTCOME: ${{ steps.availability.outcome }}
+          EDGE_OUTCOME: ${{ steps.edge.outcome }}
+          SLI_INGEST_OUTCOME: ${{ steps.sli_ingest.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          label="availability-incident"
+          gh label create "$label" --color "B60205" --description "External production availability incident" --force >/dev/null
+          issue_number="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --label "$label" --json number --jq '.[0].number // empty')"
+          transition="none"
+
+          control_outcome="success"
+          if [[ "$PROBE_OUTCOME" != "success" || "$EDGE_OUTCOME" != "success" || "$SLI_INGEST_OUTCOME" != "success" ]]; then
+            control_outcome="failure"
+          fi
+
+          if [[ "$control_outcome" != "success" && -z "$issue_number" ]]; then
+            gh issue create \
+              --repo "$GITHUB_REPOSITORY" \
+              --label "$label" \
+              --title "Production availability monitoring failed" \
+              --body "The external availability, edge-security, certificate, or authenticated SLI control failed. Investigation: ${RUN_URL}" >/dev/null
+            transition="opened"
+          elif [[ "$control_outcome" == "success" && -n "$issue_number" ]]; then
+            gh issue comment "$issue_number" --repo "$GITHUB_REPOSITORY" --body "External availability recovered. Verification: ${RUN_URL}" >/dev/null
+            gh issue close "$issue_number" --repo "$GITHUB_REPOSITORY" --reason completed >/dev/null
+            transition="recovered"
+          elif [[ "$control_outcome" != "success" ]]; then
+            transition="ongoing"
+          fi
+
+          echo "transition=$transition" >> "$GITHUB_OUTPUT"
+
+      - name: Notify the optional off-site webhook on state changes
+        if: always() && (steps.incident.outputs.transition == 'opened' || steps.incident.outputs.transition == 'recovered')
+        env:
+          UBSC_UPTIME_ALERT_WEBHOOK_URL: ${{ secrets.UBSC_UPTIME_ALERT_WEBHOOK_URL }}
+          UBSC_UPTIME_ALERT_WEBHOOK_TOKEN: ${{ secrets.UBSC_UPTIME_ALERT_WEBHOOK_TOKEN }}
+          UPTIME_TRANSITION: ${{ steps.incident.outputs.transition }}
+          UPTIME_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node scripts/send-uptime-alert.mjs
+
+      - name: Fail when production, its public edge, or authenticated SLI delivery is unavailable
+        if: steps.availability.outcome != 'success' || steps.edge.outcome != 'success' || steps.sli_ingest.outcome != 'success'
+        run: exit 1
