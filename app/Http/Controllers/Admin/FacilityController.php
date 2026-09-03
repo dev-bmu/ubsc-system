@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Facility;
 use App\Models\FacilityCategory;
 use App\Support\FacilityReservationLink;
+use App\Support\NewsContentSanitizer;
+use App\Support\SafePublicUrl;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -55,11 +57,11 @@ class FacilityController extends Controller
             'facility_category_id' => $data['facility_category_id'],
             'name' => $data['name'],
             'slug' => $data['slug'],
-            'description' => $data['description'] ?? null,
+            'description' => NewsContentSanitizer::clean($data['description'] ?? null),
             'location' => $data['location'] ?? null,
             'venue_type' => $data['venue_type'] ?? null,
             'capacity' => $data['capacity'] ?? 1,
-            'active_slots' => $data['active_slots'] ?? null,
+            'active_slots' => $this->normalizeActiveSlots($data['active_slots'] ?? null),
             'class_code' => $data['class_code'] ?? null,
             'rating' => $data['rating'] ?? 5.0,
             'display_metadata' => $this->decodeMetadata($data['display_metadata'] ?? null),
@@ -116,11 +118,11 @@ class FacilityController extends Controller
             'facility_category_id' => $data['facility_category_id'],
             'name' => $data['name'],
             'slug' => $data['slug'],
-            'description' => $data['description'] ?? null,
+            'description' => NewsContentSanitizer::clean($data['description'] ?? null),
             'location' => $data['location'] ?? null,
             'venue_type' => $data['venue_type'] ?? null,
             'capacity' => $data['capacity'] ?? $facility->capacity,
-            'active_slots' => $data['active_slots'] ?? null,
+            'active_slots' => $this->normalizeActiveSlots($data['active_slots'] ?? null),
             'class_code' => $data['class_code'] ?? null,
             'rating' => $data['rating'] ?? $facility->rating,
             'display_metadata' => $this->decodeMetadata($data['display_metadata'] ?? null),
@@ -158,6 +160,13 @@ class FacilityController extends Controller
     public function destroy(Facility $facility): RedirectResponse
     {
         $this->authorize('manage-facilities');
+
+        if ($facility->bookings()->exists()) {
+            return back()->with(
+                'error',
+                'Fasilitas sudah memiliki riwayat booking. Nonaktifkan fasilitas agar histori reservasi dan pembayaran tetap utuh.',
+            );
+        }
 
         $facility->delete();
 
@@ -253,7 +262,7 @@ class FacilityController extends Controller
             'location' => ['nullable', 'string', 'max:100'],
             'venue_type' => ['nullable', 'string', 'max:100'],
             'capacity' => ['nullable', 'integer', 'min:1', 'max:9999'],
-            'active_slots' => ['nullable', 'array'],
+            'active_slots' => ['nullable', 'array:Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday'],
             'active_slots.*' => ['nullable', 'array'],
             'active_slots.*.*' => ['string', 'date_format:H:i'],
             'class_code' => ['nullable', 'string', 'max:50'],
@@ -412,7 +421,53 @@ class FacilityController extends Controller
             })
             ->all();
 
+        foreach (['map_url', 'mapLink', 'map_embed_url', 'mapEmbedUrl'] as $key) {
+            if (! array_key_exists($key, $decoded)) {
+                continue;
+            }
+
+            $value = trim((string) $decoded[$key]);
+
+            if ($value === '') {
+                unset($decoded[$key]);
+
+                continue;
+            }
+
+            $safeUrl = SafePublicUrl::googleMaps($value);
+
+            if ($safeUrl === null) {
+                throw ValidationException::withMessages([
+                    'display_metadata' => 'Tautan peta harus berupa URL HTTPS Google Maps yang valid.',
+                ]);
+            }
+
+            $decoded[$key] = $safeUrl;
+        }
+
         return $decoded;
+    }
+
+    /**
+     * Keep the persisted schedule deterministic regardless of the order in
+     * which an administrator selected its chips in the visual editor.
+     */
+    private function normalizeActiveSlots(?array $slots): ?array
+    {
+        if ($slots === null) {
+            return null;
+        }
+
+        return collect(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'])
+            ->mapWithKeys(fn (string $day): array => [
+                $day => collect($slots[$day] ?? [])
+                    ->filter(fn ($time): bool => is_string($time) && preg_match('/^\d{2}:\d{2}$/', $time) === 1)
+                    ->unique()
+                    ->sort()
+                    ->values()
+                    ->all(),
+            ])
+            ->all();
     }
 
     private function guardGalleryCapacity(

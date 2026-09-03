@@ -16,6 +16,7 @@ class FacilityUnit extends Model implements HasMedia
         'facility_id',
         'name',
         'is_active',
+        'capacity',
         'use_custom_schedule',
         'active_slots',
         'use_custom_pricing',
@@ -25,6 +26,7 @@ class FacilityUnit extends Model implements HasMedia
     {
         return [
             'is_active'           => 'boolean',
+            'capacity'            => 'integer',
             'use_custom_schedule' => 'boolean',
             'active_slots'        => 'array',
             'use_custom_pricing'  => 'boolean',

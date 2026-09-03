@@ -8,7 +8,9 @@ use App\Http\Resources\Public\FacilityResource;
 use App\Models\Facility;
 use App\Models\FacilityCategory;
 use App\Services\Gallery\GalleryPublicService;
+use App\Support\NewsContentSanitizer;
 use App\Support\PublicSeo;
+use App\Support\SafePublicUrl;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -75,6 +77,17 @@ class PublicFacilityController extends Controller
             ->unique()
             ->values();
 
+        $mapUrl = SafePublicUrl::googleMaps(
+            $facility->display_metadata['map_url']
+                ?? $facility->display_metadata['mapLink']
+                ?? null,
+        ) ?? $this->defaultMapUrl($facility);
+        $mapEmbedUrl = SafePublicUrl::googleMaps(
+            $facility->display_metadata['map_embed_url']
+                ?? $facility->display_metadata['mapEmbedUrl']
+                ?? null,
+        ) ?? '';
+
         return [
             'id' => $facility->id,
             'name' => $facility->name,
@@ -83,14 +96,9 @@ class PublicFacilityController extends Controller
             'venue_type' => $facility->venue_type ?? '',
             'location' => $facility->location ?? '',
             'class_code' => $facility->class_code ?? '',
-            'description' => $facility->description ?? '',
-            'map_embed_url' => $facility->display_metadata['map_embed_url']
-                ?? $facility->display_metadata['mapEmbedUrl']
-                ?? $facility->display_metadata['map_url']
-                ?? '',
-            'map_url' => $facility->display_metadata['map_url']
-                ?? $facility->display_metadata['mapLink']
-                ?? $this->defaultMapUrl($facility),
+            'description' => NewsContentSanitizer::clean($facility->description),
+            'map_embed_url' => $mapEmbedUrl,
+            'map_url' => $mapUrl,
             'images_array' => $images->all(),
             'cover_image' => $facility->getFirstMediaUrl('hero'),
         ];
@@ -105,11 +113,13 @@ class PublicFacilityController extends Controller
             'category' => $facility->category?->name ?? '',
             'venue_type' => $facility->venue_type ?? '',
             'location' => $facility->location ?? '',
-            'description' => $facility->description ?? '',
+            'description' => NewsContentSanitizer::clean($facility->description),
             'cover_image' => $facility->getFirstMediaUrl('hero'),
-            'map_url' => $facility->display_metadata['map_url']
-                ?? $facility->display_metadata['mapLink']
-                ?? $this->defaultMapUrl($facility),
+            'map_url' => SafePublicUrl::googleMaps(
+                $facility->display_metadata['map_url']
+                    ?? $facility->display_metadata['mapLink']
+                    ?? null,
+            ) ?? $this->defaultMapUrl($facility),
         ];
     }
 

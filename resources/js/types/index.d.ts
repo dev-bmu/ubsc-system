@@ -72,6 +72,7 @@ export type PageProps<
     admin_notifications?: AdminNotificationsPayload;
     gym_traffic?: string;
     seo?: SeoPayload;
+    csp_nonce?: string;
 };
 
 // ─── Facility Types ───────────────────────────────────────────────────────────
@@ -207,9 +208,21 @@ export interface TestimonialItem {
 export interface ReviewItem {
     id: number;
     reviewer_name: string;
+    reviewer_email: string | null;
+    reviewer_avatar: string | null;
     rating: number;
     text: string;
+    status: "pending" | "approved" | "rejected";
+    status_label: string;
     is_approved: boolean;
+    version: number;
+    eligibility_source: "booking" | "membership" | null;
+    eligibility_label: string;
+    eligibility_reference_id: number | null;
+    moderation_feedback: string | null;
+    moderator_name: string | null;
+    submitted_at: string;
+    moderated_at: string | null;
     created_at: string;
 }
 
@@ -248,20 +261,49 @@ export interface RecentActivity {
 export interface AdminBooking {
     id: number;
     user_id: number | null;
+    booking_order_id: number | null;
     facility_id: number;
     facility_unit_id: number | null;
     booking_date: string;       // YYYY-MM-DD
     start_time: string;         // HH:MM
     end_time: string;           // HH:MM
+    pax: number;
     subtotal_price: number;
     status: BookingStatus;
+    updated_at: string | null;
+    state_version: string | null;
     notes: string | null;
     customer_name: string;
     customer_phone: string | null;
+    customer_email: string | null;
     is_free: boolean;
     user_category: UserCategory;
     facility_name: string;
     facility_unit_name: string | null;
+    facility_category_id: number | null;
+    facility_category_name: string;
+    facility_category_slug: string;
+    reservation_method: "auto" | "website" | "whatsapp" | "external" | "unknown";
+    inventory: {
+        mode: "exclusive" | "shared";
+        capacity: number;
+        occupied: number | null;
+        remaining: number | null;
+        utilization_percent: number | null;
+        concurrent_bookings: number | null;
+        holds_inventory: boolean;
+        over_capacity: boolean;
+        status: "exclusive" | "available" | "limited" | "full" | "over_capacity" | "released";
+    };
+    booking_source: "website" | "legacy_website" | "admin";
+    booking_order_status: "draft" | "pending_payment" | "paid" | "cancelled" | "expired" | null;
+    payment_settled: boolean;
+    operational_actions: {
+        can_confirm: boolean;
+        can_complete: boolean;
+        can_cancel: boolean;
+        can_simulate_payment: boolean;
+    };
     transaction: BookingTransaction | null;
 }
 

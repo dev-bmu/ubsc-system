@@ -3,6 +3,9 @@
 namespace App\Http\Resources\Public;
 
 use App\Support\FacilityReservationLink;
+use App\Support\NewsContentSanitizer;
+use App\Support\SafePublicUrl;
+use App\Services\BookingInventoryService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
@@ -12,11 +15,14 @@ class FacilityResource extends JsonResource
     public function toArray(Request $request): array
     {
         $includesBookingGallery = $this->relationLoaded('media');
+        $inventoryService = app(BookingInventoryService::class);
+        $bookingCapacity = $inventoryService
+            ->capacityFor($this->resource, null);
 
         return [
             'id' => $this->id,
             'name' => $this->name,
-            'description' => $this->description,
+            'description' => NewsContentSanitizer::clean($this->description),
             'slug' => $this->slug,
             'image' => $this->publicImagePath() ?: $this->getFirstMediaUrl('hero'),
             'booking_gallery' => $this->when(
@@ -26,28 +32,37 @@ class FacilityResource extends JsonResource
             'category' => $this->whenLoaded('category', fn () => $this->category->name, ''),
             'location' => $this->location,
             'venue_type' => $this->venue_type,
+            'booking_capacity' => $bookingCapacity,
+            'has_shared_booking_capacity' => $bookingCapacity > 1,
             'active_slots' => $this->active_slots,
             'class_code' => $this->class_code,
             'rating' => $this->rating,
-            'display_metadata' => $this->display_metadata,
+            'display_metadata' => $this->publicDisplayMetadata(),
             'reservation' => FacilityReservationLink::resolve($this->resource),
             'prices' => FacilityPriceResource::collection($this->whenLoaded('prices'))->resolve(),
             'units' => $this->whenLoaded('units', fn () => $this->units
                 ->where('is_active', true)
                 ->sortBy('id')
-                ->map(fn ($unit) => [
-                    'id' => $unit->id,
-                    'name' => $unit->name,
-                    'image' => $unit->getFirstMediaUrl('unit_image') ?: $this->getFirstMediaUrl('hero'),
-                    'use_custom_schedule' => $unit->use_custom_schedule,
-                    'active_slots' => $unit->active_slots,
-                    'use_custom_pricing' => $unit->use_custom_pricing,
-                    'prices' => $unit->relationLoaded('prices')
-                        ? FacilityPriceResource::collection(
-                            $unit->prices->sortBy('sort_order')->values()
-                        )->resolve()
-                        : [],
-                ])
+                ->map(function ($unit) use ($inventoryService): array {
+                    $unitCapacity = $inventoryService->capacityFor($this->resource, $unit);
+
+                    return [
+                        'id' => $unit->id,
+                        'name' => $unit->name,
+                        'image' => $unit->getFirstMediaUrl('unit_image') ?: $this->getFirstMediaUrl('hero'),
+                        'capacity_override' => $unit->capacity,
+                        'booking_capacity' => $unitCapacity,
+                        'has_shared_booking_capacity' => $unitCapacity > 1,
+                        'use_custom_schedule' => $unit->use_custom_schedule,
+                        'active_slots' => $unit->active_slots,
+                        'use_custom_pricing' => $unit->use_custom_pricing,
+                        'prices' => $unit->relationLoaded('prices')
+                            ? FacilityPriceResource::collection(
+                                $unit->prices->sortBy('sort_order')->values()
+                            )->resolve()
+                            : [],
+                    ];
+                })
                 ->values()
                 ->all()),
             'price_range' => $this->computePriceRange(),
@@ -188,5 +203,30 @@ class FacilityResource extends JsonResource
         $fingerprint = sha1_file($path) ?: (string) filemtime($path);
 
         return $source.'?v='.rawurlencode($fingerprint);
+    }
+
+    private function publicDisplayMetadata(): ?array
+    {
+        if (! is_array($this->display_metadata)) {
+            return null;
+        }
+
+        $metadata = $this->display_metadata;
+
+        foreach (['map_url', 'mapLink', 'map_embed_url', 'mapEmbedUrl'] as $key) {
+            if (! array_key_exists($key, $metadata)) {
+                continue;
+            }
+
+            $safeUrl = SafePublicUrl::googleMaps($metadata[$key]);
+
+            if ($safeUrl === null) {
+                unset($metadata[$key]);
+            } else {
+                $metadata[$key] = $safeUrl;
+            }
+        }
+
+        return $metadata;
     }
 }

@@ -1,0 +1,899 @@
+.schedule-studio {
+    --studio-ink: #0b1220;
+    --studio-muted: #667085;
+    --studio-line: rgba(148, 163, 184, 0.22);
+    --studio-accent: #e35336;
+    --studio-accent-deep: #a93625;
+    container-name: schedule-studio;
+    container-type: inline-size;
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    border: 1px solid rgba(227, 83, 54, 0.2);
+    border-radius: 28px;
+    background: #fff;
+    box-shadow:
+        0 34px 80px -58px rgba(47, 24, 20, 0.38),
+        inset 0 1px 0 rgba(255, 255, 255, 0.96);
+}
+
+.schedule-studio::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    opacity: 0.38;
+    background-image:
+        linear-gradient(rgba(227, 83, 54, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(227, 83, 54, 0.035) 1px, transparent 1px);
+    background-size: 42px 42px;
+    mask-image: linear-gradient(to bottom, #000, transparent 55%);
+    -webkit-mask-image: linear-gradient(to bottom, #000, transparent 55%);
+}
+
+.schedule-studio__glow {
+    position: absolute;
+    z-index: -1;
+    top: -170px;
+    right: -130px;
+    width: 360px;
+    height: 360px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(227, 83, 54, 0.17), rgba(227, 83, 54, 0) 69%);
+    pointer-events: none;
+}
+
+.schedule-studio__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 22px 24px 20px;
+}
+
+.schedule-studio__identity {
+    display: flex;
+    min-width: 0;
+    align-items: flex-start;
+    gap: 14px;
+}
+
+.schedule-studio__mark {
+    display: grid;
+    width: 48px;
+    height: 48px;
+    flex: 0 0 auto;
+    place-items: center;
+    border-radius: 17px;
+    color: #fff;
+    background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.22), transparent 42%),
+        linear-gradient(145deg, #f08c78 0%, #e35336 52%, #a93625 100%);
+    box-shadow:
+        0 18px 34px -20px rgba(227, 83, 54, 0.88),
+        inset 0 1px 0 rgba(255, 255, 255, 0.32);
+}
+
+.schedule-studio__eyebrow {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--studio-accent-deep);
+    font-family: "BDO Grotesk", sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+}
+
+.schedule-studio__identity h3 {
+    margin: 0;
+    color: var(--studio-ink);
+    font-family: "Clash Display", sans-serif;
+    font-size: clamp(17px, 2.4cqi, 22px);
+    font-weight: 600;
+    line-height: 1.12;
+    letter-spacing: -0.025em;
+}
+
+.schedule-studio__identity p {
+    max-width: 600px;
+    margin: 6px 0 0;
+    color: var(--studio-muted);
+    font-family: "BDO Grotesk", sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.55;
+}
+
+.schedule-studio__summary {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 15px;
+    min-width: 208px;
+    padding: 11px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 18px;
+    color: #fff;
+    background:
+        radial-gradient(circle at 88% 10%, rgba(227, 83, 54, 0.24), transparent 38%),
+        linear-gradient(145deg, #121a29, #060b14);
+    box-shadow: 0 22px 40px -28px rgba(11, 18, 32, 0.88);
+}
+
+.schedule-studio__summary span {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.schedule-studio__summary strong {
+    font-family: "Clash Display", sans-serif;
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1;
+}
+
+.schedule-studio__summary small {
+    color: rgba(255, 255, 255, 0.58);
+    font-family: "BDO Grotesk", sans-serif;
+    font-size: 9px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.schedule-studio__summary i {
+    width: 1px;
+    height: 22px;
+    background: rgba(255, 255, 255, 0.14);
+}
+
+.schedule-studio__day-rail {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 7px;
+    padding: 12px 16px;
+    border-top: 1px solid rgba(148, 163, 184, 0.15);
+    border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+    background: rgba(248, 250, 252, 0.7);
+}
+
+.schedule-studio__day {
+    position: relative;
+    min-width: 0;
+    padding: 11px 11px 10px;
+    border: 1px solid transparent;
+    border-radius: 14px;
+    color: #687386;
+    text-align: left;
+    background: transparent;
+    transition:
+        color 180ms ease,
+        border-color 180ms ease,
+        background 180ms ease,
+        transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
+        box-shadow 180ms ease;
+}
+
+.schedule-studio__day:hover {
+    border-color: rgba(227, 83, 54, 0.18);
+    color: #182230;
+    background: #fff;
+}
+
+.schedule-studio__day:focus-visible,
+.schedule-studio__utility button:focus-visible,
+.schedule-studio__quick-grid button:focus-visible,
+.schedule-studio__add:focus-visible,
+.schedule-studio__remove:focus-visible,
+.schedule-studio__time-builder select:focus-visible {
+    outline: 3px solid rgba(227, 83, 54, 0.18);
+    outline-offset: 2px;
+}
+
+.schedule-studio__day.is-active {
+    border-color: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    background:
+        radial-gradient(circle at 86% 18%, rgba(227, 83, 54, 0.34), transparent 38%),
+        #0b1220;
+    box-shadow: 0 16px 28px -22px rgba(11, 18, 32, 0.85);
+    transform: translateY(-1px);
+}
+
+.schedule-studio__day.has-slots:not(.is-active) {
+    border-color: rgba(227, 83, 54, 0.16);
+    color: #8f3527;
+    background: rgba(255, 247, 245, 0.8);
+}
+
+.schedule-studio__day-name {
+    display: block;
+    overflow: hidden;
+    font-family: "BDO Grotesk", sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.schedule-studio__day-short {
+    display: none;
+}
+
+.schedule-studio__day-state {
+    display: block;
+    margin-top: 3px;
+    color: currentColor;
+    font-family: "BDO Grotesk", sans-serif;
+    font-size: 9px;
+    font-weight: 600;
+    opacity: 0.58;
+}
+
+.schedule-studio__day-check {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: grid;
+    width: 15px;
+    height: 15px;
+    place-items: center;
+    border-radius: 50%;
+    color: #fff;
+    background: var(--studio-accent);
+}
+
+.schedule-studio__day.is-active .schedule-studio__day-check {
+    color: var(--studio-accent);
+    background: #fff;
+}
+
+.schedule-studio__workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1.28fr) minmax(280px, 0.72fr);
+    gap: 14px;
+    padding: 16px;
+    background: linear-gradient(145deg, rgba(248, 250, 252, 0.86), rgba(255, 247, 245, 0.55));
+}
+
+.schedule-studio__timeline,
+.schedule-studio__composer {
+    min-width: 0;
+    border-radius: 22px;
+}
+
+.schedule-studio__timeline {
+    display: flex;
+    min-height: 300px;
+    flex-direction: column;
+    padding: 19px;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 22px 46px -42px rgba(15, 23, 42, 0.42);
+}
+
+.schedule-studio__section-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--studio-line);
+}
+
+.schedule-studio__section-heading > div > span,
+.schedule-studio__composer-heading > div > span,
+.schedule-studio__quick-heading > span {
+    display: block;
+    color: #8a94a6;
+    font-family: "BDO Grotesk", sans-serif;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+}
+
+.schedule-studio__section-heading h4 {
+    margin: 3px 0 0;
+    color: var(--studio-ink);
+    font-family: "Clash Display", sans-serif;
+    font-size: 19px;
+    font-weight: 600;
+    line-height: 1;
+}
+
+.schedule-studio__status {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 10px;
+    border: 1px solid #e4e7ec;
+    border-radius: 999px;
+    color: #7b8494;
+    background: #f8fafc;
+    font-family: "BDO Grotesk", sans-serif;
+    font-size: 9px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.schedule-studio__status i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #b7bfcc;
+}
+
+.schedule-studio__status.is-open {
+    border-color: rgba(22, 163, 74, 0.18);
+    color: #12713b;
+    background: #f0fdf4;
+}
+
+.schedule-studio__status.is-open i {
+    background: #22c55e;
+    box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.1);
+}
+
+.schedule-studio__slot-list {
+    display: grid;
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.schedule-studio__slot {
+    display: grid;
+    grid-template-columns: 26px 34px 62px minmax(0, 1fr) 30px;
+    align-items: center;
+    min-height: 45px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.schedule-studio__slot:last-child {
+    border-bottom: 0;
+}
+
+.schedule-studio__slot-index {
+    color: #a3abba;
+    font-family: "BDO Grotesk", sans-serif;
+    font-size: 9px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.schedule-studio__slot-line {
+    position: relative;
+    height: 1px;
+    background: rgba(227, 83, 54, 0.22);
+}
+
+.schedule-studio__slot-line::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    right: -1px;
+    width: 6px;
+    height: 6px;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    background: var(--studio-accent);
+    box-shadow: 0 0 0 1px rgba(227, 83, 54, 0.25);
+    transform: translateY(-50%);
+}
+
+.schedule-studio__slot-time {
+    padding-left: 12px;
+    color: var(--studio-ink);
+    font-family: "Clash Display", sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.schedule-studio__slot-note {
+    overflow: hidden;
+    color: #98a2b3;
+    font-family: "BDO Grotesk", sans-serif;
+    font-size: 9px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.schedule-studio__remove {
+    display: grid;
+    width: 28px;
+    height: 28px;
+    place-items: center;
+    border: 0;
+    border-radius: 10px;
+    color: #a3abba;
+    background: transparent;
+    transition: color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.schedule-studio__remove:hover {
+    color: #c9362b;
+    background: #fff1f0;
+    transform: rotate(5deg);
+}
+
+.schedule-studio__empty {
+    display: flex;
+    min-height: 154px;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    gap: 13px;
+    padding: 22px;
+}
+
+.schedule-studio__empty > span {
+    display: grid;
+    width: 48px;
+    height: 48px;
+    flex: 0 0 auto;
+    place-items: center;
+    border: 1px solid rgba(227, 83, 54, 0.16);
+    border-radius: 17px;
+    color: var(--studio-accent);
+    background: #fff7f5;
+}
+
+.schedule-studio__empty strong {
+    display: block;
+    color: #344054;
+    font-family: "Clash Display", sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.schedule-studio__empty p {
+    max-width: 310px;
+    margin: 4px 0 0;
+    color: #98a2b3;
+    font-family: "BDO Grotesk", sans-serif;
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 1.5;
+}
+
+.schedule-studio__utility {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-top: auto;
+    padding-top: 14px;
+    border-top: 1px solid var(--studio-line);
+}
+
+.schedule-studio__utility button {
+    display: inline-flex;
+    min-height: 34px;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 10px;
+    border: 1px solid #e4e7ec;
+    border-radius: 11px;
+    color: #566174;
+    background: #fff;
+    font-family: "BDO Grotesk", sans-serif;
+    font-size: 9px;
+    font-weight: 700;
+    transition: border-color 160ms ease, color 160ms ease, background 160ms ease;
+}
+
+.schedule-studio__utility button:hover:not(:disabled) {
+    border-color: rgba(227, 83, 54, 0.28);
+    color: var(--studio-accent-deep);
+    background: #fff8f6;
+}
+
+.schedule-studio__utility button.is-danger {
+    margin-left: auto;
+    color: #b42318;
+}
+
+.schedule-studio__utility button:disabled {
+    cursor: not-allowed;
+    opacity: 0.34;
+}
+
+.schedule-studio__composer {
+    position: relative;
+    overflow: hidden;
+    padding: 19px;
+    color: #fff;
+    background:
+        radial-gradient(circle at 88% 4%, rgba(227, 83, 54, 0.28), transparent 34%),
+        linear-gradient(145deg, #131c2b 0%, #070c15 100%);
+    box-shadow: 0 26px 54px -35px rgba(11, 18, 32, 0.9);
+}
+
+.schedule-studio__composer::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.26;
+    background: repeating-linear-gradient(112deg, transparent 0 28px, rgba(255, 255, 255, 0.04) 28px 29px);
+    mask-image: linear-gradient(90deg, transparent, #000);
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000);
+}
+
+.schedule-studio__composer > * {
+    position: relative;
+    z-index: 1;
+}
+
+.schedule-studio__composer-heading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.schedule-studio__composer-icon {
+    display: grid;
+    width: 35px;
+    height: 35px;
+    place-items: center;
+    border: 1px solid rgba(255, 255, 255, 0.13);
+    border-radius: 13px;
+    color: #fff;
+    background: rgba(227, 83, 54, 0.85);
+    box-shadow: 0 12px 26px -16px rgba(227, 83, 54, 0.9);
+}
+
+.schedule-studio__composer-heading > div > span {
+    color: rgba(255, 255, 255, 0.48);
+}
+
+.schedule-studio__composer-heading strong {
+    display: block;
+    margin-top: 2px;
+    font-family: "Clash Display", sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.schedule-studio__time-builder {
+    display: grid;
+    grid-template-columns: minmax(70px, 1fr) 10px minmax(70px, 1fr) 46px;
+    align-items: end;
+    gap: 7px;
+    margin-top: 17px;
+}
+
+.schedule-studio__time-builder label {
+    min-width: 0;
+}
+
+.schedule-studio__time-builder label > span {
+    display: block;
+    margin: 0 0 5px 2px;
+    color: rgba(255, 255, 255, 0.5);
+    font-family: "BDO Grotesk", sans-serif;
+    font-size: 8px;
+    font-weight: 700;
+}
+
+.schedule-studio__time-builder select {
+    width: 100%;
+    height: 48px;
+    padding: 0 10px;
+    border: 1px solid rgba(255, 255, 255, 0.13);
+    border-radius: 14px;
+    outline: none;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.075);
+    font-family: "Clash Display", sans-serif;
+    font-size: 20px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    text-align-last: center;
+    transition: border-color 160ms ease, background 160ms ease;
+}
+
+.schedule-studio__time-builder select:hover,
+.schedule-studio__time-builder select:focus {
+    border-color: rgba(240, 140, 120, 0.58);
+    background: rgba(255, 255, 255, 0.11);
+}
+
+.schedule-studio__time-builder select option {
+    color: #0f172a;
+    background: #fff;
+}
+
+.schedule-studio__time-builder > b {
+    align-self: end;
+    padding-bottom: 13px;
+    color: rgba(255, 255, 255, 0.35);
+    font-family: "Clash Display", sans-serif;
+    font-size: 21px;
+}
+
+.schedule-studio__add {
+    display: grid;
+    width: 46px;
+    height: 48px;
+    place-items: center;
+    border: 0;
+    border-radius: 14px;
+    color: #fff;
+    background: linear-gradient(145deg, #f08c78, #e35336 56%, #a93625);
+    box-shadow: 0 16px 30px -18px rgba(227, 83, 54, 0.9);
+    transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1), filter 160ms ease, opacity 160ms ease;
+}
+
+.schedule-studio__add span {
+    display: none;
+}
+
+.schedule-studio__add:hover:not(:disabled) {
+    filter: saturate(1.08) brightness(1.04);
+    transform: translateY(-2px);
+}
+
+.schedule-studio__add:disabled {
+    cursor: not-allowed;
+    opacity: 0.35;
+    filter: grayscale(0.55);
+}
+
+.schedule-studio__quick-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 19px;
+}
+
+.schedule-studio__quick-heading > span {
+    color: rgba(255, 255, 255, 0.68);
+}
+
+.schedule-studio__quick-heading small {
+    overflow: hidden;
+    color: rgba(255, 255, 255, 0.31);
+    font-family: "BDO Grotesk", sans-serif;
+    font-size: 8px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.schedule-studio__quick-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    margin-top: 9px;
+}
+
+.schedule-studio__quick-grid button {
+    display: flex;
+    min-width: 0;
+    height: 35px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 7px;
+    padding: 0 10px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 11px;
+    color: rgba(255, 255, 255, 0.64);
+    background: rgba(255, 255, 255, 0.045);
+    font-family: "BDO Grotesk", sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.schedule-studio__quick-grid button:hover {
+    border-color: rgba(240, 140, 120, 0.34);
+    color: #fff;
+    background: rgba(227, 83, 54, 0.11);
+}
+
+.schedule-studio__quick-grid button.is-selected {
+    border-color: rgba(240, 140, 120, 0.46);
+    color: #ffd6cd;
+    background: rgba(227, 83, 54, 0.17);
+}
+
+.schedule-studio__hint {
+    margin: 14px 0 0;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.39);
+    font-family: "BDO Grotesk", sans-serif;
+    font-size: 9px;
+    font-weight: 500;
+    line-height: 1.5;
+}
+
+.schedule-studio__error {
+    margin: 0;
+    padding: 10px 16px;
+    border-top: 1px solid #fecaca;
+    color: #b42318;
+    background: #fff1f0;
+    font-family: "BDO Grotesk", sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+}
+
+@container schedule-studio (max-width: 720px) {
+    .schedule-studio__header {
+        align-items: flex-start;
+        padding: 18px;
+    }
+
+    .schedule-studio__summary {
+        min-width: auto;
+        padding: 9px 11px;
+    }
+
+    .schedule-studio__summary small,
+    .schedule-studio__summary i {
+        display: none;
+    }
+
+    .schedule-studio__summary strong {
+        font-size: 16px;
+    }
+
+    .schedule-studio__day-rail {
+        display: flex;
+        overflow-x: auto;
+        padding: 10px 12px;
+        scrollbar-width: none;
+        scroll-snap-type: x proximity;
+        overscroll-behavior-x: contain;
+    }
+
+    .schedule-studio__day-rail::-webkit-scrollbar {
+        display: none;
+    }
+
+    .schedule-studio__day {
+        min-width: 96px;
+        scroll-snap-align: start;
+    }
+
+    .schedule-studio__workspace {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .schedule-studio__composer {
+        order: -1;
+    }
+
+    .schedule-studio__quick-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+@container schedule-studio (max-width: 440px) {
+    .schedule-studio {
+        border-radius: 22px;
+    }
+
+    .schedule-studio__header {
+        flex-direction: column;
+        gap: 14px;
+        padding: 16px;
+    }
+
+    .schedule-studio__identity {
+        gap: 11px;
+    }
+
+    .schedule-studio__mark {
+        width: 41px;
+        height: 41px;
+        border-radius: 14px;
+    }
+
+    .schedule-studio__identity p {
+        font-size: 10px;
+    }
+
+    .schedule-studio__summary {
+        width: 100%;
+        justify-content: space-around;
+    }
+
+    .schedule-studio__summary span {
+        grid-template-columns: auto auto;
+    }
+
+    .schedule-studio__summary small,
+    .schedule-studio__summary i {
+        display: block;
+    }
+
+    .schedule-studio__day {
+        min-width: 82px;
+    }
+
+    .schedule-studio__day-full {
+        display: none;
+    }
+
+    .schedule-studio__day-short {
+        display: inline;
+    }
+
+    .schedule-studio__workspace {
+        gap: 10px;
+        padding: 10px;
+    }
+
+    .schedule-studio__composer,
+    .schedule-studio__timeline {
+        padding: 15px;
+        border-radius: 18px;
+    }
+
+    .schedule-studio__quick-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .schedule-studio__slot {
+        grid-template-columns: 23px 22px 58px minmax(0, 1fr) 28px;
+    }
+
+    .schedule-studio__slot-time {
+        padding-left: 9px;
+        font-size: 14px;
+    }
+
+    .schedule-studio__utility button {
+        flex: 1 1 calc(50% - 4px);
+        justify-content: center;
+    }
+
+    .schedule-studio__utility button.is-danger {
+        margin-left: 0;
+    }
+}
+
+@container schedule-studio (max-width: 320px) {
+    .schedule-studio__time-builder {
+        grid-template-columns: minmax(66px, 1fr) 8px minmax(66px, 1fr);
+    }
+
+    .schedule-studio__add {
+        display: flex;
+        grid-column: 1 / -1;
+        width: 100%;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+    }
+
+    .schedule-studio__add span {
+        display: inline;
+        font-family: "BDO Grotesk", sans-serif;
+        font-size: 10px;
+        font-weight: 700;
+    }
+
+    .schedule-studio__section-heading {
+        flex-direction: column;
+        gap: 9px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .schedule-studio *,
+    .schedule-studio *::before,
+    .schedule-studio *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+    }
+}

@@ -4,6 +4,7 @@ import {
     Building2,
     CalendarCheck2,
     ChevronDown,
+    Clock3,
     Database,
     Image,
     MapPin,
@@ -20,6 +21,10 @@ import {
     SingleDropzone,
     type ExistingMedia,
 } from "@/Components/Admin/ImageDropzone";
+import ScheduleSlotEditor, {
+    createEmptyWeeklySchedule,
+    type WeeklyScheduleSlots,
+} from "@/Components/Admin/ScheduleSlotEditor";
 import AdminLayout from "@/Layouts/AdminLayout";
 import { isOutdoorFacility } from "@/lib/facilityClassification";
 import { cn } from "@/lib/utils";
@@ -343,17 +348,6 @@ function slugify(str: string): string {
 
 const LOCATIONS = ["Veteran", "Dieng"];
 const VENUE_TYPES = ["Arena Dalam", "Arena Luar", "Kelas & Kebugaran"];
-const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
-type Weekday = (typeof WEEKDAYS)[number];
-const WEEKDAY_ID: Record<Weekday, string> = {
-    Monday: "Senin",
-    Tuesday: "Selasa",
-    Wednesday: "Rabu",
-    Thursday: "Kamis",
-    Friday: "Jumat",
-    Saturday: "Sabtu",
-    Sunday: "Minggu",
-};
 
 // ── CreatableSelect Component ─────────────────────────────────────────────────
 
@@ -1089,11 +1083,8 @@ export default function FacilityForm() {
     );
 
     const [useWeeklySchedule, setUseWeeklySchedule] = useState(facility?.active_slots != null);
-    const [dayTexts, setDayTexts] = useState<Record<string, string>>(
-        WEEKDAYS.reduce((acc, day) => ({
-            ...acc,
-            [day]: facility?.active_slots?.[day]?.join(", ") ?? "",
-        }), {} as Record<string, string>)
+    const [weeklyScheduleDraft, setWeeklyScheduleDraft] = useState<WeeklyScheduleSlots>(
+        facility?.active_slots ?? createEmptyWeeklySchedule(),
     );
 
     const { data, setData, post, processing, errors } = useForm<FormData>({
@@ -1444,70 +1435,6 @@ export default function FacilityForm() {
                                     )}
                                 </div>
 
-                                <div className="section-divider" />
-
-                                {/* Weekly Schedule Toggle */}
-                                <div>
-                                    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[#F8B5A8]/55 bg-[#FFF7F5]/60 px-4 py-3.5 transition-all hover:bg-white">
-                                        <div>
-                                            <p className="font-clash text-sm font-semibold text-slate-800">
-                                                Jadwal Berbasis Hari
-                                            </p>
-                                            <p className="font-bdo text-[11px] text-slate-400 mt-0.5">
-                                                {useWeeklySchedule ? "Aktif - slot per hari" : "Nonaktif - 06:00-22:00 otomatis"}
-                                            </p>
-                                        </div>
-                                        <ToggleSwitch
-                                            enabled={useWeeklySchedule}
-                                            label="Aktifkan jadwal berbasis hari"
-                                            onChange={(v) => {
-                                                setUseWeeklySchedule(v);
-                                                setData("active_slots", v
-                                                    ? WEEKDAYS.reduce((acc, day) => {
-                                                        const parsed = dayTexts[day]
-                                                            .split(",").map((s) => s.trim())
-                                                            .filter((s) => /^\d{2}:\d{2}$/.test(s));
-                                                        return { ...acc, [day]: parsed };
-                                                    }, {} as Record<string, string[]>)
-                                                    : null
-                                                );
-                                            }}
-                                        />
-                                    </div>
-
-                                    {useWeeklySchedule && (
-                                        <div className="facility-scrollbar mt-3 flex max-h-[340px] flex-col gap-2 overflow-y-auto pr-1">
-                                            {WEEKDAYS.map((day) => (
-                                                <div key={day} className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-3 sm:flex-row sm:items-center sm:gap-3">
-                                                    <span className="w-16 shrink-0 font-bdo text-[11px] font-bold text-slate-500">
-                                                        {WEEKDAY_ID[day]}
-                                                    </span>
-                                                    <input
-                                                        type="text"
-                                                        aria-label={`Slot jadwal ${WEEKDAY_ID[day]}`}
-                                                        value={dayTexts[day]}
-                                                        onChange={(e) => {
-                                                            const txt = e.target.value;
-                                                            setDayTexts((p) => ({ ...p, [day]: txt }));
-                                                            const parsed = txt
-                                                                .split(",").map((s) => s.trim())
-                                                                .filter((s) => /^\d{2}:\d{2}$/.test(s));
-                                                            setData("active_slots", {
-                                                                ...(data.active_slots ?? {}),
-                                                                [day]: parsed,
-                                                            });
-                                                        }}
-                                                        placeholder="misal: 16:00, 19:00"
-                                                        className="input-field mono flex-1"
-                                                    />
-                                                </div>
-                                            ))}
-                                            <p className="mt-1 font-bdo text-[10px] text-slate-400">
-                                                Kosongkan hari yang libur. Format: HH:MM dipisah koma.
-                                            </p>
-                                        </div>
-                                    )}
-                                </div>
                             </div>
                         </SectionCard>
 
@@ -1568,6 +1495,73 @@ export default function FacilityForm() {
                         </SectionCard>
                     </div>
                 </div>
+
+                <SectionCard
+                    icon={<CalendarCheck2 size={15} />}
+                    accentColor="terracotta"
+                    title="Jadwal & Ketersediaan"
+                    subtitle="Susun waktu operasional yang langsung dipakai pada reservasi publik"
+                    animDelay="delay-250"
+                >
+                    <div className="flex flex-col gap-4">
+                        <div className="relative overflow-hidden rounded-[22px] border border-slate-200 bg-[linear-gradient(135deg,#0B1220_0%,#121B2B_64%,#25130F_100%)] p-4 text-white sm:p-5">
+                            <div className="pointer-events-none absolute -right-16 -top-20 h-44 w-44 rounded-full bg-[#E35336]/25 blur-3xl" />
+                            <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="flex min-w-0 items-start gap-3.5">
+                                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[15px] border border-white/10 bg-white/10 text-[#F8B5A8] shadow-[inset_0_1px_0_rgba(255,255,255,.1)]">
+                                        <Clock3 size={18} />
+                                    </span>
+                                    <div className="min-w-0">
+                                        <p className="font-bdo text-[9px] font-bold tracking-[.08em] text-[#F8B5A8]">
+                                            Mode waktu reservasi
+                                        </p>
+                                        <p className="mt-1 font-clash text-base font-semibold text-white sm:text-lg">
+                                            {useWeeklySchedule ? "Jadwal khusus per hari aktif" : "Jadwal otomatis 06:00–22:00"}
+                                        </p>
+                                        <p className="mt-1 max-w-2xl font-bdo text-[11px] font-medium leading-relaxed text-white/48">
+                                            {useWeeklySchedule
+                                                ? "Setiap hari dapat memiliki kombinasi waktu berbeda dan dapat disalin tanpa mengetik ulang."
+                                                : "Aktifkan editor jika waktu buka berbeda antar hari atau hanya tersedia pada jam tertentu."}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex shrink-0 items-center justify-between gap-4 rounded-[16px] border border-white/10 bg-white/[.07] px-3.5 py-3 backdrop-blur-sm sm:justify-start">
+                                    <span className="font-bdo text-[10px] font-bold text-white/72">
+                                        {useWeeklySchedule ? "Editor aktif" : "Gunakan jadwal khusus"}
+                                    </span>
+                                    <ToggleSwitch
+                                        enabled={useWeeklySchedule}
+                                        label="Aktifkan jadwal berbasis hari"
+                                        onChange={(v) => {
+                                            setUseWeeklySchedule(v);
+                                            setData("active_slots", v ? weeklyScheduleDraft : null);
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {useWeeklySchedule ? (
+                            <ScheduleSlotEditor
+                                value={weeklyScheduleDraft}
+                                onChange={(schedule) => {
+                                    setWeeklyScheduleDraft(schedule);
+                                    setData("active_slots", schedule);
+                                }}
+                                error={errors.active_slots}
+                            />
+                        ) : (
+                            <div className="flex items-center gap-3 rounded-[18px] border border-dashed border-slate-200 bg-slate-50/70 px-4 py-3.5">
+                                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[13px] bg-white text-slate-400 shadow-sm ring-1 ring-slate-200">
+                                    <Clock3 size={15} />
+                                </span>
+                                <p className="font-bdo text-[11px] font-semibold leading-relaxed text-slate-500">
+                                    Fasilitas tersedia otomatis setiap satu jam dari pukul 06:00 sampai 22:00.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </SectionCard>
 
                 {/* ═══ FULL-WIDTH ROW 2 — Display Info + Badge ═══ */}
                 <SectionCard

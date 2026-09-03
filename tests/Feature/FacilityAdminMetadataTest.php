@@ -121,6 +121,45 @@ class FacilityAdminMetadataTest extends TestCase
             ->assertSessionHas('success');
     }
 
+    public function test_unsafe_description_and_map_metadata_are_rejected_or_sanitized(): void
+    {
+        $staff = $this->staffUser();
+        $category = $this->category();
+
+        $this->actingAs($staff)
+            ->post(route('admin.facilities.store'), [
+                'facility_category_id' => $category->id,
+                'name' => 'Arena Aman',
+                'slug' => 'arena-aman',
+                'description' => '<p onclick="alert(1)">Arena<script>alert(2)</script></p>',
+                'display_metadata' => json_encode([
+                    'map_url' => 'javascript:alert(3)',
+                ], JSON_THROW_ON_ERROR),
+                'is_active' => true,
+                'sort_order' => 1,
+            ])
+            ->assertSessionHasErrors('display_metadata');
+
+        $this->assertDatabaseMissing('facilities', ['slug' => 'arena-aman']);
+
+        $this->actingAs($staff)
+            ->post(route('admin.facilities.store'), [
+                'facility_category_id' => $category->id,
+                'name' => 'Arena Aman',
+                'slug' => 'arena-aman',
+                'description' => '<p onclick="alert(1)">Arena<script>alert(2)</script></p>',
+                'display_metadata' => json_encode([
+                    'map_url' => 'https://maps.app.goo.gl/X7uRTbmnwqKAGfXr8',
+                ], JSON_THROW_ON_ERROR),
+                'is_active' => true,
+                'sort_order' => 1,
+            ])
+            ->assertRedirect();
+
+        $description = Facility::where('slug', 'arena-aman')->value('description');
+        $this->assertSame('<p>Arena</p>', $description);
+    }
+
     private function category(): FacilityCategory
     {
         return FacilityCategory::create([

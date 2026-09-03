@@ -6,15 +6,21 @@ import {
     Clock3,
     ImageIcon,
     Layers3,
+    Minus,
     Pencil,
     Plus,
     Trash2,
     UploadCloud,
+    UsersRound,
     X,
 } from "lucide-react";
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import AdminLayout from "@/Layouts/AdminLayout";
 import { SingleDropzone } from "@/Components/Admin/ImageDropzone";
+import ScheduleSlotEditor, {
+    createEmptyWeeklySchedule,
+    type WeeklyScheduleSlots,
+} from "@/Components/Admin/ScheduleSlotEditor";
 import { cn } from "@/lib/utils";
 import type { PageProps } from "@/types";
 
@@ -24,6 +30,7 @@ interface FacilitySummary {
     slug: string;
     category?: string | null;
     image?: string | null;
+    booking_capacity: number;
 }
 
 interface FacilityUnitItem {
@@ -31,6 +38,9 @@ interface FacilityUnitItem {
     facility_id: number;
     name: string;
     is_active: boolean;
+    capacity: number | null;
+    booking_capacity: number;
+    has_shared_booking_capacity: boolean;
     use_custom_schedule: boolean;
     active_slots: Record<string, string[]> | null;
     use_custom_pricing: boolean;
@@ -47,6 +57,7 @@ type UnitsPageProps = PageProps<{
 type UnitFormData = {
     name: string;
     is_active: boolean;
+    capacity: number | null;
     use_custom_schedule: boolean;
     active_slots: Record<string, string[]> | null;
     use_custom_pricing: boolean;
@@ -74,44 +85,10 @@ interface UnitPriceRow {
     sort_order?: number;
 }
 
-const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
-type Weekday = (typeof WEEKDAYS)[number];
-
-const WEEKDAY_LABEL: Record<Weekday, string> = {
-    Monday: "Senin",
-    Tuesday: "Selasa",
-    Wednesday: "Rabu",
-    Thursday: "Kamis",
-    Friday: "Jumat",
-    Saturday: "Sabtu",
-    Sunday: "Minggu",
-};
-
 const PRICE_SEGMENTS: Array<{ value: UserCategory; label: string; helper: string }> = [
     { value: "umum", label: "Umum", helper: "Harga pengunjung umum" },
     { value: "warga_ub", label: "Warga UB", helper: "Harga sivitas/warga UB" },
 ];
-
-const emptyDayTexts = (): Record<Weekday, string> =>
-    WEEKDAYS.reduce((acc, day) => ({ ...acc, [day]: "" }), {} as Record<Weekday, string>);
-
-const toDayTexts = (slots: Record<string, string[]> | null | undefined): Record<Weekday, string> =>
-    WEEKDAYS.reduce((acc, day) => ({
-        ...acc,
-        [day]: slots?.[day]?.join(", ") ?? "",
-    }), {} as Record<Weekday, string>);
-
-const parseSlotText = (text: string): string[] =>
-    text
-        .split(",")
-        .map((value) => value.trim())
-        .filter((value) => /^\d{2}:\d{2}$/.test(value));
-
-const toActiveSlots = (texts: Record<Weekday, string>): Record<string, string[]> =>
-    WEEKDAYS.reduce((acc, day) => ({
-        ...acc,
-        [day]: parseSlotText(texts[day]),
-    }), {} as Record<string, string[]>);
 
 const defaultUnitPrices = (): UnitPriceRow[] => [
     {
@@ -285,6 +262,15 @@ function UnitCard({
                 <div className="flex flex-wrap gap-2">
                     <span className={cn(
                         "inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-bdo text-[10px] font-bold",
+                        unit.capacity !== null
+                            ? "bg-[#FFF1EE] text-[#B93D2A] ring-1 ring-[#F8B5A8]"
+                            : "bg-slate-50 text-slate-500 ring-1 ring-slate-200",
+                    )}>
+                        <UsersRound size={11} />
+                        Kuota {unit.booking_capacity}{unit.capacity === null ? " · ikut fasilitas" : " · khusus"}
+                    </span>
+                    <span className={cn(
+                        "inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-bdo text-[10px] font-bold",
                         unit.use_custom_schedule
                             ? "bg-[#FFF7F5] text-[#B93D2A] ring-1 ring-[#F8B5A8]/70"
                             : "bg-slate-50 text-slate-500 ring-1 ring-slate-200",
@@ -330,7 +316,7 @@ export default function FacilityUnits() {
     const { facility, units } = usePage<UnitsPageProps>().props;
     const [formOpen, setFormOpen] = useState(false);
     const [editingUnit, setEditingUnit] = useState<FacilityUnitItem | null>(null);
-    const [dayTexts, setDayTexts] = useState<Record<Weekday, string>>(emptyDayTexts);
+    const [scheduleDraft, setScheduleDraft] = useState<WeeklyScheduleSlots>(createEmptyWeeklySchedule);
 
     const activeCount = useMemo(
         () => units.filter((unit) => unit.is_active).length,
@@ -350,6 +336,7 @@ export default function FacilityUnits() {
     } = useForm<UnitFormData>({
         name: "",
         is_active: true,
+        capacity: null,
         use_custom_schedule: false,
         active_slots: null,
         use_custom_pricing: false,
@@ -361,7 +348,7 @@ export default function FacilityUnits() {
     const closeForm = () => {
         setFormOpen(false);
         setEditingUnit(null);
-        setDayTexts(emptyDayTexts());
+        setScheduleDraft(createEmptyWeeklySchedule());
         reset();
         clearErrors();
     };
@@ -372,6 +359,7 @@ export default function FacilityUnits() {
         setData({
             name: "",
             is_active: true,
+            capacity: null,
             use_custom_schedule: false,
             active_slots: null,
             use_custom_pricing: false,
@@ -379,17 +367,18 @@ export default function FacilityUnits() {
             unit_image: null,
             remove_unit_image: false,
         });
-        setDayTexts(emptyDayTexts());
+        setScheduleDraft(createEmptyWeeklySchedule());
         setFormOpen(true);
     };
 
     const openEdit = (unit: FacilityUnitItem) => {
         setEditingUnit(unit);
         clearErrors();
-        setDayTexts(toDayTexts(unit.active_slots));
+        setScheduleDraft(unit.active_slots ?? createEmptyWeeklySchedule());
         setData({
             name: unit.name,
             is_active: unit.is_active,
+            capacity: unit.capacity,
             use_custom_schedule: unit.use_custom_schedule,
             active_slots: unit.active_slots,
             use_custom_pricing: unit.use_custom_pricing,
@@ -405,7 +394,7 @@ export default function FacilityUnits() {
         event.preventDefault();
         transform((payload) => ({
             ...payload,
-            active_slots: payload.use_custom_schedule ? toActiveSlots(dayTexts) : null,
+            active_slots: payload.use_custom_schedule ? scheduleDraft : null,
             prices: payload.use_custom_pricing ? payload.prices : [],
         }));
 
@@ -433,12 +422,6 @@ export default function FacilityUnits() {
         router.delete(route("admin.facility-units.destroy", unit.id), {
             preserveScroll: true,
         });
-    };
-
-    const setScheduleText = (day: Weekday, value: string) => {
-        const next = { ...dayTexts, [day]: value };
-        setDayTexts(next);
-        setData("active_slots", toActiveSlots(next));
     };
 
     const setPriceRow = (
@@ -607,7 +590,7 @@ export default function FacilityUnits() {
 
                 {formOpen && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm">
-                        <div className="w-full max-w-5xl overflow-hidden rounded-[32px] border border-[#F8B5A8]/70 bg-white shadow-[0_30px_80px_-44px_rgba(15,23,42,.55)]">
+                        <div className="w-full max-w-6xl overflow-hidden rounded-[32px] border border-[#F8B5A8]/70 bg-white shadow-[0_30px_80px_-44px_rgba(15,23,42,.55)]">
                             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
                                 <div className="flex items-center gap-3">
                                     <ShinyIcon className="h-10 w-10">
@@ -633,7 +616,7 @@ export default function FacilityUnits() {
                             </div>
 
                             <form onSubmit={submit} className="unit-scrollbar max-h-[calc(100vh-140px)] overflow-y-auto p-5">
-                                <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_280px]">
+                                <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_260px]">
                                     <div className="space-y-4">
                                         <div>
                                             <label
@@ -684,61 +667,181 @@ export default function FacilityUnits() {
                                             </div>
                                         </div>
 
-                                        <div className="rounded-[24px] border border-slate-200 bg-white p-4">
-                                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                                <div className="flex items-start gap-3">
-                                                    <ShinyIcon className="h-10 w-10 rounded-2xl">
-                                                        <Clock3 size={16} />
-                                                    </ShinyIcon>
-                                                    <div>
-                                                        <p className="font-clash text-sm font-semibold text-slate-950">
-                                                            Jam buka unit
-                                                        </p>
-                                                        <p className="mt-0.5 font-bdo text-xs font-medium text-slate-400">
-                                                            Ikuti jadwal fasilitas utama atau tentukan slot khusus unit ini.
-                                                        </p>
+                                        <div className="relative overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_24px_54px_-46px_rgba(15,23,42,.5)]">
+                                            <div className="relative overflow-hidden bg-[linear-gradient(135deg,#0B1220_0%,#121B2B_68%,#24130F_100%)] p-4 text-white sm:p-5">
+                                                <div className="pointer-events-none absolute -right-14 -top-20 h-44 w-44 rounded-full bg-[#E35336]/25 blur-3xl" />
+                                                <div className="relative flex items-center justify-between gap-4">
+                                                    <div className="flex min-w-0 items-center gap-3">
+                                                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] border border-white/10 bg-white/10 text-[#F8B5A8]">
+                                                            <UsersRound size={17} />
+                                                        </span>
+                                                        <div className="min-w-0">
+                                                            <p className="font-bdo text-[9px] font-bold tracking-[.08em] text-[#F8B5A8]">
+                                                                Inventori unit
+                                                            </p>
+                                                            <p className="mt-0.5 font-clash text-base font-semibold text-white">
+                                                                Kapasitas per jadwal
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="shrink-0 text-right">
+                                                        <span className="block font-clash text-2xl font-semibold leading-none tabular-nums text-white">
+                                                            {data.capacity ?? facility.booking_capacity}
+                                                        </span>
+                                                        <span className="mt-1 block font-bdo text-[9px] font-semibold text-white/45">orang efektif</span>
                                                     </div>
                                                 </div>
-                                                <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[#F8B5A8]/70 bg-[#FFF7F5] px-3 py-2 font-bdo text-xs font-bold text-[#B93D2A]">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={data.use_custom_schedule}
-                                                        onChange={(event) => {
-                                                            const enabled = event.target.checked;
-                                                            setData("use_custom_schedule", enabled);
-                                                            setData("active_slots", enabled ? toActiveSlots(dayTexts) : null);
-                                                        }}
-                                                        className="h-4 w-4 rounded border-[#F8B5A8] text-[#E35336] focus:ring-[#E35336]/25"
-                                                    />
-                                                    Custom jam
-                                                </label>
+                                            </div>
+
+                                            <div className="grid gap-4 p-4 sm:grid-cols-[minmax(0,1fr)_minmax(174px,.62fr)] sm:p-5">
+                                                <div>
+                                                    <p className="font-clash text-sm font-semibold text-slate-950">Pilih sumber kapasitas</p>
+                                                    <p className="mt-1 max-w-md font-bdo text-[10px] font-medium leading-relaxed text-slate-500">
+                                                        Gunakan angka fasilitas untuk pengelolaan seragam, atau pisahkan kuota unit ini tanpa memengaruhi unit lain.
+                                                    </p>
+
+                                                    <div className="mt-3 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Sumber kuota unit">
+                                                        <button
+                                                            type="button"
+                                                            role="radio"
+                                                            aria-checked={data.capacity === null}
+                                                            onClick={() => setData("capacity", null)}
+                                                            className={cn(
+                                                                "relative min-h-[74px] rounded-[16px] border p-3 text-left transition duration-200",
+                                                                data.capacity === null
+                                                                    ? "border-slate-950 bg-slate-950 text-white shadow-[0_16px_28px_-24px_rgba(15,23,42,.9)]"
+                                                                    : "border-slate-200 bg-slate-50/70 text-slate-600 hover:border-slate-300 hover:bg-white",
+                                                            )}
+                                                        >
+                                                            <span className="block font-clash text-xs font-semibold">Ikuti fasilitas</span>
+                                                            <span className="mt-1 block font-bdo text-[9px] font-semibold opacity-55">Sinkron · {facility.booking_capacity} orang</span>
+                                                            {data.capacity === null && <CheckCircle2 className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-[#F8B5A8]" />}
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            role="radio"
+                                                            aria-checked={data.capacity !== null}
+                                                            onClick={() => setData("capacity", data.capacity ?? facility.booking_capacity)}
+                                                            className={cn(
+                                                                "relative min-h-[74px] rounded-[16px] border p-3 text-left transition duration-200",
+                                                                data.capacity !== null
+                                                                    ? "border-[#E35336] bg-[#FFF7F5] text-[#8E2D20] shadow-[0_16px_28px_-25px_rgba(227,83,54,.65)]"
+                                                                    : "border-slate-200 bg-slate-50/70 text-slate-600 hover:border-[#F8B5A8] hover:bg-white",
+                                                            )}
+                                                        >
+                                                            <span className="block font-clash text-xs font-semibold">Atur khusus</span>
+                                                            <span className="mt-1 block font-bdo text-[9px] font-semibold opacity-55">Mandiri per unit</span>
+                                                            {data.capacity !== null && <CheckCircle2 className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-[#E35336]" />}
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {data.capacity !== null ? (
+                                                    <div className="flex min-h-[142px] flex-col justify-between rounded-[18px] border border-[#F8B5A8]/70 bg-[linear-gradient(145deg,#FFF8F6,#FFFFFF)] p-3.5">
+                                                        <div>
+                                                            <p className="font-bdo text-[9px] font-bold text-[#9A3829]">Kuota khusus</p>
+                                                            <p className="mt-1 font-bdo text-[9px] font-medium leading-relaxed text-slate-500">Berlaku hanya untuk unit ini.</p>
+                                                        </div>
+                                                        <div className="grid grid-cols-[38px_minmax(0,1fr)_38px] items-center overflow-hidden rounded-[14px] border border-[#F8B5A8] bg-white shadow-sm">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setData("capacity", Math.max(1, data.capacity! - 1))}
+                                                                className="flex h-11 items-center justify-center text-[#B93D2A] transition hover:bg-[#FFF1EE]"
+                                                                aria-label="Kurangi kuota unit"
+                                                            >
+                                                                <Minus size={14} />
+                                                            </button>
+                                                            <input
+                                                                id="unit-capacity"
+                                                                type="number"
+                                                                min={1}
+                                                                max={9999}
+                                                                value={data.capacity}
+                                                                onChange={(event) => setData("capacity", Math.min(9999, Math.max(1, Number(event.target.value) || 1)))}
+                                                                className="h-11 min-w-0 border-x border-y-0 border-[#F8B5A8] bg-transparent p-0 text-center font-clash text-lg font-semibold tabular-nums text-slate-950 outline-none focus:ring-0"
+                                                                aria-label="Kuota reservasi unit"
+                                                            />
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setData("capacity", Math.min(9999, data.capacity! + 1))}
+                                                                className="flex h-11 items-center justify-center text-[#B93D2A] transition hover:bg-[#FFF1EE]"
+                                                                aria-label="Tambah kuota unit"
+                                                            >
+                                                                <Plus size={14} />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex min-h-[142px] flex-col justify-between rounded-[18px] border border-slate-200 bg-slate-50/70 p-3.5">
+                                                        <span className="flex h-8 w-8 items-center justify-center rounded-[11px] bg-white text-slate-500 shadow-sm ring-1 ring-slate-200">
+                                                            <Layers3 size={14} />
+                                                        </span>
+                                                        <div>
+                                                            <p className="font-clash text-sm font-semibold text-slate-800">Sinkron otomatis</p>
+                                                            <p className="mt-1 font-bdo text-[9px] font-medium leading-relaxed text-slate-500">Perubahan kuota fasilitas langsung diterapkan ke unit ini.</p>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {errors.capacity && (
+                                                <p className="border-t border-rose-100 bg-rose-50 px-4 py-2.5 font-bdo text-[10px] font-semibold text-rose-600">{errors.capacity}</p>
+                                            )}
+                                        </div>
+
+                                        <div className="space-y-3">
+                                            <div className="relative overflow-hidden rounded-[22px] border border-slate-200 bg-[linear-gradient(135deg,#0B1220_0%,#121B2B_70%,#25130F_100%)] p-4 text-white">
+                                                <div className="pointer-events-none absolute -right-14 -top-20 h-40 w-40 rounded-full bg-[#E35336]/25 blur-3xl" />
+                                                <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                                                    <div className="flex min-w-0 items-start gap-3">
+                                                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] border border-white/10 bg-white/10 text-[#F8B5A8]">
+                                                            <Clock3 size={16} />
+                                                        </span>
+                                                        <div className="min-w-0">
+                                                            <p className="font-bdo text-[9px] font-bold tracking-[.08em] text-[#F8B5A8]">Mode jadwal unit</p>
+                                                            <p className="mt-1 font-clash text-sm font-semibold text-white">
+                                                                {data.use_custom_schedule ? "Waktu khusus unit aktif" : "Mengikuti fasilitas utama"}
+                                                            </p>
+                                                            <p className="mt-1 font-bdo text-[10px] font-medium leading-relaxed text-white/45">
+                                                                {data.use_custom_schedule
+                                                                    ? "Perubahan waktu hanya berlaku pada unit ini."
+                                                                    : "Aktifkan jika unit memiliki waktu buka yang berbeda."}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <label className="flex cursor-pointer items-center justify-between gap-3 rounded-[15px] border border-white/10 bg-white/[.07] px-3 py-2.5 sm:justify-start">
+                                                        <span className="font-bdo text-[10px] font-bold text-white/70">Jadwal khusus</span>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={data.use_custom_schedule}
+                                                            onChange={(event) => {
+                                                                const enabled = event.target.checked;
+                                                                setData("use_custom_schedule", enabled);
+                                                                setData("active_slots", enabled ? scheduleDraft : null);
+                                                            }}
+                                                            className="peer sr-only"
+                                                        />
+                                                        <span className="relative h-6 w-11 shrink-0 rounded-full bg-white/15 transition peer-checked:bg-[#E35336] peer-focus-visible:ring-4 peer-focus-visible:ring-[#E35336]/25 after:absolute after:left-1 after:top-1 after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:after:translate-x-5" aria-hidden="true" />
+                                                    </label>
+                                                </div>
                                             </div>
 
                                             {data.use_custom_schedule ? (
-                                                <div className="unit-scrollbar mt-4 grid max-h-[320px] gap-2 overflow-y-auto pr-1">
-                                                    {WEEKDAYS.map((day) => (
-                                                        <div key={day} className="grid gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[86px_1fr] sm:items-center">
-                                                            <label htmlFor={`unit-slot-${day}`} className="font-bdo text-[11px] font-bold text-slate-500">
-                                                                {WEEKDAY_LABEL[day]}
-                                                            </label>
-                                                            <input
-                                                                id={`unit-slot-${day}`}
-                                                                type="text"
-                                                                value={dayTexts[day]}
-                                                                onChange={(event) => setScheduleText(day, event.target.value)}
-                                                                placeholder="misal: 06:00, 07:00, 18:00"
-                                                                className="h-10 rounded-xl border border-slate-200 bg-white px-3 font-bdo text-xs font-semibold text-slate-700 outline-none transition focus:border-[#F8B5A8] focus:ring-4 focus:ring-[#E35336]/10"
-                                                            />
-                                                        </div>
-                                                    ))}
-                                                    <p className="font-bdo text-[11px] font-medium text-slate-400">
-                                                        Kosongkan hari yang tidak dibuka. Format jam: HH:MM, pisahkan dengan koma.
-                                                    </p>
-                                                </div>
+                                                <ScheduleSlotEditor
+                                                    value={scheduleDraft}
+                                                    onChange={(schedule) => {
+                                                        setScheduleDraft(schedule);
+                                                        setData("active_slots", schedule);
+                                                    }}
+                                                    error={errors.active_slots}
+                                                />
                                             ) : (
-                                                <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                                                    <p className="font-bdo text-xs font-semibold text-slate-500">
-                                                        Unit ini mengikuti jadwal buka fasilitas utama.
+                                                <div className="flex items-center gap-3 rounded-[18px] border border-dashed border-slate-200 bg-slate-50/70 px-4 py-3.5">
+                                                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] bg-white text-slate-400 shadow-sm ring-1 ring-slate-200">
+                                                        <Clock3 size={14} />
+                                                    </span>
+                                                    <p className="font-bdo text-[10px] font-semibold leading-relaxed text-slate-500">
+                                                        Jadwal unit selalu sinkron dengan jam buka fasilitas utama.
                                                     </p>
                                                 </div>
                                             )}

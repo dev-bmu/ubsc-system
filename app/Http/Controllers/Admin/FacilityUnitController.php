@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Facility;
 use App\Models\FacilityUnit;
+use App\Services\BookingInventoryService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -13,6 +14,10 @@ use Inertia\Response;
 
 class FacilityUnitController extends Controller
 {
+    public function __construct(
+        private readonly BookingInventoryService $inventoryService,
+    ) {}
+
     public function index(Facility $facility): Response
     {
         $this->authorize('manage-facilities');
@@ -26,10 +31,11 @@ class FacilityUnitController extends Controller
                 'slug' => $facility->slug,
                 'category' => $facility->category?->name,
                 'image' => $facility->getFirstMediaUrl('hero'),
+                'booking_capacity' => $this->inventoryService->capacityFor($facility, null),
             ],
             'units' => $facility->units
                 ->sortBy('id')
-                ->map(fn (FacilityUnit $unit) => $this->transformUnit($unit))
+                ->map(fn (FacilityUnit $unit) => $this->transformUnit($unit, $facility))
                 ->values()
                 ->all(),
         ]);
@@ -44,6 +50,7 @@ class FacilityUnitController extends Controller
         $unit = $facility->units()->create([
             'name' => $data['name'],
             'is_active' => $request->boolean('is_active', true),
+            'capacity' => $data['capacity'] ?? null,
             'use_custom_schedule' => $request->boolean('use_custom_schedule'),
             'active_slots' => $request->boolean('use_custom_schedule')
                 ? $this->normalizeActiveSlots($data['active_slots'] ?? [])
@@ -71,6 +78,7 @@ class FacilityUnitController extends Controller
         $facilityUnit->update([
             'name' => $data['name'],
             'is_active' => $request->boolean('is_active'),
+            'capacity' => $data['capacity'] ?? null,
             'use_custom_schedule' => $request->boolean('use_custom_schedule'),
             'active_slots' => $request->boolean('use_custom_schedule')
                 ? $this->normalizeActiveSlots($data['active_slots'] ?? [])
@@ -106,13 +114,18 @@ class FacilityUnitController extends Controller
         return back()->with('success', 'Unit fasilitas berhasil dihapus.');
     }
 
-    private function transformUnit(FacilityUnit $unit): array
+    private function transformUnit(FacilityUnit $unit, Facility $facility): array
     {
+        $bookingCapacity = $this->inventoryService->capacityFor($facility, $unit);
+
         return [
             'id' => $unit->id,
             'facility_id' => $unit->facility_id,
             'name' => $unit->name,
             'is_active' => $unit->is_active,
+            'capacity' => $unit->capacity,
+            'booking_capacity' => $bookingCapacity,
+            'has_shared_booking_capacity' => $bookingCapacity > 1,
             'use_custom_schedule' => $unit->use_custom_schedule,
             'active_slots' => $unit->active_slots,
             'use_custom_pricing' => $unit->use_custom_pricing,
@@ -145,8 +158,9 @@ class FacilityUnitController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => ['required', 'string', 'max:150'],
             'is_active' => ['nullable'],
+            'capacity' => ['nullable', 'integer', 'min:1', 'max:9999'],
             'use_custom_schedule' => ['nullable'],
-            'active_slots' => ['nullable', 'array'],
+            'active_slots' => ['nullable', 'array:Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday'],
             'active_slots.*' => ['nullable', 'array'],
             'active_slots.*.*' => ['string', 'date_format:H:i'],
             'use_custom_pricing' => ['nullable'],
@@ -209,9 +223,12 @@ class FacilityUnitController extends Controller
     {
         $normalized = [];
 
-        foreach ($slots as $day => $times) {
+        foreach (['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as $day) {
+            $times = $slots[$day] ?? [];
             $normalized[$day] = collect($times)
                 ->filter(fn ($time) => is_string($time) && preg_match('/^\d{2}:\d{2}$/', $time))
+                ->unique()
+                ->sort()
                 ->values()
                 ->all();
         }

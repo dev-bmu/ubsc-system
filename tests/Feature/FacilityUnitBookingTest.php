@@ -29,6 +29,7 @@ class FacilityUnitBookingTest extends TestCase
             ->post(route('admin.facilities.units.store', $facility), [
                 'name' => 'Lapangan Tenis 1',
                 'is_active' => true,
+                'capacity' => 4,
             ])
             ->assertRedirect();
 
@@ -36,6 +37,7 @@ class FacilityUnitBookingTest extends TestCase
             'facility_id' => $facility->id,
             'name' => 'Lapangan Tenis 1',
             'is_active' => true,
+            'capacity' => 4,
         ]);
     }
 
@@ -48,9 +50,10 @@ class FacilityUnitBookingTest extends TestCase
             ->put(route('admin.facility-units.update', $unit), [
                 'name' => 'Lapangan Tenis Premium',
                 'is_active' => true,
+                'capacity' => 7,
                 'use_custom_schedule' => true,
                 'active_slots' => [
-                    'Monday' => ['10:00', '12:00'],
+                    'Monday' => ['12:00', '10:00', '10:00'],
                     'Tuesday' => [],
                 ],
                 'use_custom_pricing' => true,
@@ -71,6 +74,7 @@ class FacilityUnitBookingTest extends TestCase
             'id' => $unit->id,
             'facility_id' => $facility->id,
             'name' => 'Lapangan Tenis Premium',
+            'capacity' => 7,
             'use_custom_schedule' => true,
             'use_custom_pricing' => true,
         ]);
@@ -82,6 +86,96 @@ class FacilityUnitBookingTest extends TestCase
             'price' => 175000,
             'duration_minutes' => 90,
         ]);
+
+        $unit->refresh();
+        $this->assertSame(['10:00', '12:00'], $unit->active_slots['Monday']);
+        $this->assertSame([], $unit->active_slots['Sunday']);
+    }
+
+    public function test_sibling_units_can_expose_different_independent_capacities(): void
+    {
+        [$facility, $unitOne] = $this->facilityWithUnit('Studio 1');
+        $unitOne->update(['capacity' => 2]);
+        $unitTwo = $facility->units()->create([
+            'name' => 'Studio 2',
+            'is_active' => true,
+            'capacity' => 5,
+        ]);
+        $date = $this->openBookingDate();
+
+        Booking::create([
+            'customer_name' => 'Rombongan Satu',
+            'facility_id' => $facility->id,
+            'facility_unit_id' => $unitOne->id,
+            'booking_date' => $date,
+            'start_time' => '08:00',
+            'end_time' => '09:00',
+            'pax' => 1,
+            'subtotal_price' => 100000,
+            'status' => 'confirmed',
+        ]);
+        Booking::create([
+            'customer_name' => 'Rombongan Dua',
+            'facility_id' => $facility->id,
+            'facility_unit_id' => $unitTwo->id,
+            'booking_date' => $date,
+            'start_time' => '08:00',
+            'end_time' => '09:00',
+            'pax' => 3,
+            'subtotal_price' => 100000,
+            'status' => 'confirmed',
+        ]);
+
+        $unitOneSlot = collect($this->getJson(route('booking.slots', [
+            'facility_id' => $facility->id,
+            'facility_unit_id' => $unitOne->id,
+            'date' => $date,
+        ]))->assertOk()->json('slots'))->firstWhere('label', '08:00 - 09:00');
+        $unitTwoSlot = collect($this->getJson(route('booking.slots', [
+            'facility_id' => $facility->id,
+            'facility_unit_id' => $unitTwo->id,
+            'date' => $date,
+        ]))->assertOk()->json('slots'))->firstWhere('label', '08:00 - 09:00');
+
+        $this->assertSame(2, $unitOneSlot['capacity']);
+        $this->assertSame(1, $unitOneSlot['remaining']);
+        $this->assertSame(5, $unitTwoSlot['capacity']);
+        $this->assertSame(2, $unitTwoSlot['remaining']);
+    }
+
+    public function test_unit_capacity_override_is_enforced_when_admin_writes_compete_for_the_same_slot(): void
+    {
+        $staff = $this->staffUser(['manage-bookings']);
+        [$facility, $unit] = $this->facilityWithUnit();
+        $unit->update(['capacity' => 2]);
+        $date = $this->openBookingDate();
+
+        Booking::create([
+            'customer_name' => 'Kuota Pertama',
+            'facility_id' => $facility->id,
+            'facility_unit_id' => $unit->id,
+            'booking_date' => $date,
+            'start_time' => '08:00',
+            'end_time' => '09:00',
+            'pax' => 2,
+            'subtotal_price' => 200000,
+            'status' => 'confirmed',
+        ]);
+
+        $this->actingAs($staff)
+            ->post(route('admin.bookings.store'), [
+                'customer_name' => 'Kuota Kedua',
+                'facility_id' => $facility->id,
+                'facility_unit_id' => $unit->id,
+                'booking_date' => $date,
+                'start_time' => '08:00',
+                'end_time' => '09:00',
+                'pax' => 1,
+                'is_free' => true,
+            ])
+            ->assertSessionHasErrors('start_time');
+
+        $this->assertDatabaseCount('bookings', 1);
     }
 
     public function test_public_booking_slots_require_unit_when_facility_has_active_units(): void
@@ -262,6 +356,8 @@ class FacilityUnitBookingTest extends TestCase
         $this->assertSame('Lapangan Tenis 1', $bookingPayload['units'][0]['name']);
         $this->assertArrayHasKey('use_custom_schedule', $bookingPayload['units'][0]);
         $this->assertArrayHasKey('active_slots', $bookingPayload['units'][0]);
+        $this->assertArrayHasKey('capacity_override', $bookingPayload['units'][0]);
+        $this->assertArrayHasKey('booking_capacity', $bookingPayload['units'][0]);
     }
 
     public function test_unit_with_booking_history_cannot_be_deleted(): void

@@ -8,6 +8,7 @@ use App\Services\BookingCalendarService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -33,16 +34,21 @@ class ScheduleController extends Controller
 
         $data = $request->validate([
             'month' => ['required', 'integer', 'between:1,12'],
-            'year'  => ['required', 'integer', 'min:2020', 'max:2099'],
+            'year' => ['required', 'integer', 'min:2020', 'max:2099'],
         ]);
 
-        $schedule = BookingSchedule::firstOrNew([
-            'month' => $data['month'],
-            'year'  => $data['year'],
-        ]);
+        $this->ensureScheduleRow((int) $data['month'], (int) $data['year']);
+        $schedule = DB::transaction(function () use ($data): BookingSchedule {
+            $schedule = BookingSchedule::query()
+                ->where('month', $data['month'])
+                ->where('year', $data['year'])
+                ->lockForUpdate()
+                ->firstOrFail();
+            $schedule->is_open = ! $schedule->is_open;
+            $schedule->save();
 
-        $schedule->is_open = !$schedule->is_open;
-        $schedule->save();
+            return $schedule;
+        }, (int) config('resilience.database.transaction_attempts', 3));
         $this->calendarService->bumpRevision();
 
         $label = $this->calendarService->monthLabel($data['month'], $data['year']);
@@ -56,8 +62,8 @@ class ScheduleController extends Controller
         $this->authorizeScheduleAccess();
 
         $data = $request->validate([
-            'month'        => ['required', 'integer', 'between:1,12'],
-            'year'         => ['required', 'integer', 'min:2020', 'max:2099'],
+            'month' => ['required', 'integer', 'between:1,12'],
+            'year' => ['required', 'integer', 'min:2020', 'max:2099'],
             'closed_dates' => ['present', 'array'],
             'closed_dates.*' => ['date_format:Y-m-d'],
         ]);
@@ -91,10 +97,15 @@ class ScheduleController extends Controller
             ]);
         }
 
-        BookingSchedule::updateOrCreate(
-            ['month' => $data['month'], 'year' => $data['year']],
-            ['closed_dates' => $closedDates],
-        );
+        $this->ensureScheduleRow((int) $data['month'], (int) $data['year']);
+        DB::transaction(function () use ($data, $closedDates): void {
+            BookingSchedule::query()
+                ->where('month', $data['month'])
+                ->where('year', $data['year'])
+                ->lockForUpdate()
+                ->firstOrFail()
+                ->update(['closed_dates' => $closedDates]);
+        }, (int) config('resilience.database.transaction_attempts', 3));
         $this->calendarService->bumpRevision();
 
         return back()->with('success', 'Tanggal tutup berhasil disimpan.');
@@ -106,10 +117,15 @@ class ScheduleController extends Controller
 
         $next = Carbon::now()->addMonth()->startOfMonth();
 
-        BookingSchedule::updateOrCreate(
-            ['month' => $next->month, 'year' => $next->year],
-            ['is_open' => true],
-        );
+        $this->ensureScheduleRow($next->month, $next->year);
+        DB::transaction(function () use ($next): void {
+            BookingSchedule::query()
+                ->where('month', $next->month)
+                ->where('year', $next->year)
+                ->lockForUpdate()
+                ->firstOrFail()
+                ->update(['is_open' => true]);
+        }, (int) config('resilience.database.transaction_attempts', 3));
         $this->calendarService->bumpRevision();
 
         $label = $this->calendarService->monthLabel($next->month, $next->year);
@@ -122,4 +138,17 @@ class ScheduleController extends Controller
         abort_unless(auth()->user()?->can('manage-booking-limits'), 403);
     }
 
+    private function ensureScheduleRow(int $month, int $year): void
+    {
+        $now = now();
+
+        BookingSchedule::query()->insertOrIgnore([
+            'month' => $month,
+            'year' => $year,
+            'is_open' => false,
+            'closed_dates' => json_encode([], JSON_THROW_ON_ERROR),
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+    }
 }

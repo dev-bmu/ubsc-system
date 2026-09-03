@@ -59,14 +59,20 @@ class NewsContentSanitizer
         $previous = libxml_use_internal_errors(true);
         $document = new DOMDocument('1.0', 'UTF-8');
         $loaded = $document->loadHTML(
-            '<?xml encoding="utf-8" ?><div>' . $html . '</div>',
+            '<?xml encoding="utf-8" ?><div>'.$html.'</div>',
             LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD
         );
         libxml_clear_errors();
         libxml_use_internal_errors($previous);
 
         if (! $loaded || ! $document->documentElement) {
-            return strip_tags($html, self::allowedTagString());
+            // Fail closed. strip_tags with an allowlist preserves attributes
+            // such as onclick and javascript: href values.
+            return nl2br(htmlspecialchars(
+                strip_tags($html),
+                ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5,
+                'UTF-8',
+            ));
         }
 
         self::sanitizeNode($document->documentElement);
@@ -91,12 +97,14 @@ class NewsContentSanitizer
 
             if (in_array($tag, self::DROP_WITH_CONTENT, true)) {
                 $child->parentNode?->removeChild($child);
+
                 continue;
             }
 
             if (! array_key_exists($tag, self::ALLOWED_TAGS)) {
                 self::sanitizeNode($child);
                 self::unwrapNode($child);
+
                 continue;
             }
 
@@ -106,7 +114,7 @@ class NewsContentSanitizer
     }
 
     /**
-     * @param array<int, string> $allowedAttributes
+     * @param  array<int, string>  $allowedAttributes
      */
     private static function sanitizeElementAttributes(
         DOMElement $element,
@@ -130,6 +138,7 @@ class NewsContentSanitizer
             $element->removeAttribute('href');
             $element->removeAttribute('target');
             $element->removeAttribute('rel');
+
             return;
         }
 
@@ -160,10 +169,5 @@ class NewsContentSanitizer
         }
 
         return (bool) preg_match('/^(https?:\/\/|mailto:|tel:|\/(?!\/)|#)/i', $href);
-    }
-
-    private static function allowedTagString(): string
-    {
-        return '<' . implode('><', array_keys(self::ALLOWED_TAGS)) . '>';
     }
 }
