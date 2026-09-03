@@ -1,0 +1,993 @@
+@keyframes mp-rise {
+    from { opacity: 0; transform: translate3d(0, 18px, 0); }
+    to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes mp-line {
+    from { transform: scaleX(.1); opacity: .2; }
+    to { transform: scaleX(1); opacity: 1; }
+}
+
+@keyframes mp-pulse {
+    0%, 100% { opacity: .72; box-shadow: 0 0 0 0 rgba(72, 211, 156, 0); }
+    50% { opacity: 1; box-shadow: 0 0 0 5px rgba(72, 211, 156, .09); }
+}
+
+@keyframes mp-title-shine {
+    0% { background-position: -200% center; }
+    100% { background-position: 200% center; }
+}
+
+@keyframes mp-ember-drift {
+    0%, 100% { opacity: .46; transform: translate3d(0, 0, 0) scale(1); }
+    50% { opacity: .7; transform: translate3d(18px, -10px, 0) scale(1.06); }
+}
+
+.mp-tier-hemat {
+    --mp-tier: #77838d;
+    --mp-tier-dark: #374047;
+    --mp-tier-soft: #eef1f3;
+    --mp-tier-rgb: 119, 131, 141;
+    --mp-tier-gradient: linear-gradient(145deg, #cbd1d5 0%, #77838d 48%, #30373d 100%);
+}
+
+.mp-tier-favorit {
+    --mp-tier: #2c82e0;
+    --mp-tier-dark: #134c9e;
+    --mp-tier-soft: #eaf4ff;
+    --mp-tier-rgb: 44, 130, 224;
+    --mp-tier-gradient: linear-gradient(145deg, #58b9ff 0%, #246fd2 48%, #132f88 100%);
+}
+
+.mp-tier-performa {
+    --mp-tier: #e12821;
+    --mp-tier-dark: #97120e;
+    --mp-tier-soft: #fff0ee;
+    --mp-tier-rgb: 225, 40, 33;
+    --mp-tier-gradient: linear-gradient(145deg, #ff5a48 0%, #db1c15 48%, #7a0806 100%);
+}
+
+.mp-tier-eksklusif {
+    --mp-tier: #ef8e21;
+    --mp-tier-dark: #a94f08;
+    --mp-tier-soft: #fff5e6;
+    --mp-tier-rgb: 239, 142, 33;
+    --mp-tier-gradient: linear-gradient(145deg, #ffc65b 0%, #ef8618 48%, #8a3907 100%);
+}
+
+.mp-page-heading {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-top: 12px;
+}
+
+.mp-page-heading > span {
+    color: #e35336;
+    font-family: "BDO Grotesk", sans-serif;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: .025em;
+}
+
+.mp-page-heading h1 {
+    color: #111827;
+    font-family: "Clash Display", sans-serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -.025em;
+    line-height: 1;
+    text-transform: uppercase;
+}
+
+.mp-title-shine {
+    background: linear-gradient(120deg, #0f172a 35%, #cbd5e1 50%, #0f172a 65%);
+    background-size: 200% auto;
+    color: transparent;
+    -webkit-background-clip: text;
+    background-clip: text;
+    animation: mp-title-shine 3s linear infinite;
+}
+
+.mp-page {
+    --mp-ink: #07111e;
+    --mp-ink-soft: #102333;
+    --mp-red: #df4a34;
+    --mp-blue: #36a8d9;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    overflow-x: clip;
+    padding: 12px 0 64px;
+}
+
+.mp-page > * {
+    animation: mp-rise .58s cubic-bezier(.16, 1, .3, 1) both;
+}
+
+.mp-page > :nth-child(2) { animation-delay: 60ms; }
+.mp-page > :nth-child(3) { animation-delay: 110ms; }
+.mp-page > :nth-child(4) { animation-delay: 150ms; }
+
+.mp-alert {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    min-height: 50px;
+    padding: 9px 14px;
+    border: 1px solid;
+    border-radius: 14px;
+    font-family: "BDO Grotesk", sans-serif;
+    font-size: 13px;
+    font-weight: 650;
+}
+
+.mp-alert > span {
+    display: grid;
+    width: 32px;
+    height: 32px;
+    flex: 0 0 auto;
+    place-items: center;
+    border-radius: 10px;
+    background: #fff;
+}
+
+.mp-alert--success { border-color: #afe8d0; background: #effcf6; color: #147253; }
+.mp-alert--success > span { color: #18a873; box-shadow: inset 0 0 0 1px #d0f2e4; }
+.mp-alert--error { border-color: #fecaca; background: #fff4f4; color: #b42332; }
+.mp-alert--error > span { color: #dc3545; box-shadow: inset 0 0 0 1px #fee2e2; }
+
+.mp-hero {
+    position: relative;
+    isolation: isolate;
+    display: block;
+    min-height: 306px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 213, 202, .28);
+    border-radius: 26px;
+    background: linear-gradient(135deg, #e35336 0%, #b93d2a 50%, #8f2e20 100%);
+    box-shadow:
+        0 30px 70px -42px rgba(88, 24, 29, .86),
+        0 16px 38px -30px rgba(227, 83, 54, .78),
+        inset 0 1px 0 rgba(255,255,255,.16);
+    color: #fff;
+}
+
+.mp-hero::before {
+    position: absolute;
+    z-index: 4;
+    top: 0;
+    left: clamp(22px, 3vw, 48px);
+    width: clamp(112px, 18vw, 280px);
+    height: 1px;
+    transform-origin: left;
+    background: linear-gradient(90deg, rgba(255,255,255,.92), #ffc2b3 38%, rgba(255, 194, 179, 0));
+    content: "";
+    animation: mp-line .9s cubic-bezier(.16, 1, .3, 1) .2s both;
+}
+
+.mp-hero::after {
+    position: absolute;
+    z-index: 0;
+    inset: 0 0 0 auto;
+    width: min(42%, 640px);
+    background:
+        linear-gradient(90deg, transparent, rgba(255,255,255,.035)),
+        repeating-linear-gradient(135deg, rgba(255,255,255,.07) 0, rgba(255,255,255,.07) 1px, transparent 1px, transparent 18px);
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 36%);
+    mask-image: linear-gradient(90deg, transparent, #000 36%);
+    content: "";
+    pointer-events: none;
+}
+
+.mp-hero__grid {
+    position: absolute;
+    z-index: 0;
+    inset: 0 0 0 auto;
+    width: min(38%, 580px);
+    opacity: .28;
+    background-image:
+        linear-gradient(90deg, rgba(255,255,255,.08) 1px, transparent 1px),
+        radial-gradient(rgba(255,255,255,.38) .55px, transparent .7px);
+    background-position: center, 0 0;
+    background-size: 44px 100%, 4px 4px;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 42%);
+    mask-image: linear-gradient(90deg, transparent, #000 42%);
+    pointer-events: none;
+}
+
+.mp-hero__flare {
+    position: absolute;
+    z-index: 0;
+    display: block;
+    border-radius: 50%;
+    filter: blur(72px);
+    pointer-events: none;
+    animation: mp-ember-drift 8s ease-in-out infinite;
+}
+
+.mp-hero__flare--red {
+    bottom: -270px;
+    left: 24%;
+    width: 420px;
+    height: 420px;
+    background: #ff8268;
+}
+
+.mp-hero__flare--peach {
+    top: -250px;
+    right: -50px;
+    width: 410px;
+    height: 410px;
+    background: #ffd0c4;
+    animation-delay: -3.5s;
+}
+
+.mp-hero__content {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: clamp(34px, 5vw, 58px);
+    min-height: 306px;
+    padding: clamp(24px, 3vw, 44px);
+}
+
+.mp-hero__meta {
+    display: inline-flex;
+    width: fit-content;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 11px;
+    border: 1px solid rgba(255,255,255,.2);
+    border-radius: 999px;
+    background: rgba(255,255,255,.11);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+    color: rgba(255,255,255,.82);
+    font-family: "BDO Grotesk", sans-serif;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    backdrop-filter: blur(12px);
+}
+
+.mp-hero__meta > span:first-child {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.mp-hero__meta i {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #48d39c;
+    box-shadow: 0 0 14px rgba(72, 211, 156, .48);
+    animation: mp-pulse 2.5s ease-in-out infinite;
+}
+
+.mp-hero__layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: clamp(26px, 4vw, 64px);
+}
+
+.mp-hero__copy {
+    max-width: 980px;
+}
+
+.mp-hero__copy > p {
+    color: #ffc6b8;
+    font-family: "BDO Grotesk", sans-serif;
+    font-size: 11px;
+    font-weight: 750;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+}
+
+.mp-hero__copy h2 {
+    max-width: 980px;
+    margin-top: 10px;
+    color: #fff;
+    font-family: "Clash Display", sans-serif;
+    font-size: clamp(2.05rem, 3.45vw, 3.75rem);
+    font-weight: 600;
+    letter-spacing: -.05em;
+    line-height: .96;
+    text-shadow: 0 12px 32px rgba(30, 5, 4, .28);
+    text-wrap: balance;
+}
+
+.mp-hero__copy > span {
+    display: block;
+    max-width: 760px;
+    margin-top: 15px;
+    color: rgba(255,255,255,.7);
+    font-family: "BDO Grotesk", sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.65;
+}
+
+.mp-hero__cta {
+    display: inline-flex;
+    min-height: 52px;
+    align-items: center;
+    gap: 11px;
+    padding: 5px 16px 5px 6px;
+    border: 1px solid rgba(255,255,255,.66);
+    border-radius: 15px;
+    background: linear-gradient(135deg, #fff 0%, #fff5f1 100%);
+    box-shadow: 0 18px 36px -24px rgba(35, 6, 4, .9), inset 0 1px 0 #fff;
+    color: #8f2e22;
+    font-family: "Clash Display", sans-serif;
+    font-size: 14px;
+    font-weight: 650;
+    transition: transform .22s ease, box-shadow .22s ease;
+}
+
+.mp-hero__cta > span {
+    display: grid;
+    width: 40px;
+    height: 40px;
+    place-items: center;
+    border-radius: 12px;
+    background: linear-gradient(145deg, #f17b61, #b93d2a);
+    box-shadow: 0 8px 18px -11px rgba(143, 46, 32, .9);
+    color: #fff;
+}
+
+.mp-hero__cta > svg {
+    margin-left: 6px;
+    color: #b93d2a;
+    transition: transform .22s ease;
+}
+
+.mp-hero__cta:hover { transform: translateY(-2px); box-shadow: 0 22px 42px -24px rgba(35, 6, 4, .95), inset 0 1px 0 #fff; }
+.mp-hero__cta:hover > svg { transform: translateX(3px); }
+
+.mp-metrics {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px;
+    border: 1px solid #f1f5f9;
+    border-radius: 14px;
+    background: #f8fafc;
+    box-shadow: 0 16px 38px -34px rgba(15,23,42,.35);
+}
+
+.mp-metrics__label {
+    flex: 0 0 auto;
+    padding: 0 8px;
+    color: #94a3b8;
+    font-family: "BDO Grotesk", sans-serif;
+    font-size: 10px;
+    font-weight: 750;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+}
+
+.mp-metrics__items {
+    display: grid;
+    min-width: 0;
+    flex: 1;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+}
+
+.mp-metric {
+    display: grid;
+    min-width: 0;
+    min-height: 56px;
+    grid-template-columns: 28px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(15,23,42,.06), inset 0 0 0 1px #f1f5f9;
+    transition: background .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+
+.mp-metric:hover {
+    transform: translateY(-1px);
+    background: #f8fafc;
+    box-shadow: 0 8px 18px -14px rgba(15,23,42,.34), inset 0 0 0 1px #e2e8f0;
+}
+
+.mp-metric__icon {
+    display: grid;
+    width: 28px;
+    height: 28px;
+    place-items: center;
+    border: 0;
+    border-radius: 9px;
+    background: #f0f9ff;
+    color: #0ea5e9;
+    box-shadow: inset 0 0 0 1px #e0f2fe;
+}
+.mp-metric:nth-child(2) .mp-metric__icon { background: #ecfdf5; color: #10b981; box-shadow: inset 0 0 0 1px #d1fae5; }
+.mp-metric:nth-child(3) .mp-metric__icon { background: #fff1ee; color: #e35336; box-shadow: inset 0 0 0 1px #ffd5cd; }
+.mp-metric:nth-child(4) .mp-metric__icon { background: #f1f5f9; color: #64748b; box-shadow: inset 0 0 0 1px #e2e8f0; }
+.mp-metric > div { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 1px 8px; }
+.mp-metric__label { overflow: hidden; color: #64748b; font-family: "BDO Grotesk", sans-serif; font-size: 10px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+.mp-metric strong { grid-row: 1 / 3; grid-column: 2; color: #0f172a; font-family: "Clash Display", sans-serif; font-size: clamp(.85rem, 1.1vw, 1.05rem); font-weight: 650; letter-spacing: -.025em; white-space: nowrap; }
+.mp-metric small { overflow: hidden; color: #94a3b8; font-family: "BDO Grotesk", sans-serif; font-size: 9px; font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }
+
+.mp-catalog {
+    overflow: hidden;
+    border: 1px solid #dfe5eb;
+    border-radius: 24px;
+    background: #fff;
+    box-shadow: 0 18px 42px -38px rgba(15,23,42,.4);
+}
+
+.mp-catalog__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 22px;
+    padding: 17px 18px;
+    border-bottom: 1px solid #e1e7ec;
+    background: #fff;
+}
+
+.mp-catalog__title {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 12px;
+}
+.mp-catalog__icon {
+    display: grid;
+    width: 42px;
+    height: 42px;
+    flex: 0 0 auto;
+    place-items: center;
+    border-radius: 13px;
+    background: linear-gradient(135deg, #f08c78 0%, #e35336 52%, #b93d2a 100%);
+    color: #fff;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.28), 0 15px 25px -20px rgba(227,83,54,.9);
+}
+.mp-catalog__title p { color: #df4a34; font-family: "BDO Grotesk", sans-serif; font-size: 9px; font-weight: 750; letter-spacing: .14em; text-transform: uppercase; }
+.mp-catalog__title h2 { color: #111827; font-family: "Clash Display", sans-serif; font-size: 18px; font-weight: 650; line-height: 1; }
+.mp-catalog__title > div > span { display: block; margin-top: 4px; color: #8d98a5; font-family: "BDO Grotesk", sans-serif; font-size: 10px; font-weight: 500; }
+
+.mp-catalog__tools {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.mp-search {
+    display: flex;
+    width: min(260px, 25vw);
+    min-height: 42px;
+    align-items: center;
+    gap: 9px;
+    padding: 0 11px;
+    border: 1px solid #dfe5eb;
+    border-radius: 13px;
+    background: #f8fafc;
+    color: #8d98a6;
+    transition: border-color .2s ease, background .2s ease, box-shadow .2s ease;
+}
+.mp-search:focus-within { border-color: rgba(223,74,52,.42); background: #fff; box-shadow: 0 0 0 4px rgba(223,74,52,.07); }
+.mp-search input { min-width: 0; flex: 1; border: 0; background: transparent; color: #263240; outline: 0; font-family: "BDO Grotesk", sans-serif; font-size: 12px; font-weight: 600; }
+.mp-search input::placeholder { color: #a2acb6; }
+.mp-search button { display: grid; width: 24px; height: 24px; flex: 0 0 auto; place-items: center; border: 0; border-radius: 7px; background: #e9edf1; color: #667483; }
+
+.mp-filter {
+    display: inline-flex;
+    width: 260px;
+    height: 42px;
+    gap: 4px;
+    padding: 4px;
+    border: 1px solid #f8b5a8;
+    border-radius: 13px;
+    background: linear-gradient(135deg, #f08c78 0%, #e35336 54%, #b93d2a 100%);
+    box-shadow: 0 16px 28px -22px rgba(227,83,54,.95);
+}
+.mp-filter button {
+    flex: 1;
+    min-height: 32px;
+    padding: 0 11px;
+    border: 1px solid rgba(255,255,255,.25);
+    border-radius: 9px;
+    background: rgba(255,255,255,.14);
+    color: #fff;
+    font-family: "BDO Grotesk", sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    box-shadow: 0 1px 2px rgba(73, 19, 12, .08);
+    transition: transform .18s ease, background .18s ease, color .18s ease, border-color .18s ease;
+}
+.mp-filter button:hover { transform: translateY(-1px); border-color: rgba(255,255,255,.45); background: rgba(255,255,255,.24); }
+.mp-filter button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.mp-filter button.is-selected {
+    border-color: rgba(255,255,255,.6);
+    background: #fff;
+    color: #7a2f23;
+    box-shadow: 0 2px 6px rgba(73, 19, 12, .12), inset 0 0 0 1px rgba(255,255,255,.75);
+}
+
+.mp-catalog__result-bar {
+    display: flex;
+    min-height: 38px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 0 18px;
+    border-bottom: 1px solid #e4e9ee;
+    background: #f8fafc;
+    color: #8b97a4;
+    font-family: "BDO Grotesk", sans-serif;
+    font-size: 9px;
+    font-weight: 650;
+    letter-spacing: .04em;
+}
+.mp-catalog__result-bar > span:first-child { display: inline-flex; align-items: center; gap: 7px; color: #4d5c6b; }
+.mp-catalog__result-bar svg { color: #2b9a74; }
+
+.mp-plan-list {
+    display: grid;
+    gap: 10px;
+    padding: 10px;
+}
+
+.mp-plan {
+    position: relative;
+    display: grid;
+    min-height: 224px;
+    grid-template-columns: minmax(210px, .68fr) minmax(330px, 1.45fr) minmax(225px, .68fr);
+    overflow: hidden;
+    border: 1px solid #dfe5ea;
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 15px 35px -34px rgba(15,23,42,.65);
+    transition: border-color .25s ease, box-shadow .25s ease, transform .25s ease;
+}
+.mp-plan::before {
+    position: absolute;
+    z-index: 4;
+    top: 16px;
+    bottom: 16px;
+    left: 0;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: var(--mp-tier);
+    content: "";
+}
+.mp-plan:hover {
+    z-index: 2;
+    transform: translateY(-2px);
+    border-color: #f8b5a8;
+    box-shadow: 0 25px 48px -40px rgba(15,23,42,.48);
+}
+.mp-plan.is-inactive { background: #fbfcfd; }
+.mp-plan.is-inactive .mp-plan__visual img { filter: grayscale(.75); opacity: .72; }
+
+.mp-plan__visual {
+    position: relative;
+    min-height: 224px;
+    overflow: hidden;
+    background: var(--mp-tier-gradient);
+}
+.mp-plan__visual img { width: 100%; height: 100%; object-fit: cover; transition: transform .65s cubic-bezier(.16,1,.3,1), filter .3s ease; }
+.mp-plan:hover .mp-plan__visual img { transform: scale(1.035); }
+.mp-plan__placeholder { display: flex; width: 100%; height: 100%; min-height: 224px; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: rgba(255,255,255,.7); font-family: "BDO Grotesk", sans-serif; font-size: 10px; font-weight: 650; }
+.mp-plan__visual-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(3,10,16,.06), transparent 42%, rgba(3,10,16,.76)); }
+.mp-plan__position {
+    position: absolute;
+    top: 13px;
+    left: 13px;
+    display: grid;
+    width: 34px;
+    height: 30px;
+    place-items: center;
+    border: 1px solid rgba(255,255,255,.28);
+    border-radius: 9px;
+    background: rgba(5,13,21,.42);
+    color: #fff;
+    font-family: "BDO Grotesk", sans-serif;
+    font-size: 9px;
+    font-weight: 750;
+    -webkit-backdrop-filter: blur(9px);
+    backdrop-filter: blur(9px);
+}
+.mp-plan__visual-footer { position: absolute; right: 13px; bottom: 12px; left: 13px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.mp-plan__visual-footer > span:last-child { color: rgba(255,255,255,.76); font-family: "BDO Grotesk", sans-serif; font-size: 10px; font-weight: 650; }
+
+.mp-tier-mark {
+    --mp-tier: #77838d;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 8px;
+    border: 1px solid rgba(var(--mp-tier-rgb), .25);
+    border-radius: 8px;
+    background: var(--mp-tier-soft);
+    color: var(--mp-tier-dark);
+    font-family: "BDO Grotesk", sans-serif;
+    font-size: 10px;
+    font-weight: 750;
+}
+.mp-tier-mark__dot { width: 6px; height: 6px; border-radius: 50%; background: var(--mp-tier); box-shadow: 0 0 0 3px rgba(var(--mp-tier-rgb), .12); }
+.mp-tier-mark.is-compact { border-color: rgba(255,255,255,.22); background: rgba(5,13,21,.46); color: #fff; -webkit-backdrop-filter: blur(9px); backdrop-filter: blur(9px); }
+
+.mp-plan__body {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    padding: 20px 21px;
+    border-right: 1px solid #edf0f3;
+}
+.mp-plan__eyebrow { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; min-height: 25px; }
+.mp-status, .mp-primary-tag, .mp-public-badge {
+    display: inline-flex;
+    min-height: 23px;
+    align-items: center;
+    gap: 6px;
+    padding: 0 8px;
+    border: 1px solid;
+    border-radius: 8px;
+    font-family: "BDO Grotesk", sans-serif;
+    font-size: 8px;
+    font-weight: 750;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+}
+.mp-status i { width: 6px; height: 6px; border-radius: 50%; }
+.mp-status.is-active { border-color: #bcebd7; background: #eefbf5; color: #187355; }
+.mp-status.is-active i { background: #2cb982; }
+.mp-status.is-hidden { border-color: #dfe4e9; background: #f3f5f7; color: #7c8793; }
+.mp-status.is-hidden i { background: #aab2bb; }
+.mp-primary-tag { border-color: #f8b5a8; background: #fff4f1; color: #b93d2a; }
+.mp-public-badge { border-color: rgba(var(--mp-tier-rgb), .25); background: var(--mp-tier-soft); color: var(--mp-tier-dark); }
+
+.mp-plan__title-row { display: flex; min-width: 0; align-items: flex-start; justify-content: space-between; gap: 18px; margin-top: 15px; }
+.mp-plan__title-row > div { min-width: 0; }
+.mp-plan__title-row p { color: var(--mp-tier); font-family: "BDO Grotesk", sans-serif; font-size: 10px; font-weight: 700; }
+.mp-plan__title-row h2 { overflow: hidden; margin-top: 2px; color: #101820; font-family: "Clash Display", sans-serif; font-size: clamp(1.22rem, 1.8vw, 1.75rem); font-weight: 650; letter-spacing: -.035em; line-height: 1.05; text-overflow: ellipsis; white-space: nowrap; }
+.mp-plan__members { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 9px; background: #f3f6f8; color: #667483; font-family: "BDO Grotesk", sans-serif; font-size: 9px; font-weight: 700; }
+.mp-plan__description { display: -webkit-box; overflow: hidden; margin-top: 9px; color: #6f7c8a; font-family: "BDO Grotesk", sans-serif; font-size: 11px; font-weight: 500; line-height: 1.55; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.mp-plan__benefits { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 15px; }
+.mp-plan__benefits > span { display: inline-flex; min-width: 0; max-width: 210px; align-items: center; gap: 6px; padding: 6px 8px; border: 1px solid #e4e9ed; border-radius: 9px; background: #fafbfc; color: #586675; font-family: "BDO Grotesk", sans-serif; font-size: 9px; font-weight: 650; }
+.mp-plan__benefits > span > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mp-plan__benefits svg { flex: 0 0 auto; color: var(--mp-tier); }
+.mp-plan__benefits .is-more { border-color: rgba(var(--mp-tier-rgb), .2); background: var(--mp-tier-soft); color: var(--mp-tier-dark); }
+.mp-plan__benefits .is-empty { color: #9aa4af; }
+
+.mp-plan__commerce {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    padding: 19px;
+    background: linear-gradient(155deg, #fff 0%, #f8fafb 100%);
+}
+.mp-plan__price-head { display: flex; align-items: center; justify-content: space-between; color: #8793a0; font-family: "BDO Grotesk", sans-serif; font-size: 8px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+.mp-plan__price-head > span:last-child { color: var(--mp-tier); }
+.mp-plan__saving { display: flex; min-height: 22px; align-items: center; justify-content: space-between; gap: 8px; margin-top: 15px; font-family: "BDO Grotesk", sans-serif; font-size: 9px; }
+.mp-plan__saving > span { color: #a0a8b0; text-decoration: line-through; }
+.mp-plan__saving > strong { padding: 4px 6px; border-radius: 7px; background: #edf9f3; color: #19805d; font-weight: 750; white-space: nowrap; }
+.mp-plan__saving.is-placeholder { color: #a2abb4; }
+.mp-plan__price { display: block; overflow-wrap: anywhere; margin-top: 5px; color: #101820; font-family: "Clash Display", sans-serif; font-size: clamp(1.55rem, 2.25vw, 2.35rem); font-weight: 650; letter-spacing: -.055em; line-height: 1; }
+.mp-plan__monthly { display: flex; align-items: center; gap: 7px; margin-top: 10px; color: #758290; font-family: "BDO Grotesk", sans-serif; font-size: 10px; font-weight: 650; }
+.mp-plan__monthly svg { color: var(--mp-tier); }
+.mp-plan__actions { display: grid; grid-template-columns: minmax(0, 1fr) 40px; gap: 7px; margin-top: auto; padding-top: 18px; }
+.mp-action { display: inline-flex; min-height: 40px; align-items: center; justify-content: center; gap: 8px; border: 1px solid; border-radius: 11px; font-family: "BDO Grotesk", sans-serif; font-size: 10px; font-weight: 750; transition: transform .2s ease, background .2s ease, border-color .2s ease; }
+.mp-action:hover { transform: translateY(-1px); }
+.mp-action--edit {
+    border-color: #e35336;
+    background: linear-gradient(135deg, #f08c78 0%, #e35336 52%, #b93d2a 100%);
+    color: #fff;
+    box-shadow: 0 14px 28px -22px rgba(227,83,54,.9);
+}
+.mp-action--edit svg { color: #fff; }
+.mp-action--edit:hover { filter: saturate(1.06); }
+.mp-action--delete { border-color: #f0d7d7; background: #fff; color: #ca3c4b; }
+.mp-action--delete:hover { border-color: #f2bfc4; background: #fff2f3; }
+
+.mp-empty {
+    display: flex;
+    min-height: 180px;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin: 12px;
+    padding: 30px;
+    border: 1px dashed #ced6de;
+    border-radius: 16px;
+    background: #fff;
+    text-align: left;
+}
+.mp-empty__icon { display: grid; width: 50px; height: 50px; flex: 0 0 auto; place-items: center; border-radius: 14px; background: linear-gradient(135deg, #f08c78 0%, #e35336 52%, #b93d2a 100%); color: #fff; }
+.mp-empty h2 { color: #111827; font-family: "Clash Display", sans-serif; font-size: 18px; font-weight: 650; }
+.mp-empty p { max-width: 460px; margin-top: 4px; color: #7e8a97; font-family: "BDO Grotesk", sans-serif; font-size: 11px; line-height: 1.55; }
+
+.mp-button {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 0 17px;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    font-family: "Clash Display", sans-serif;
+    font-size: 12px;
+    font-weight: 650;
+    transition: transform .2s ease, background .2s ease;
+}
+.mp-button:hover { transform: translateY(-1px); }
+.mp-button:disabled { cursor: not-allowed; opacity: .55; transform: none; }
+.mp-button--primary { border-color: #e35336; background: linear-gradient(135deg, #f08c78 0%, #e35336 52%, #b93d2a 100%); color: #fff; box-shadow: 0 14px 28px -22px rgba(227,83,54,.9); }
+.mp-button--primary:hover { filter: saturate(1.06); }
+.mp-button--quiet { border-color: #dce3e8; background: #fff; color: #647180; }
+
+.mp-slide-over {
+    max-width: min(760px, 100vw) !important;
+    border-left: 1px solid #dce3e8;
+    background: #f5f7f9 !important;
+}
+.mp-slide-over__header {
+    padding: 18px 22px !important;
+    border-color: #dfe5ea !important;
+    background: rgba(255,255,255,.94);
+    -webkit-backdrop-filter: blur(18px);
+    backdrop-filter: blur(18px);
+}
+.mp-slide-over__header h2 { color: #101820 !important; font-size: 18px !important; font-weight: 650 !important; }
+.mp-slide-over__header p { margin-top: 4px !important; color: #7f8b98 !important; font-family: "BDO Grotesk", sans-serif; font-size: 11px !important; font-weight: 550; }
+.mp-slide-over__content { padding: 14px !important; scrollbar-width: thin; scrollbar-color: #aab6c0 transparent; }
+
+.mp-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.mp-form-preview {
+    --mp-tier: #77838d;
+    position: relative;
+    min-height: 220px;
+    overflow: hidden;
+    border-radius: 17px;
+    background: var(--mp-tier-gradient);
+    color: #fff;
+}
+.mp-form-preview__media { position: absolute; inset: 0; }
+.mp-form-preview__media img { width: 100%; height: 100%; object-fit: cover; }
+.mp-form-preview__placeholder { display: flex; width: 100%; height: 100%; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: rgba(255,255,255,.55); font-family: "BDO Grotesk", sans-serif; font-size: 10px; font-weight: 700; }
+.mp-form-preview__wash { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(4,11,18,.9) 0%, rgba(4,11,18,.65) 46%, rgba(4,11,18,.22)), linear-gradient(180deg, rgba(4,11,18,.15), rgba(4,11,18,.54)); }
+.mp-form-preview__content { position: relative; z-index: 2; display: flex; min-height: 220px; flex-direction: column; justify-content: space-between; padding: 18px; }
+.mp-form-preview__topline, .mp-form-preview__footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: rgba(255,255,255,.7); font-family: "BDO Grotesk", sans-serif; font-size: 9px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+.mp-form-preview__lead { color: rgba(255,255,255,.62); font-family: "BDO Grotesk", sans-serif; font-size: 10px; font-weight: 650; }
+.mp-form-preview h3 { margin-top: 3px; font-family: "Clash Display", sans-serif; font-size: clamp(1.55rem, 4vw, 2.6rem); font-weight: 600; letter-spacing: -.045em; line-height: .98; }
+.mp-form-preview__price { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; margin-top: 8px; }
+.mp-form-preview__price strong { font-family: "Clash Display", sans-serif; font-size: 17px; font-weight: 600; }
+.mp-form-preview__price span { color: rgba(255,255,255,.55); font-family: "BDO Grotesk", sans-serif; font-size: 10px; }
+.mp-form-preview__footer > span { padding: 5px 7px; border: 1px solid rgba(255,255,255,.2); border-radius: 8px; background: rgba(4,11,18,.3); }
+
+.mp-form-section {
+    overflow: hidden;
+    border: 1px solid #dfe5ea;
+    border-radius: 16px;
+    background: #fff;
+}
+.mp-form-section__header { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 11px; padding: 14px 15px 12px; border-bottom: 1px solid #e8edf0; background: #fbfcfd; }
+.mp-form-section__number { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 9px; background: linear-gradient(135deg, #f08c78 0%, #e35336 52%, #b93d2a 100%); color: #fff; font-family: "BDO Grotesk", sans-serif; font-size: 9px; font-weight: 750; }
+.mp-form-section__header h3 { color: #17202a; font-family: "Clash Display", sans-serif; font-size: 14px; font-weight: 650; }
+.mp-form-section__header p { margin-top: 2px; color: #8a96a3; font-family: "BDO Grotesk", sans-serif; font-size: 10px; line-height: 1.45; }
+.mp-form-section__body { display: flex; flex-direction: column; gap: 13px; padding: 15px; }
+
+.mp-field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.mp-field-grid--three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.mp-field-grid--price { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.mp-field--wide { grid-column: 1 / -1; }
+.mp-label { display: block; margin-bottom: 6px; color: #657382; font-family: "BDO Grotesk", sans-serif; font-size: 9px; font-weight: 750; letter-spacing: .1em; text-transform: uppercase; }
+.mp-input {
+    width: 100%;
+    min-height: 43px;
+    padding: 0 12px;
+    border: 1px solid #dbe2e8;
+    border-radius: 11px;
+    background: #f8fafb;
+    color: #1f2b37;
+    outline: none;
+    font-family: "BDO Grotesk", sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    transition: border-color .18s ease, background .18s ease, box-shadow .18s ease;
+}
+.mp-input::placeholder { color: #a5aeb7; font-weight: 500; }
+.mp-input:hover { border-color: #cbd4dc; background: #fff; }
+.mp-input:focus { border-color: rgba(223,74,52,.5); background: #fff; box-shadow: 0 0 0 4px rgba(223,74,52,.075); }
+.mp-input--textarea { min-height: 84px; resize: vertical; padding-top: 10px; padding-bottom: 10px; line-height: 1.55; }
+.mp-field-error { margin-top: 5px; color: #d33143; font-family: "BDO Grotesk", sans-serif; font-size: 10px; font-weight: 650; }
+
+.mp-tier-picker { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
+.mp-tier-choice {
+    --mp-tier: #77838d;
+    position: relative;
+    display: grid;
+    min-width: 0;
+    grid-template-columns: 26px 8px minmax(0, 1fr) 20px;
+    align-items: center;
+    gap: 7px;
+    min-height: 58px;
+    padding: 8px;
+    border: 1px solid #dfe5ea;
+    border-radius: 11px;
+    background: #fff;
+    text-align: left;
+    transition: border-color .18s ease, background .18s ease, box-shadow .18s ease;
+}
+.mp-tier-choice:hover { border-color: rgba(var(--mp-tier-rgb), .38); background: var(--mp-tier-soft); }
+.mp-tier-choice.is-selected { border-color: rgba(var(--mp-tier-rgb), .7); background: var(--mp-tier-soft); box-shadow: 0 0 0 3px rgba(var(--mp-tier-rgb), .08); }
+.mp-tier-choice__index { color: #9aa4ae; font-family: "BDO Grotesk", sans-serif; font-size: 9px; font-weight: 750; }
+.mp-tier-choice__swatch { width: 6px; height: 28px; border-radius: 5px; background: var(--mp-tier-gradient); }
+.mp-tier-choice__copy { display: flex; min-width: 0; flex-direction: column; }
+.mp-tier-choice__copy strong { overflow: hidden; color: #17202a; font-family: "Clash Display", sans-serif; font-size: 11px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.mp-tier-choice__copy small { overflow: hidden; color: #8b96a2; font-family: "BDO Grotesk", sans-serif; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.mp-tier-choice__check { display: grid; width: 19px; height: 19px; place-items: center; border: 1px solid #dbe2e7; border-radius: 6px; color: transparent; }
+.mp-tier-choice.is-selected .mp-tier-choice__check { border-color: var(--mp-tier); background: var(--mp-tier); color: #fff; }
+
+.mp-upload-shell { padding: 8px; border: 1px solid #e1e6eb; border-radius: 13px; background: #f8fafb; }
+.mp-upload-shell > p { padding: 7px 4px 2px; color: #8a96a2; font-family: "BDO Grotesk", sans-serif; font-size: 9px; line-height: 1.45; }
+.mp-money-input { display: grid; min-height: 43px; grid-template-columns: 40px minmax(0, 1fr); overflow: hidden; border: 1px solid #dbe2e8; border-radius: 11px; background: #f8fafb; transition: border-color .18s ease, box-shadow .18s ease, background .18s ease; }
+.mp-money-input:focus-within { border-color: rgba(223,74,52,.5); background: #fff; box-shadow: 0 0 0 4px rgba(223,74,52,.075); }
+.mp-money-input > span { display: grid; place-items: center; border-right: 1px solid #dfe5ea; color: #df4a34; font-family: "BDO Grotesk", sans-serif; font-size: 10px; font-weight: 750; }
+.mp-money-input input { min-width: 0; border: 0; background: transparent; padding: 0 11px; color: #1f2b37; outline: 0; font-family: "BDO Grotesk", sans-serif; font-size: 12px; font-weight: 650; }
+.mp-price-insight { display: flex; align-items: center; gap: 10px; padding: 11px 12px; border-left: 3px solid #e35336; border-radius: 5px 11px 11px 5px; background: #fff7f5; color: #b93d2a; }
+.mp-price-insight > div { display: flex; min-width: 0; flex-direction: column; }
+.mp-price-insight strong { color: #8e2d20; font-family: "BDO Grotesk", sans-serif; font-size: 11px; font-weight: 750; }
+.mp-price-insight span { color: #a35b50; font-family: "BDO Grotesk", sans-serif; font-size: 9px; line-height: 1.45; }
+
+@media (min-width: 1280px) {
+    .mp-page-heading h1 { font-size: 1.875rem; }
+}
+
+.mp-feature-entry { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; }
+.mp-feature-entry button { display: inline-flex; min-height: 43px; align-items: center; gap: 6px; padding: 0 13px; border: 1px solid #e35336; border-radius: 11px; background: linear-gradient(135deg, #f08c78 0%, #e35336 52%, #b93d2a 100%); color: #fff; font-family: "BDO Grotesk", sans-serif; font-size: 10px; font-weight: 750; }
+.mp-feature-list { display: grid; max-height: 210px; gap: 6px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #aeb8c1 transparent; }
+.mp-feature-item { display: grid; grid-template-columns: 24px 16px minmax(0, 1fr) 28px; align-items: center; gap: 7px; min-height: 39px; padding: 5px 6px 5px 8px; border: 1px solid #e1e6ea; border-radius: 10px; background: #fbfcfd; color: #536170; font-family: "BDO Grotesk", sans-serif; font-size: 10px; font-weight: 650; }
+.mp-feature-item__index { color: #a0a9b2; font-size: 8px; font-weight: 750; }
+.mp-feature-item > svg { color: #22a875; }
+.mp-feature-item > button { display: grid; width: 27px; height: 27px; place-items: center; border: 0; border-radius: 8px; background: #eef1f4; color: #84909b; }
+.mp-feature-item > button:hover { background: #fff0f1; color: #d23848; }
+.mp-form-empty { padding: 12px; border: 1px dashed #d6dde3; border-radius: 10px; background: #fafbfc; color: #909ba6; font-family: "BDO Grotesk", sans-serif; font-size: 10px; line-height: 1.5; text-align: center; }
+
+.mp-publish-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.mp-publish-option { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 9px; min-height: 64px; padding: 9px; border: 1px solid #dfe5ea; border-radius: 12px; background: #fafbfc; transition: border-color .18s ease, background .18s ease; }
+.mp-publish-option.is-selected { border-color: #f8b5a8; background: #fff7f5; }
+.mp-publish-option__icon { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 10px; background: #fff; color: #687684; box-shadow: inset 0 0 0 1px #e3e8ec; }
+.mp-publish-option.is-selected .mp-publish-option__icon { color: #e35336; box-shadow: inset 0 0 0 1px #f8b5a8; }
+.mp-publish-option strong { color: #1d2833; font-family: "Clash Display", sans-serif; font-size: 11px; font-weight: 650; }
+.mp-publish-option p { margin-top: 2px; color: #8a95a0; font-family: "BDO Grotesk", sans-serif; font-size: 8px; line-height: 1.4; }
+.mp-switch { position: relative; width: 42px; height: 24px; flex: 0 0 auto; padding: 3px; border: 0; border-radius: 12px; background: #cfd6dc; transition: background .2s ease; }
+.mp-switch.is-on { background: #e35336; }
+.mp-switch:disabled { cursor: not-allowed; opacity: .45; }
+.mp-switch__thumb { display: block; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 2px 6px rgba(15,23,42,.18); transition: transform .22s cubic-bezier(.16,1,.3,1); }
+.mp-switch.is-on .mp-switch__thumb { transform: translateX(18px); }
+.mp-form-actions { position: sticky; z-index: 5; bottom: -14px; display: grid; grid-template-columns: minmax(120px, .55fr) minmax(180px, 1fr); gap: 8px; padding: 12px 0 1px; background: linear-gradient(180deg, rgba(245,247,249,0), #f5f7f9 22%); }
+
+@media (max-width: 1260px) {
+    .mp-plan { grid-template-columns: 220px minmax(0, 1fr); }
+    .mp-plan__commerce {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: minmax(150px, .5fr) minmax(190px, .9fr) auto;
+        align-items: center;
+        gap: 16px;
+        padding: 13px 18px;
+        border-top: 1px solid #edf0f3;
+    }
+    .mp-plan__saving { margin-top: 0; }
+    .mp-plan__price { margin-top: 2px; font-size: 1.7rem; }
+    .mp-plan__monthly { margin-top: 5px; }
+    .mp-plan__actions { min-width: 210px; margin-top: 0; padding-top: 0; }
+}
+
+@media (max-width: 1024px) {
+    .mp-metrics { align-items: stretch; }
+    .mp-metrics__label { display: none; }
+    .mp-metrics__items { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .mp-catalog__header { align-items: flex-start; flex-direction: column; }
+    .mp-catalog__tools { width: 100%; }
+    .mp-search { width: 100%; }
+}
+
+@media (max-width: 760px) {
+    .mp-page-heading p { display: none; }
+    .mp-page { gap: 10px; padding-top: 12px; }
+    .mp-hero { min-height: auto; border-radius: 20px; }
+    .mp-hero__content { gap: 25px; min-height: auto; padding: 20px; }
+    .mp-hero__meta { font-size: 8px; }
+    .mp-hero__layout { grid-template-columns: 1fr; align-items: stretch; gap: 22px; }
+    .mp-hero__copy > p { font-size: 9px; }
+    .mp-hero__copy h2 { font-size: clamp(1.65rem, 7.2vw, 2.15rem); line-height: .98; }
+    .mp-hero__copy > span { margin-top: 13px; font-size: 11px; line-height: 1.62; }
+    .mp-hero__cta { width: 100%; justify-content: space-between; }
+    .mp-metric { min-height: 54px; padding: 7px 9px; }
+    .mp-metric__icon { width: 28px; height: 28px; }
+    .mp-metric strong { font-size: 1rem; }
+    .mp-catalog { border-radius: 17px; }
+    .mp-catalog__header { padding: 14px; }
+    .mp-catalog__title > div > span { display: none; }
+    .mp-catalog__tools { align-items: stretch; flex-direction: column; }
+    .mp-filter { display: grid; width: 100%; grid-template-columns: repeat(3, 1fr); }
+    .mp-catalog__result-bar { padding: 0 13px; }
+    .mp-catalog__result-bar > span:last-child { display: none; }
+    .mp-plan-list { gap: 9px; padding: 9px; }
+    .mp-plan { grid-template-columns: 1fr; border-radius: 14px; }
+    .mp-plan__visual { min-height: 0; aspect-ratio: 16 / 7; }
+    .mp-plan__placeholder { min-height: 0; }
+    .mp-plan__body { padding: 16px; border-right: 0; border-bottom: 1px solid #edf0f3; }
+    .mp-plan__title-row { gap: 10px; }
+    .mp-plan__title-row h2 { font-size: 1.35rem; }
+    .mp-plan__members { padding: 5px 7px; }
+    .mp-plan__commerce {
+        display: grid;
+        grid-column: auto;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 8px 14px;
+        padding: 14px 16px;
+    }
+    .mp-plan__price-head { grid-column: 1 / -1; }
+    .mp-plan__saving { grid-column: 1; align-self: end; }
+    .mp-plan__price { grid-column: 1; font-size: 1.75rem; }
+    .mp-plan__monthly { grid-column: 1; }
+    .mp-plan__actions { grid-column: 2; grid-row: 2 / 5; align-self: end; min-width: 144px; }
+    .mp-empty { align-items: flex-start; flex-direction: column; margin: 9px; padding: 22px; }
+    .mp-slide-over__content { padding: 10px !important; }
+    .mp-form-preview { min-height: 205px; border-radius: 14px; }
+    .mp-form-preview__content { min-height: 205px; padding: 15px; }
+    .mp-tier-picker { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .mp-field-grid--three { grid-template-columns: 1fr; }
+    .mp-publish-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 520px) {
+    .mp-page-heading h1 { font-size: 1.5rem; }
+    .mp-metrics__items { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .mp-metric { min-height: 48px; grid-template-columns: 24px minmax(0, 1fr); gap: 6px; padding: 6px 7px; }
+    .mp-metric__icon { width: 24px; height: 24px; border-radius: 8px; }
+    .mp-metric > div { gap: 0 5px; }
+    .mp-metric strong { font-size: .88rem; }
+    .mp-metric__label { font-size: 9px; }
+    .mp-metric small { display: none; }
+    .mp-plan__eyebrow { gap: 5px; }
+    .mp-plan__title-row { flex-direction: column; }
+    .mp-plan__members { align-self: flex-start; }
+    .mp-plan__benefits > span { max-width: 100%; }
+    .mp-plan__commerce { grid-template-columns: 1fr; }
+    .mp-plan__saving, .mp-plan__price, .mp-plan__monthly, .mp-plan__actions { grid-column: 1; }
+    .mp-plan__actions { grid-row: auto; min-width: 0; }
+    .mp-field-grid, .mp-field-grid--price { grid-template-columns: 1fr; }
+    .mp-feature-entry { grid-template-columns: 1fr; }
+    .mp-feature-entry button { justify-content: center; }
+    .mp-form-actions { grid-template-columns: 1fr 1.35fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mp-page > *,
+    .mp-hero::before,
+    .mp-hero::after,
+    .mp-hero__meta i,
+    .mp-hero__flare,
+    .mp-title-shine {
+        animation: none !important;
+    }
+    .mp-plan,
+    .mp-plan__visual img,
+    .mp-button,
+    .mp-action,
+    .mp-hero__cta {
+        transition: none !important;
+    }
+}

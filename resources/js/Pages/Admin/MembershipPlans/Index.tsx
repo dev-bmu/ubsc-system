@@ -2,33 +2,47 @@ import { Head, router, useForm, usePage } from "@inertiajs/react";
 import {
     Activity,
     ArrowRight,
-    BadgeCheck,
+    Check,
     CheckCircle2,
     Crown,
     Gem,
+    ImageIcon,
     Layers3,
     Pencil,
     Plus,
     ReceiptText,
+    Search,
+    ShieldCheck,
     Sparkles,
-    Timer,
     Trash2,
     Users,
     X,
 } from "lucide-react";
-import { type FormEvent, type ReactNode, useMemo, useState } from "react";
-import SlideOver from "@/Components/Admin/SlideOver";
+import {
+    type FormEvent,
+    type ReactNode,
+    useEffect,
+    useMemo,
+    useState,
+} from "react";
 import { SingleDropzone } from "@/Components/Admin/ImageDropzone";
+import SlideOver from "@/Components/Admin/SlideOver";
 import AdminLayout from "@/Layouts/AdminLayout";
 import { cn } from "@/lib/utils";
 import type { MembershipPlanItem, MembershipPlanTier, PageProps } from "@/types";
+import "./Index.css";
 
 type Props = PageProps<{ plans: MembershipPlanItem[] }>;
+type StatusFilter = "all" | "active" | "inactive";
+
+const DEFAULT_MEMBERSHIP_CARD_IMAGE =
+    "/assets/images/poster-gym-konten-program-ub-sport-center.avif";
 
 type PlanFormData = {
     name: string;
     description: string;
     tier: MembershipPlanTier;
+    public_badge: string;
     savings_label: string;
     cta_label: string;
     card_image: File | null;
@@ -43,140 +57,80 @@ type PlanFormData = {
     _method?: "PATCH";
 };
 
-const MEMBERSHIP_TIER_OPTIONS: Array<{
+type TierOption = {
     value: MembershipPlanTier;
     label: string;
     order: string;
     description: string;
-    swatch: string;
-    active: string;
-    badge: string;
-}> = [
+    shortDescription: string;
+};
+
+const MEMBERSHIP_TIER_OPTIONS: TierOption[] = [
     {
         value: "hemat",
         label: "Hemat",
         order: "01",
-        description: "Monokrom tenang untuk paket paling terjangkau.",
-        swatch: "bg-[linear-gradient(145deg,#d9dde0_0%,#7b858d_52%,#343a40_100%)]",
-        active: "border-slate-500 bg-slate-50 shadow-[0_14px_28px_-24px_rgba(15,23,42,.75)]",
-        badge: "border-slate-300 bg-slate-100 text-slate-700",
+        description: "Titik masuk paling ringan untuk memulai rutinitas.",
+        shortDescription: "Akses esensial",
     },
     {
         value: "favorit",
         label: "Favorit",
         order: "02",
-        description: "Biru original untuk pilihan utama pengguna.",
-        swatch: "bg-[linear-gradient(145deg,#42a5f5_0%,#1e6fd9_52%,#1530a8_100%)]",
-        active: "border-sky-500 bg-sky-50 shadow-[0_14px_28px_-24px_rgba(14,93,132,.9)]",
-        badge: "border-sky-200 bg-sky-50 text-sky-700",
+        description: "Pilihan seimbang yang paling mudah direkomendasikan.",
+        shortDescription: "Pilihan utama",
     },
     {
         value: "performa",
         label: "Performa",
         order: "03",
-        description: "Merah bertenaga untuk program berintensitas tinggi.",
-        swatch: "bg-[linear-gradient(145deg,#ff2a20_0%,#d50b03_52%,#720500_100%)]",
-        active: "border-red-600 bg-red-50 shadow-[0_14px_28px_-24px_rgba(177,12,8,.9)]",
-        badge: "border-red-200 bg-red-50 text-red-700",
+        description: "Program lebih intens untuk progres yang terukur.",
+        shortDescription: "Latihan progresif",
     },
     {
         value: "eksklusif",
         label: "Eksklusif",
         order: "04",
-        description: "Oranye hangat untuk pengalaman paling premium.",
-        swatch: "bg-[linear-gradient(145deg,#ffc15a_0%,#ed7c13_52%,#8b3b08_100%)]",
-        active: "border-orange-500 bg-orange-50 shadow-[0_14px_28px_-24px_rgba(194,65,12,.9)]",
-        badge: "border-orange-200 bg-orange-50 text-orange-700",
+        description: "Pengalaman terlengkap untuk kebutuhan premium.",
+        shortDescription: "Akses premium",
     },
 ];
 
-function membershipTierOption(tier: MembershipPlanTier) {
-    return MEMBERSHIP_TIER_OPTIONS.find((option) => option.value === tier) ?? MEMBERSHIP_TIER_OPTIONS[0];
+const inputBase = "mp-input";
+const labelBase = "mp-label";
+
+function membershipTierOption(tier: MembershipPlanTier): TierOption {
+    return MEMBERSHIP_TIER_OPTIONS.find((option) => option.value === tier)
+        ?? MEMBERSHIP_TIER_OPTIONS[0];
 }
 
-const PAGE_STYLES = `
-    @keyframes planFadeUp {
-        from { opacity: 0; transform: translate3d(0, 22px, 0); }
-        to { opacity: 1; transform: translate3d(0, 0, 0); }
-    }
-    @keyframes planShine {
-        0% { background-position: -170% center; }
-        100% { background-position: 220% center; }
-    }
-    @keyframes planPulseDot {
-        0%, 100% { opacity: .78; transform: scale(1); }
-        50% { opacity: 1; transform: scale(1.16); }
-    }
-    @keyframes planSoftFloat {
-        0%, 100% { transform: translate3d(0, 0, 0); opacity: .7; }
-        50% { transform: translate3d(0, -8px, 0); opacity: .95; }
-    }
-    .plan-enter {
-        animation: planFadeUp .58s cubic-bezier(.16,1,.3,1) both;
-        will-change: transform, opacity;
-    }
-    .plan-title-shine {
-        background: linear-gradient(115deg, #0f172a 34%, #cbd5e1 49%, #0f172a 64%);
-        background-size: 220% auto;
-        color: transparent;
-        -webkit-background-clip: text;
-        background-clip: text;
-        animation: planShine 4.2s linear infinite;
-    }
-    .plan-live-dot {
-        display: inline-block;
-        width: 8px;
-        height: 8px;
-        border-radius: 999px;
-        background: #E35336;
-        box-shadow: 0 0 0 1px rgba(255,255,255,.8), 0 0 14px rgba(227,83,54,.34);
-        animation: planPulseDot 2.8s ease-in-out infinite;
-    }
-    .plan-orbit {
-        animation: planSoftFloat 6s ease-in-out infinite;
-    }
-    .plan-scrollbar {
-        scrollbar-width: thin;
-        scrollbar-color: rgba(227,83,54,.34) transparent;
-    }
-    .plan-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-    .plan-scrollbar::-webkit-scrollbar-track { background: transparent; }
-    .plan-scrollbar::-webkit-scrollbar-thumb {
-        border-radius: 999px;
-        background: rgba(227,83,54,.34);
-    }
-    @media (prefers-reduced-motion: reduce) {
-        .plan-enter,
-        .plan-title-shine,
-        .plan-live-dot,
-        .plan-orbit {
-            animation: none !important;
-            opacity: 1 !important;
-            transform: none !important;
-        }
-    }
-`;
-
-const inputBase =
-    "h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 font-bdo text-sm font-semibold text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#F8B5A8] focus:ring-4 focus:ring-[#E35336]/10";
-
-const labelBase =
-    "mb-2 block font-bdo text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500";
-
 function formatIDR(amount: number): string {
-    return `Rp ${amount.toLocaleString("id-ID")}`;
+    return "Rp " + amount.toLocaleString("id-ID");
+}
+
+function formatCompactIDR(amount: number): string {
+    if (amount >= 1_000_000_000) {
+        return "Rp " + (amount / 1_000_000_000).toLocaleString("id-ID", { maximumFractionDigits: 1 }) + " M";
+    }
+    if (amount >= 1_000_000) {
+        return "Rp " + (amount / 1_000_000).toLocaleString("id-ID", { maximumFractionDigits: 1 }) + " jt";
+    }
+    if (amount >= 1_000) {
+        return "Rp " + (amount / 1_000).toLocaleString("id-ID", { maximumFractionDigits: 0 }) + " rb";
+    }
+    return formatIDR(amount);
 }
 
 function durationLabel(months: number): string {
-    if (months === 12) return "1 Tahun";
-    if (months === 1) return "1 Bulan";
-    return `${months} Bulan`;
+    if (months === 12) return "1 tahun";
+    if (months === 1) return "1 bulan";
+    return months + " bulan";
 }
 
 function durationLead(months: number): string {
-    if (months === 12) return "Membership tahunan untuk";
-    if (months === 1) return "Membership bulanan untuk";
-    return `Membership ${months} bulan untuk`;
+    if (months === 12) return "Membership tahunan";
+    if (months === 1) return "Membership bulanan";
+    return "Membership " + months + " bulan";
 }
 
 function monthlyEstimate(plan: MembershipPlanItem): number {
@@ -185,80 +139,74 @@ function monthlyEstimate(plan: MembershipPlanItem): number {
 
 function discountPercentage(price: number, compareAtPrice?: number | null): number | null {
     const originalPrice = Number(compareAtPrice);
-
-    if (!Number.isFinite(originalPrice) || originalPrice <= price) {
-        return null;
-    }
-
+    if (!Number.isFinite(originalPrice) || originalPrice <= price) return null;
     return Math.round(((originalPrice - price) / originalPrice) * 100);
 }
 
-function IconTile({ children, className }: { children: ReactNode; className?: string }) {
+function TierMark({ tier, compact = false }: { tier: MembershipPlanTier; compact?: boolean }) {
+    const option = membershipTierOption(tier);
+
     return (
-        <span
-            className={cn(
-                "relative flex shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#F08C78_0%,#E35336_52%,#B93D2A_100%)] text-white shadow-[0_18px_30px_-22px_rgba(227,83,54,.95)]",
-                className,
-            )}
-        >
-            {children}
-            <span className="pointer-events-none absolute left-2 right-2 top-1.5 h-1 rounded-full bg-white/35 blur-[1px]" />
+        <span className={cn("mp-tier-mark", "mp-tier-" + tier, compact && "is-compact")}>
+            <span className="mp-tier-mark__dot" aria-hidden="true" />
+            <span>{option.label}</span>
         </span>
     );
 }
 
-function MetricChip({
-    icon,
+function ToggleSwitch({
+    enabled,
+    onChange,
     label,
-    value,
-    tone = "terracotta",
+    disabled = false,
 }: {
-    icon: ReactNode;
+    enabled: boolean;
+    onChange: (value: boolean) => void;
     label: string;
-    value: string | number;
-    tone?: "terracotta" | "emerald" | "slate";
+    disabled?: boolean;
 }) {
-    const toneClass = {
-        terracotta: "border-[#F8B5A8] bg-[#FFF7F5] text-[#B93D2A]",
-        emerald: "border-emerald-200 bg-emerald-50 text-emerald-700",
-        slate: "border-slate-200 bg-white text-slate-500",
-    }[tone];
-
-    return (
-        <div className={cn("flex min-w-0 items-center gap-2 rounded-2xl border px-3 py-2", toneClass)}>
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/80 ring-1 ring-white/80">
-                {icon}
-            </span>
-            <span className="min-w-0">
-                <span className="block font-bdo text-[10px] font-bold uppercase tracking-[0.14em] opacity-70">
-                    {label}
-                </span>
-                <span className="block truncate font-clash text-sm font-semibold">{value}</span>
-            </span>
-        </div>
-    );
-}
-
-function ToggleSwitch({ enabled, onChange }: { enabled: boolean; onChange: (value: boolean) => void }) {
     return (
         <button
             type="button"
             role="switch"
+            aria-label={label}
             aria-checked={enabled}
+            disabled={disabled}
             onClick={() => onChange(!enabled)}
-            className={cn(
-                "relative inline-flex h-7 w-12 shrink-0 rounded-full p-1 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#E35336]/40 focus-visible:ring-offset-2",
-                enabled ? "bg-[#E35336]" : "bg-slate-200",
-            )}
+            className={cn("mp-switch", enabled && "is-on")}
         >
-            <span
-                className={cn(
-                    "h-5 w-5 rounded-full bg-white shadow-sm transition",
-                    enabled ? "translate-x-5" : "translate-x-0",
-                )}
-            />
+            <span className="mp-switch__thumb" />
         </button>
     );
+}
+
+function FormSection({
+    number,
+    title,
+    description,
+    children,
+}: {
+    number: string;
+    title: string;
+    description: string;
+    children: ReactNode;
+}) {
+    return (
+        <section className="mp-form-section">
+            <header className="mp-form-section__header">
+                <span className="mp-form-section__number">{number}</span>
+                <div>
+                    <h3>{title}</h3>
+                    <p>{description}</p>
+                </div>
+            </header>
+            <div className="mp-form-section__body">{children}</div>
+        </section>
+    );
+}
+
+function FieldError({ message }: { message?: string }) {
+    return message ? <p className="mp-field-error">{message}</p> : null;
 }
 
 function PlanForm({ item, onClose }: { item: MembershipPlanItem | null; onClose: () => void }) {
@@ -268,6 +216,7 @@ function PlanForm({ item, onClose }: { item: MembershipPlanItem | null; onClose:
         name: item?.name ?? "",
         description: item?.description ?? "",
         tier: item?.tier ?? (item?.is_primary ? "favorit" : "hemat"),
+        public_badge: item?.public_badge ?? "",
         savings_label: item?.savings_label ?? "",
         cta_label: item?.cta_label ?? "",
         card_image: null,
@@ -282,9 +231,24 @@ function PlanForm({ item, onClose }: { item: MembershipPlanItem | null; onClose:
         ...(isEdit ? { _method: "PATCH" as const } : {}),
     });
 
+    const previewUrl = useMemo(() => {
+        if (data.card_image) return URL.createObjectURL(data.card_image);
+        if (!item) return null;
+        return item.card_image_url || DEFAULT_MEMBERSHIP_CARD_IMAGE;
+    }, [data.card_image, item]);
+
+    useEffect(() => {
+        return () => {
+            if (data.card_image && previewUrl?.startsWith("blob:")) {
+                URL.revokeObjectURL(previewUrl);
+            }
+        };
+    }, [data.card_image, previewUrl]);
+
     const addFeature = () => {
         const next = featureInput.trim();
         if (!next) return;
+
         if (data.features.some((feature) => feature.toLowerCase() === next.toLowerCase())) {
             setFeatureInput("");
             return;
@@ -295,118 +259,112 @@ function PlanForm({ item, onClose }: { item: MembershipPlanItem | null; onClose:
     };
 
     const removeFeature = (index: number) => {
-        setData("features", data.features.filter((_, itemIndex) => itemIndex !== index));
+        setData("features", data.features.filter((_, featureIndex) => featureIndex !== index));
     };
 
     const submit = (event: FormEvent) => {
         event.preventDefault();
+        const target = isEdit
+            ? route("admin.memberships.plans.update", item.id)
+            : route("admin.memberships.plans.store");
 
-        if (isEdit) {
-            post(route("admin.memberships.plans.update", item.id), {
-                onSuccess: onClose,
-                preserveScroll: true,
-                forceFormData: true,
-            });
-            return;
-        }
-
-        post(route("admin.memberships.plans.store"), {
+        post(target, {
             onSuccess: onClose,
             preserveScroll: true,
             forceFormData: true,
         });
     };
 
-    const previewPrice = Number(data.price) || 0;
-    const previewCompareAtPrice = Number(data.compare_at_price) || 0;
-    const previewDiscount = discountPercentage(previewPrice, previewCompareAtPrice);
-    const previewTier = membershipTierOption(data.tier);
+    const tier = membershipTierOption(data.tier);
+    const price = Number(data.price) || 0;
+    const compareAtPrice = Number(data.compare_at_price) || 0;
+    const discount = discountPercentage(price, compareAtPrice);
 
     return (
-        <form onSubmit={submit} className="flex flex-col gap-5">
-            <section className="overflow-hidden rounded-[26px] border border-[#F8B5A8]/70 bg-[#FFF7F5]">
-                <div className="relative p-4">
-                    <div className="pointer-events-none absolute -right-10 -top-12 h-28 w-28 rounded-full bg-[#E35336]/15 blur-2xl" />
-                    <div className="relative z-10 flex items-center gap-3">
-                        <IconTile className="h-11 w-11">
-                            <Crown size={17} />
-                        </IconTile>
-                        <div className="min-w-0">
-                            <p className="font-bdo text-[11px] font-semibold text-slate-500">
-                                {durationLead(data.duration_months)}
-                            </p>
-                            <div className="flex flex-wrap items-center gap-2">
-                                <p className="font-clash text-base font-semibold text-slate-950">
-                                    {data.name || "Paket membership"}
-                                </p>
-                                <span className={cn("rounded-full border px-2 py-0.5 font-bdo text-[10px] font-bold", previewTier.badge)}>
-                                    {previewTier.label}
-                                </span>
-                            </div>
-                            {previewDiscount && (
-                                <p className="font-bdo text-[11px] font-medium text-slate-400">
-                                    <span className="line-through decoration-[#E35336] decoration-[1.5px]">
-                                        {formatIDR(previewCompareAtPrice)}
-                                    </span>
-                                    <span className="ml-2 text-emerald-600">Hemat {previewDiscount}%</span>
-                                </p>
-                            )}
-                            <p className="mt-0.5 font-bdo text-xs font-semibold text-[#B93D2A]">
-                                {previewPrice > 0 ? formatIDR(previewPrice) : "Nominal belum diisi"} / {durationLabel(data.duration_months)}
-                            </p>
+        <form onSubmit={submit} className="mp-form">
+            <section className={cn("mp-form-preview", "mp-tier-" + data.tier)}>
+                <div className="mp-form-preview__media">
+                    {previewUrl ? (
+                        <img
+                            src={previewUrl}
+                            alt="Pratinjau gambar paket"
+                            onError={(event) => {
+                                const image = event.currentTarget;
+                                if (image.dataset.fallbackApplied === "true") return;
+                                image.dataset.fallbackApplied = "true";
+                                image.src = DEFAULT_MEMBERSHIP_CARD_IMAGE;
+                            }}
+                        />
+                    ) : (
+                        <div className="mp-form-preview__placeholder">
+                            <ImageIcon size={24} />
+                            <span>Pratinjau visual paket</span>
                         </div>
+                    )}
+                    <div className="mp-form-preview__wash" />
+                </div>
+                <div className="mp-form-preview__content">
+                    <div className="mp-form-preview__topline">
+                        <span>{tier.order} / {tier.label}</span>
+                        <span>{data.is_active ? "Tampil publik" : "Draft"}</span>
+                    </div>
+                    <div>
+                        <p className="mp-form-preview__lead">{durationLead(data.duration_months)}</p>
+                        <h3>{data.name || "Nama paket membership"}</h3>
+                        <div className="mp-form-preview__price">
+                            <strong>{price > 0 ? formatIDR(price) : "Harga belum diisi"}</strong>
+                            <span>/ {durationLabel(data.duration_months)}</span>
+                        </div>
+                    </div>
+                    <div className="mp-form-preview__footer">
+                        <span>{data.public_badge || tier.shortDescription}</span>
+                        {discount ? <span>Hemat {discount}%</span> : <span>{data.features.length} benefit</span>}
                     </div>
                 </div>
             </section>
 
-            <div>
-                <label htmlFor="plan_name" className={labelBase}>Judul utama card</label>
-                <input
-                    id="plan_name"
-                    type="text"
-                    value={data.name}
-                    onChange={(event) => setData("name", event.target.value)}
-                    placeholder="Contoh: Gym Basic"
-                    className={inputBase}
-                    required
-                />
-                {errors.name && <p className="mt-1.5 font-bdo text-xs font-medium text-rose-500">{errors.name}</p>}
-            </div>
-
-            <div>
-                <label htmlFor="plan_description" className={labelBase}>Deskripsi singkat</label>
-                <textarea
-                    id="plan_description"
-                    rows={3}
-                    value={data.description}
-                    onChange={(event) => setData("description", event.target.value)}
-                    placeholder="Tulis penjelasan singkat yang mudah dipahami pengguna."
-                    className={cn(inputBase, "h-auto resize-none py-3 leading-relaxed")}
-                />
-                <p className="mt-1.5 font-bdo text-[11px] font-medium leading-relaxed text-slate-400">
-                    Konten custom ini tetap utuh saat durasi paket diubah.
-                </p>
-                {errors.description && <p className="mt-1.5 font-bdo text-xs font-medium text-rose-500">{errors.description}</p>}
-            </div>
-
-            <section className="rounded-[24px] border border-slate-200 bg-white p-4">
-                <div className="flex items-start gap-3">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-[#F8B5A8]/70 bg-[#FFF7F5] text-[#E35336]">
-                        <Sparkles size={16} />
-                    </span>
-                    <div>
-                        <p className="font-clash text-base font-semibold leading-tight text-slate-950">
-                            Tampilan card publik
-                        </p>
-                        <p className="mt-1 font-bdo text-xs font-medium leading-relaxed text-slate-500">
-                            Pilih identitas visual paket. Tingkatan hanya mengubah background besar, badge, dan warna judul kedua; gambar landscape tetap memakai konten yang diunggah.
-                        </p>
+            <FormSection
+                number="01"
+                title="Identitas paket"
+                description="Nama dan penjelasan yang pertama kali dibaca calon member."
+            >
+                <div className="mp-field-grid">
+                    <div className="mp-field mp-field--wide">
+                        <label htmlFor="plan_name" className={labelBase}>Nama paket</label>
+                        <input
+                            id="plan_name"
+                            type="text"
+                            value={data.name}
+                            onChange={(event) => setData("name", event.target.value)}
+                            placeholder="Contoh: Gym Basic"
+                            className={inputBase}
+                            required
+                        />
+                        <FieldError message={errors.name} />
+                    </div>
+                    <div className="mp-field mp-field--wide">
+                        <label htmlFor="plan_description" className={labelBase}>Deskripsi singkat</label>
+                        <textarea
+                            id="plan_description"
+                            rows={3}
+                            value={data.description}
+                            onChange={(event) => setData("description", event.target.value)}
+                            placeholder="Jelaskan nilai utama paket dengan kalimat singkat."
+                            className={cn(inputBase, "mp-input--textarea")}
+                        />
+                        <FieldError message={errors.description} />
                     </div>
                 </div>
+            </FormSection>
 
-                <fieldset className="mt-4">
-                    <legend className={labelBase}>Tingkatan pricing gym</legend>
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Tingkatan pricing gym">
+            <FormSection
+                number="02"
+                title="Posisi dalam jenjang"
+                description="Pilih karakter paket agar pengguna memahami perbedaannya dalam sekali lihat."
+            >
+                <fieldset>
+                    <legend className="sr-only">Tingkatan membership</legend>
+                    <div className="mp-tier-picker" role="radiogroup" aria-label="Tingkatan membership">
                         {MEMBERSHIP_TIER_OPTIONS.map((option) => {
                             const selected = data.tier === option.value;
 
@@ -418,34 +376,40 @@ function PlanForm({ item, onClose }: { item: MembershipPlanItem | null; onClose:
                                     aria-checked={selected}
                                     onClick={() => setData("tier", option.value)}
                                     className={cn(
-                                        "group flex min-h-[82px] items-start gap-3 rounded-[20px] border p-3 text-left outline-none transition duration-200 focus-visible:ring-2 focus-visible:ring-[#E35336]/35 focus-visible:ring-offset-2",
-                                        selected
-                                            ? option.active
-                                            : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/70",
+                                        "mp-tier-choice",
+                                        "mp-tier-" + option.value,
+                                        selected && "is-selected",
                                     )}
                                 >
-                                    <span className={cn("relative mt-0.5 h-10 w-10 shrink-0 overflow-hidden rounded-[13px] shadow-inner", option.swatch)}>
-                                        <span className="absolute inset-x-1.5 top-1 h-px bg-white/55" />
+                                    <span className="mp-tier-choice__index">{option.order}</span>
+                                    <span className="mp-tier-choice__swatch" />
+                                    <span className="mp-tier-choice__copy">
+                                        <strong>{option.label}</strong>
+                                        <small>{option.shortDescription}</small>
                                     </span>
-                                    <span className="min-w-0 flex-1">
-                                        <span className="flex items-center justify-between gap-3">
-                                            <span className="font-clash text-sm font-semibold text-slate-950">{option.label}</span>
-                                            <span className="font-bdo text-[10px] font-bold text-slate-400">{option.order}/</span>
-                                        </span>
-                                        <span className="mt-1 block font-bdo text-[11px] font-medium leading-[1.35] text-slate-500">
-                                            {option.description}
-                                        </span>
-                                    </span>
+                                    <span className="mp-tier-choice__check"><Check size={12} /></span>
                                 </button>
                             );
                         })}
                     </div>
-                    {errors.tier && <p className="mt-1.5 font-bdo text-xs font-medium text-rose-500">{errors.tier}</p>}
+                    <FieldError message={errors.tier} />
                 </fieldset>
 
-                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div>
-                        <label htmlFor="plan_savings_label" className={labelBase}>Label promo alternatif</label>
+                <div className="mp-field-grid mp-field-grid--three">
+                    <div className="mp-field">
+                        <label htmlFor="plan_public_badge" className={labelBase}>Badge publik</label>
+                        <input
+                            id="plan_public_badge"
+                            type="text"
+                            value={data.public_badge}
+                            onChange={(event) => setData("public_badge", event.target.value)}
+                            placeholder="Contoh: Paling populer"
+                            className={inputBase}
+                        />
+                        <FieldError message={errors.public_badge} />
+                    </div>
+                    <div className="mp-field">
+                        <label htmlFor="plan_savings_label" className={labelBase}>Label promo</label>
                         <input
                             id="plan_savings_label"
                             type="text"
@@ -454,29 +418,30 @@ function PlanForm({ item, onClose }: { item: MembershipPlanItem | null; onClose:
                             placeholder="Contoh: Hemat 20%"
                             className={inputBase}
                         />
-                        <p className="mt-1.5 font-bdo text-[11px] font-medium leading-relaxed text-slate-400">
-                            Dipakai hanya jika harga normal tidak diisi.
-                        </p>
-                        {errors.savings_label && <p className="mt-1.5 font-bdo text-xs font-medium text-rose-500">{errors.savings_label}</p>}
+                        <FieldError message={errors.savings_label} />
                     </div>
-                    <div>
-                        <label htmlFor="plan_cta_label" className={labelBase}>Label CTA</label>
+                    <div className="mp-field">
+                        <label htmlFor="plan_cta_label" className={labelBase}>Teks tombol</label>
                         <input
                             id="plan_cta_label"
                             type="text"
                             value={data.cta_label}
                             onChange={(event) => setData("cta_label", event.target.value)}
-                            placeholder="Contoh: Membership"
+                            placeholder="Contoh: Pilih paket"
                             className={inputBase}
                         />
-                        {errors.cta_label && <p className="mt-1.5 font-bdo text-xs font-medium text-rose-500">{errors.cta_label}</p>}
+                        <FieldError message={errors.cta_label} />
                     </div>
                 </div>
 
-                <div className="mt-4 rounded-[20px] border border-slate-200 bg-slate-50/70 p-2.5">
+                <div className="mp-upload-shell">
                     <SingleDropzone
                         label={isEdit ? "Gambar landscape" : "Gambar landscape (wajib)"}
-                        currentUrl={item?.card_image_url ?? null}
+                        currentUrl={
+                            item
+                                ? item.card_image_url || DEFAULT_MEMBERSHIP_CARD_IMAGE
+                                : null
+                        }
                         allowRemove={false}
                         onFileSelect={(file) => {
                             setData("card_image", file);
@@ -487,88 +452,101 @@ function PlanForm({ item, onClose }: { item: MembershipPlanItem | null; onClose:
                             setData("remove_card_image", true);
                         }}
                     />
-                    <p className="mt-2 font-bdo text-[11px] font-medium leading-relaxed text-slate-400">
-                        Unggah JPG, PNG, WebP, atau AVIF landscape, minimal 960 x 240 px dan maksimal 5 MB. Gambar lama otomatis diganti setelah upload berhasil.
-                    </p>
-                    {errors.card_image && <p className="mt-1.5 font-bdo text-xs font-medium text-rose-500">{errors.card_image}</p>}
+                    <p>JPG, PNG, WebP, atau AVIF landscape · minimal 960 × 240 px · maksimal 5 MB.</p>
+                    <FieldError message={errors.card_image} />
                 </div>
-            </section>
+            </FormSection>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                    <label htmlFor="plan_compare_at_price" className={labelBase}>Harga normal</label>
-                    <input
-                        id="plan_compare_at_price"
-                        type="number"
-                        min="0"
-                        step="1000"
-                        value={data.compare_at_price}
-                        onChange={(event) => setData("compare_at_price", event.target.value)}
-                        placeholder="187500"
-                        className={inputBase}
-                    />
-                    <p className="mt-1.5 font-bdo text-[11px] font-medium leading-relaxed text-slate-400">
-                        Opsional. Harus lebih tinggi dari harga membership.
-                    </p>
-                    {errors.compare_at_price && <p className="mt-1.5 font-bdo text-xs font-medium text-rose-500">{errors.compare_at_price}</p>}
-                </div>
-                <div>
-                    <label htmlFor="plan_price" className={labelBase}>Harga membership</label>
-                    <input
-                        id="plan_price"
-                        type="number"
-                        min="0"
-                        step="1000"
-                        value={data.price}
-                        onChange={(event) => setData("price", event.target.value)}
-                        placeholder="150000"
-                        className={inputBase}
-                        required
-                    />
-                    {errors.price && <p className="mt-1.5 font-bdo text-xs font-medium text-rose-500">{errors.price}</p>}
-                </div>
-                <div className="sm:col-span-2">
-                    <label htmlFor="plan_duration" className={labelBase}>Durasi</label>
-                    <select
-                        id="plan_duration"
-                        value={data.duration_months}
-                        onChange={(event) => setData("duration_months", Number(event.target.value))}
-                        className={inputBase}
-                    >
-                        <option value={1}>Bulanan · 1 bulan</option>
-                        <option value={3}>Triwulan · 3 bulan</option>
-                        <option value={6}>Semester · 6 bulan</option>
-                        <option value={12}>Tahunan · 12 bulan</option>
-                    </select>
-                    <div className="mt-2 flex items-start gap-2 rounded-[14px] border border-slate-200 bg-slate-50 px-3 py-2.5">
-                        <Timer className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#E35336]" />
-                        <p className="font-bdo text-[11px] font-medium leading-relaxed text-slate-500">
-                            Pembuka card otomatis menjadi <span className="font-semibold text-slate-800">“{durationLead(data.duration_months)}”</span>. Judul dan deskripsi custom tidak akan ditimpa.
-                        </p>
-                    </div>
-                    {errors.duration_months && <p className="mt-1.5 font-bdo text-xs font-medium text-rose-500">{errors.duration_months}</p>}
-                </div>
-            </div>
-
-            <section className="rounded-[24px] border border-slate-200 bg-white p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="flex items-start gap-3">
-                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-[#F8B5A8]/70 bg-[#FFF7F5] text-[#E35336]">
-                            <Sparkles size={16} />
-                        </span>
-                        <div className="min-w-0">
-                            <p className="font-clash text-base font-semibold leading-tight text-slate-950">Fitur paket</p>
-                            <p className="mt-1 font-bdo text-xs font-medium leading-relaxed text-slate-500">
-                                Tambahkan benefit utama yang akan dilihat calon member.
-                            </p>
+            <FormSection
+                number="03"
+                title="Harga dan periode"
+                description="Nominal utama dibuat dominan, sementara pembanding dan estimasi bulanan tetap mudah dipahami."
+            >
+                <div className="mp-field-grid mp-field-grid--price">
+                    <div className="mp-field">
+                        <label htmlFor="plan_price" className={labelBase}>Harga membership</label>
+                        <div className="mp-money-input">
+                            <span>Rp</span>
+                            <input
+                                id="plan_price"
+                                type="number"
+                                min="0"
+                                step="1000"
+                                value={data.price}
+                                onChange={(event) => setData("price", event.target.value)}
+                                placeholder="150000"
+                                required
+                            />
                         </div>
+                        <FieldError message={errors.price} />
                     </div>
-                    <span className="inline-flex h-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 px-3 font-bdo text-[11px] font-bold text-slate-500">
-                        {data.features.length} item
-                    </span>
+                    <div className="mp-field">
+                        <label htmlFor="plan_compare_at_price" className={labelBase}>Harga normal</label>
+                        <div className="mp-money-input">
+                            <span>Rp</span>
+                            <input
+                                id="plan_compare_at_price"
+                                type="number"
+                                min="0"
+                                step="1000"
+                                value={data.compare_at_price}
+                                onChange={(event) => setData("compare_at_price", event.target.value)}
+                                placeholder="187500"
+                            />
+                        </div>
+                        <FieldError message={errors.compare_at_price} />
+                    </div>
+                    <div className="mp-field">
+                        <label htmlFor="plan_duration" className={labelBase}>Periode berlaku</label>
+                        <select
+                            id="plan_duration"
+                            value={data.duration_months}
+                            onChange={(event) => setData("duration_months", Number(event.target.value))}
+                            className={inputBase}
+                        >
+                            <option value={1}>Bulanan · 1 bulan</option>
+                            <option value={3}>Triwulan · 3 bulan</option>
+                            <option value={6}>Semester · 6 bulan</option>
+                            <option value={12}>Tahunan · 12 bulan</option>
+                        </select>
+                        <FieldError message={errors.duration_months} />
+                    </div>
+                    <div className="mp-field">
+                        <label htmlFor="plan_sort_order" className={labelBase}>Urutan dalam tier</label>
+                        <input
+                            id="plan_sort_order"
+                            type="number"
+                            value={data.sort_order}
+                            onChange={(event) => setData("sort_order", event.target.value)}
+                            className={inputBase}
+                        />
+                        <FieldError message={errors.sort_order} />
+                    </div>
                 </div>
 
-                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                <div className="mp-price-insight">
+                    <ReceiptText size={17} />
+                    <div>
+                        <strong>
+                            {price > 0
+                                ? formatIDR(Math.round(price / Math.max(data.duration_months, 1))) + "/bulan"
+                                : "Estimasi bulanan belum tersedia"}
+                        </strong>
+                        <span>
+                            {discount
+                                ? "Selisih " + discount + "% dari harga normal."
+                                : "Isi harga normal untuk menampilkan nilai penghematan otomatis."}
+                        </span>
+                    </div>
+                </div>
+            </FormSection>
+
+            <FormSection
+                number="04"
+                title="Benefit member"
+                description="Tambahkan alasan paling kuat untuk memilih paket ini."
+            >
+                <div className="mp-feature-entry">
                     <input
                         type="text"
                         value={featureInput}
@@ -581,84 +559,107 @@ function PlanForm({ item, onClose }: { item: MembershipPlanItem | null; onClose:
                         }}
                         placeholder="Contoh: Akses gym setiap hari"
                         className={inputBase}
-                        aria-label="Tambah fitur paket"
+                        aria-label="Tambah benefit paket"
                     />
-                    <button
-                        type="button"
-                        onClick={addFeature}
-                        className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-[#F8B5A8]/70 bg-[#FFF7F5] px-4 font-bdo text-xs font-bold text-[#B93D2A] transition hover:bg-white"
-                    >
+                    <button type="button" onClick={addFeature}>
                         <Plus size={14} />
                         Tambah
                     </button>
                 </div>
 
                 {data.features.length > 0 ? (
-                    <div className="mt-3 flex max-h-36 flex-wrap gap-2 overflow-y-auto pr-1 plan-scrollbar">
+                    <div className="mp-feature-list">
                         {data.features.map((feature, index) => (
-                            <span
-                                key={`${feature}-${index}`}
-                                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 py-1 pl-3 pr-1.5 font-bdo text-xs font-bold text-slate-600"
-                            >
-                                <CheckCircle2 size={12} className="text-emerald-500" />
-                                {feature}
+                            <div key={feature + "-" + index} className="mp-feature-item">
+                                <span className="mp-feature-item__index">{String(index + 1).padStart(2, "0")}</span>
+                                <CheckCircle2 size={14} />
+                                <span>{feature}</span>
                                 <button
                                     type="button"
                                     onClick={() => removeFeature(index)}
-                                    className="flex h-5 w-5 items-center justify-center rounded-full text-slate-400 transition hover:bg-white hover:text-rose-500"
-                                    aria-label={`Hapus fitur ${feature}`}
+                                    aria-label={"Hapus benefit " + feature}
                                 >
-                                    <X size={12} />
+                                    <X size={13} />
                                 </button>
-                            </span>
+                            </div>
                         ))}
                     </div>
                 ) : (
-                    <p className="mt-3 rounded-2xl bg-slate-50 px-4 py-3 font-bdo text-xs font-medium text-slate-400">
-                        Belum ada fitur. Paket tetap bisa disimpan, tetapi benefit akan terlihat lebih jelas jika diisi.
-                    </p>
+                    <div className="mp-form-empty">Belum ada benefit. Tambahkan minimal tiga agar paket lebih mudah dibandingkan.</div>
                 )}
-                {errors.features && <p className="mt-1.5 font-bdo text-xs font-medium text-rose-500">{errors.features}</p>}
-            </section>
+                <FieldError message={errors.features} />
+            </FormSection>
 
-            <section className="flex items-center justify-between gap-4 rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-3">
-                <div>
-                    <p className="font-clash text-sm font-semibold text-slate-950">Tampilkan paket</p>
-                    <p className="mt-0.5 font-bdo text-xs font-medium text-slate-400">
-                        {data.is_active ? "Paket tersedia untuk dibeli." : "Paket disembunyikan sementara."}
-                    </p>
+            <FormSection
+                number="05"
+                title="Publikasi"
+                description="Tentukan apakah paket terlihat dan menjadi rekomendasi utama."
+            >
+                <div className="mp-publish-grid">
+                    <div className={cn("mp-publish-option", data.is_active && "is-selected")}>
+                        <span className="mp-publish-option__icon"><Activity size={17} /></span>
+                        <div>
+                            <strong>Tampilkan paket</strong>
+                            <p>{data.is_active ? "Paket dapat dipilih pengguna." : "Paket disembunyikan sementara."}</p>
+                        </div>
+                        <ToggleSwitch
+                            label="Tampilkan paket"
+                            enabled={data.is_active}
+                            onChange={(value) => {
+                                setData("is_active", value);
+                                if (!value) setData("is_primary", false);
+                            }}
+                        />
+                    </div>
+                    <div className={cn("mp-publish-option", data.is_primary && "is-selected")}>
+                        <span className="mp-publish-option__icon"><Crown size={17} /></span>
+                        <div>
+                            <strong>Paket utama</strong>
+                            <p>{data.is_primary ? "Menjadi pilihan default." : "Tidak diberi prioritas khusus."}</p>
+                        </div>
+                        <ToggleSwitch
+                            label="Jadikan paket utama"
+                            enabled={data.is_primary}
+                            disabled={!data.is_active}
+                            onChange={(value) => setData("is_primary", value)}
+                        />
+                    </div>
                 </div>
-                <ToggleSwitch enabled={data.is_active} onChange={(value) => setData("is_active", value)} />
-            </section>
+            </FormSection>
 
-            <section className="flex items-center justify-between gap-4 rounded-[24px] border border-[#B9D9EA] bg-[#F2FAFE] px-4 py-3">
-                <div>
-                    <p className="font-clash text-sm font-semibold text-slate-950">Jadikan paket utama</p>
-                    <p className="mt-0.5 font-bdo text-xs font-medium text-slate-500">
-                        Menandai paket rekomendasi/default. Urutan publik tetap Hemat, Favorit, Performa, lalu Eksklusif.
-                    </p>
-                </div>
-                <ToggleSwitch enabled={data.is_primary} onChange={(value) => setData("is_primary", value)} />
-            </section>
-
-            <div className="flex flex-col-reverse gap-2 border-t border-slate-100 pt-5 sm:flex-row">
-                <button
-                    type="button"
-                    onClick={onClose}
-                    className="flex-1 rounded-2xl bg-slate-100 px-5 py-3 font-clash text-sm font-semibold text-slate-600 transition hover:bg-slate-200"
-                >
+            <footer className="mp-form-actions">
+                <button type="button" onClick={onClose} className="mp-button mp-button--quiet">
                     Batal
                 </button>
-                <button
-                    type="submit"
-                    disabled={processing}
-                    className="inline-flex flex-[1.5] items-center justify-center gap-2 rounded-2xl bg-[linear-gradient(135deg,#F08C78_0%,#E35336_52%,#B93D2A_100%)] px-5 py-3 font-clash text-sm font-semibold text-white shadow-[0_18px_30px_-22px_rgba(227,83,54,.95)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
-                >
-                    {processing ? "Menyimpan..." : isEdit ? "Simpan perubahan" : "Buat paket"}
+                <button type="submit" disabled={processing} className="mp-button mp-button--primary">
+                    <span>{processing ? "Menyimpan..." : isEdit ? "Simpan perubahan" : "Buat paket"}</span>
                     <ArrowRight size={15} />
                 </button>
-            </div>
+            </footer>
         </form>
+    );
+}
+
+function Metric({
+    icon,
+    label,
+    value,
+    note,
+}: {
+    icon: ReactNode;
+    label: string;
+    value: string | number;
+    note: string;
+}) {
+    return (
+        <div className="mp-metric">
+            <span className="mp-metric__icon">{icon}</span>
+            <div>
+                <span className="mp-metric__label">{label}</span>
+                <strong>{value}</strong>
+                <small>{note}</small>
+            </div>
+        </div>
     );
 }
 
@@ -673,331 +674,321 @@ function PlanCard({
     onEdit: (plan: MembershipPlanItem) => void;
     onDelete: (plan: MembershipPlanItem) => void;
 }) {
-    const discountPercent = discountPercentage(plan.price, plan.compare_at_price);
-    const topFeatures = plan.features.slice(0, 4);
-    const tierOption = membershipTierOption(plan.tier);
+    const discount = discountPercentage(plan.price, plan.compare_at_price);
+    const features = plan.features.slice(0, 3);
 
     return (
-        <article
-            className={cn(
-                "plan-enter group relative flex min-h-[360px] flex-col overflow-hidden rounded-[30px] border bg-white transition duration-300",
-                "border-slate-200 shadow-[0_22px_54px_-48px_rgba(15,23,42,.55)] hover:-translate-y-1 hover:border-[#F8B5A8] hover:shadow-[0_28px_64px_-46px_rgba(227,83,54,.38)]",
-                !plan.is_active && "opacity-75",
-            )}
-            style={{ animationDelay: `${Math.min(index * 70, 420)}ms` }}
-        >
-            <div className="absolute inset-x-0 top-0 h-1.5 bg-[linear-gradient(90deg,#F8B5A8_0%,#E35336_52%,#B93D2A_100%)]" />
-            <div className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full bg-[#E35336]/10 blur-3xl transition group-hover:bg-[#E35336]/16" />
-            <div className="pointer-events-none absolute -left-16 bottom-12 h-32 w-32 rounded-full bg-emerald-400/10 blur-3xl" />
+        <article className={cn("mp-plan", "mp-tier-" + plan.tier, !plan.is_active && "is-inactive")}>
+            <div className="mp-plan__visual">
+                <img
+                    src={plan.card_image_url || DEFAULT_MEMBERSHIP_CARD_IMAGE}
+                    alt={"Visual " + plan.name}
+                    onError={(event) => {
+                        const image = event.currentTarget;
+                        if (image.dataset.fallbackApplied === "true") return;
+                        image.dataset.fallbackApplied = "true";
+                        image.src = DEFAULT_MEMBERSHIP_CARD_IMAGE;
+                    }}
+                />
+                <div className="mp-plan__visual-shade" />
+                <span className="mp-plan__position">{String(index + 1).padStart(2, "0")}</span>
+                <div className="mp-plan__visual-footer">
+                    <TierMark tier={plan.tier} compact />
+                    <span>{durationLabel(plan.duration_months)}</span>
+                </div>
+            </div>
 
-            <div className="relative z-10 flex flex-1 flex-col p-5 sm:p-6">
-                <div className="flex items-start justify-between gap-4">
-                    <div className="flex min-w-0 items-start gap-3">
-                        <IconTile className="h-12 w-12">
-                            {plan.duration_months >= 12 ? <Crown size={18} /> : plan.duration_months >= 6 ? <Gem size={18} /> : <BadgeCheck size={18} />}
-                        </IconTile>
-                        <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                                <h2 className="truncate font-clash text-xl font-bold leading-tight text-slate-950">
-                                    {plan.name}
-                                </h2>
-                                <span
-                                    className={cn(
-                                        "rounded-full border px-2.5 py-1 font-bdo text-[10px] font-bold uppercase tracking-[0.14em]",
-                                        plan.is_active
-                                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                                            : "border-slate-200 bg-slate-50 text-slate-400",
-                                    )}
-                                >
-                                    {plan.is_active ? "Aktif" : "Nonaktif"}
-                                </span>
-                                <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-bdo text-[10px] font-bold", tierOption.badge)}>
-                                    <span className={cn("h-2 w-2 rounded-full", tierOption.swatch)} aria-hidden="true" />
-                                    {tierOption.label}
-                                </span>
-                                {plan.is_primary && (
-                                    <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 font-bdo text-[10px] font-bold uppercase tracking-[0.14em] text-sky-700">
-                                        <Crown size={11} />
-                                        Utama
-                                    </span>
-                                )}
-                            </div>
-                            <p className="mt-1 line-clamp-2 font-bdo text-sm font-medium leading-relaxed text-slate-500">
-                                {plan.description || "Belum ada deskripsi singkat untuk paket ini."}
-                            </p>
-                        </div>
-                    </div>
+            <div className="mp-plan__body">
+                <div className="mp-plan__eyebrow">
+                    <span className={cn("mp-status", plan.is_active ? "is-active" : "is-hidden")}>
+                        <i /> {plan.is_active ? "Tampil publik" : "Disembunyikan"}
+                    </span>
+                    {plan.is_primary && <span className="mp-primary-tag"><Crown size={12} /> Pilihan utama</span>}
+                    {plan.public_badge && <span className="mp-public-badge">{plan.public_badge}</span>}
                 </div>
 
-                <div className="mt-6 rounded-[26px] border border-[#F8B5A8]/70 bg-[#FFF7F5] p-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                        <div>
-                            <p className="font-bdo text-[10px] font-bold uppercase tracking-[0.16em] text-[#B93D2A]/70">
-                                Harga paket
-                            </p>
-                            {discountPercent && plan.compare_at_price && (
-                                <p className="mt-1 font-bdo text-xs font-medium text-slate-400">
-                                    <span className="line-through decoration-[#E35336] decoration-[1.5px]">
-                                        {formatIDR(plan.compare_at_price)}
-                                    </span>
-                                    <span className="ml-2 font-semibold text-emerald-600">
-                                        Hemat {discountPercent}%
-                                    </span>
-                                </p>
-                            )}
-                            <p className="mt-1 font-clash text-3xl font-bold leading-none text-slate-950">
-                                {formatIDR(plan.price)}
-                            </p>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 font-bdo text-xs font-bold text-[#B93D2A] ring-1 ring-[#F8B5A8]/70">
-                                <Timer size={13} />
-                                {durationLabel(plan.duration_months)}
-                            </span>
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 font-bdo text-xs font-bold text-slate-600 ring-1 ring-slate-200">
-                                <ReceiptText size={13} />
-                                {formatIDR(monthlyEstimate(plan))}/bln
-                            </span>
-                        </div>
+                <div className="mp-plan__title-row">
+                    <div>
+                        <p>{durationLead(plan.duration_months)}</p>
+                        <h2>{plan.name}</h2>
                     </div>
-                    {discountPercent && (
-                        <p className="mt-3 rounded-2xl bg-white/70 px-3 py-2 font-bdo text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100">
-                            Diskon dihitung otomatis dari harga normal dan harga membership.
-                        </p>
+                    <span className="mp-plan__members"><Users size={14} /> {plan.active_members_count} aktif</span>
+                </div>
+
+                <p className="mp-plan__description">
+                    {plan.description || "Belum ada deskripsi singkat untuk paket ini."}
+                </p>
+
+                <div className="mp-plan__benefits">
+                    {features.length > 0 ? features.map((feature, featureIndex) => (
+                        <span key={feature + "-" + featureIndex}>
+                            <CheckCircle2 size={13} />
+                            <span>{feature}</span>
+                        </span>
+                    )) : (
+                        <span className="is-empty"><Sparkles size={13} /> Benefit belum diisi</span>
                     )}
-                </div>
-
-                <div className="mt-4 grid grid-cols-2 gap-2">
-                    <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
-                        <p className="font-bdo text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">Anggota aktif</p>
-                        <p className="mt-1 font-clash text-xl font-bold text-slate-950">{plan.active_members_count}</p>
-                    </div>
-                    <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
-                        <p className="font-bdo text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">Tingkatan</p>
-                        <p className="mt-1 font-clash text-xl font-bold text-slate-950">
-                            {tierOption.label}
-                        </p>
-                    </div>
-                </div>
-
-                <div className="mt-5 flex-1">
-                    <div className="flex items-center justify-between gap-3">
-                        <p className="font-bdo text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">Benefit</p>
-                        <span className="font-bdo text-[11px] font-bold text-slate-400">{plan.features.length} fitur</span>
-                    </div>
-                    {topFeatures.length > 0 ? (
-                        <ul className="mt-3 grid gap-2">
-                            {topFeatures.map((feature, featureIndex) => (
-                                <li key={`${feature}-${featureIndex}`} className="flex items-start gap-2 font-bdo text-sm font-semibold leading-relaxed text-slate-700">
-                                    <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-[#E35336]" />
-                                    <span className="line-clamp-2">{feature}</span>
-                                </li>
-                            ))}
-                            {plan.features.length > topFeatures.length && (
-                                <li className="font-bdo text-xs font-bold text-[#B93D2A]">
-                                    +{plan.features.length - topFeatures.length} fitur lainnya
-                                </li>
-                            )}
-                        </ul>
-                    ) : (
-                        <p className="mt-3 rounded-2xl bg-slate-50 px-4 py-3 font-bdo text-sm font-medium text-slate-400">
-                            Benefit belum diisi.
-                        </p>
+                    {plan.features.length > features.length && (
+                        <span className="is-more">+{plan.features.length - features.length} lainnya</span>
                     )}
                 </div>
             </div>
 
-            <div className="relative z-10 grid grid-cols-[1fr_1fr_auto] gap-2 border-t border-slate-100 bg-slate-50/70 p-3">
-                <button
-                    type="button"
-                    onClick={() => onEdit(plan)}
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-white font-bdo text-xs font-bold text-slate-600 ring-1 ring-slate-200 transition hover:text-[#B93D2A] hover:ring-[#F8B5A8]"
-                >
-                    <Pencil size={14} />
-                    Edit
-                </button>
-                <button
-                    type="button"
-                    onClick={() => onEdit(plan)}
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-[#F8B5A8]/70 bg-[#FFF7F5] font-bdo text-xs font-bold text-[#B93D2A] transition hover:bg-white"
-                >
-                    <Sparkles size={14} />
-                    Detail
-                </button>
-                <button
-                    type="button"
-                    onClick={() => onDelete(plan)}
-                    className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-rose-500 ring-1 ring-rose-100 transition hover:bg-rose-50 hover:text-rose-600"
-                    aria-label={`Hapus paket ${plan.name}`}
-                >
-                    <Trash2 size={15} />
-                </button>
-            </div>
+            <aside className="mp-plan__commerce">
+                <div className="mp-plan__price-head">
+                    <span>Harga paket</span>
+                    <span>#{plan.sort_order || index + 1}</span>
+                </div>
+                {discount && plan.compare_at_price ? (
+                    <div className="mp-plan__saving">
+                        <span>{formatIDR(plan.compare_at_price)}</span>
+                        <strong>Hemat {discount}%</strong>
+                    </div>
+                ) : (
+                    <div className="mp-plan__saving is-placeholder">Harga final</div>
+                )}
+                <strong className="mp-plan__price">{formatIDR(plan.price)}</strong>
+                <div className="mp-plan__monthly">
+                    <ReceiptText size={14} />
+                    <span>{formatIDR(monthlyEstimate(plan))} / bulan</span>
+                </div>
+
+                <div className="mp-plan__actions">
+                    <button type="button" onClick={() => onEdit(plan)} className="mp-action mp-action--edit">
+                        <Pencil size={14} />
+                        Edit paket
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => onDelete(plan)}
+                        className="mp-action mp-action--delete"
+                        aria-label={"Hapus paket " + plan.name}
+                        title="Hapus paket"
+                    >
+                        <Trash2 size={15} />
+                    </button>
+                </div>
+            </aside>
         </article>
     );
 }
 
-function EmptyState({ onCreate }: { onCreate: () => void }) {
+function EmptyState({
+    onCreate,
+    filtered = false,
+}: {
+    onCreate: () => void;
+    filtered?: boolean;
+}) {
     return (
-        <section className="plan-enter relative overflow-hidden rounded-[32px] border border-[#F8B5A8]/70 bg-white p-8 text-center sm:p-12">
-            <div className="pointer-events-none absolute -right-16 -top-16 h-52 w-52 rounded-full bg-[#E35336]/10 blur-3xl" />
-            <div className="pointer-events-none absolute -left-16 bottom-0 h-44 w-44 rounded-full bg-emerald-400/10 blur-3xl" />
-            <div className="relative z-10 mx-auto flex max-w-md flex-col items-center">
-                <IconTile className="h-16 w-16 rounded-[24px]">
-                    <Layers3 size={24} />
-                </IconTile>
-                <h2 className="mt-5 font-clash text-2xl font-bold text-slate-950">Belum ada paket membership</h2>
-                <p className="mt-2 font-bdo text-sm font-medium leading-relaxed text-slate-500">
-                    Buat paket pertama agar pengguna bisa memilih membership dengan informasi harga, durasi, dan benefit yang jelas.
-                </p>
-                <button
-                    type="button"
-                    onClick={onCreate}
-                    className="mt-6 inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-[linear-gradient(135deg,#F08C78_0%,#E35336_52%,#B93D2A_100%)] px-5 font-clash text-sm font-semibold text-white shadow-[0_18px_30px_-22px_rgba(227,83,54,.95)] transition hover:-translate-y-0.5"
-                >
-                    <Plus size={17} />
-                    Tambah Paket Pertama
-                </button>
+        <section className="mp-empty">
+            <span className="mp-empty__icon">{filtered ? <Search size={22} /> : <Layers3 size={22} />}</span>
+            <div>
+                <h2>{filtered ? "Paket tidak ditemukan" : "Belum ada paket membership"}</h2>
+                <p>{filtered ? "Ubah kata kunci atau status untuk melihat paket lain." : "Buat paket pertama agar jenjang membership dapat ditampilkan kepada pengguna."}</p>
             </div>
+            {!filtered && (
+                <button type="button" onClick={onCreate} className="mp-button mp-button--primary">
+                    <Plus size={15} /> Tambah paket pertama
+                </button>
+            )}
         </section>
     );
 }
 
 export default function MembershipPlansIndex() {
     const { plans, flash, errors } = usePage<Props>().props;
+    const [query, setQuery] = useState("");
+    const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
     const [slideOver, setSlideOver] = useState<{ open: boolean; item: MembershipPlanItem | null }>({
         open: false,
         item: null,
     });
 
     const summary = useMemo(() => {
-        const active = plans.filter((plan) => plan.is_active);
+        const activePlans = plans.filter((plan) => plan.is_active);
         const members = plans.reduce((total, plan) => total + plan.active_members_count, 0);
         const cheapest = plans.length > 0 ? Math.min(...plans.map((plan) => plan.price)) : 0;
 
         return {
             total: plans.length,
-            active: active.length,
+            active: activePlans.length,
             members,
             cheapest,
         };
     }, [plans]);
+
+    const filteredPlans = useMemo(() => {
+        const needle = query.trim().toLocaleLowerCase("id-ID");
+
+        return plans.filter((plan) => {
+            const matchesQuery = !needle
+                || plan.name.toLocaleLowerCase("id-ID").includes(needle)
+                || membershipTierOption(plan.tier).label.toLocaleLowerCase("id-ID").includes(needle)
+                || (plan.description ?? "").toLocaleLowerCase("id-ID").includes(needle);
+            const matchesStatus = statusFilter === "all"
+                || (statusFilter === "active" && plan.is_active)
+                || (statusFilter === "inactive" && !plan.is_active);
+
+            return matchesQuery && matchesStatus;
+        });
+    }, [plans, query, statusFilter]);
 
     const openCreate = () => setSlideOver({ open: true, item: null });
     const openEdit = (item: MembershipPlanItem) => setSlideOver({ open: true, item });
     const closeSlideOver = () => setSlideOver({ open: false, item: null });
 
     const deletePlan = (plan: MembershipPlanItem) => {
-        if (!window.confirm(`Hapus paket "${plan.name}"?`)) return;
+        if (!window.confirm('Hapus paket "' + plan.name + '"?')) return;
         router.delete(route("admin.memberships.plans.destroy", plan.id), { preserveScroll: true });
     };
 
     return (
         <AdminLayout
             header={
-                <div className="plan-enter flex flex-col gap-1 pt-4">
-                    <style dangerouslySetInnerHTML={{ __html: PAGE_STYLES }} />
-                    <span className="font-bdo text-[11px] font-medium tracking-wide text-[#E35336]">
-                        Manajemen Keanggotaan
-                    </span>
-                    <h1 className="font-clash text-3xl font-bold uppercase tracking-tight xl:text-4xl">
-                        <span className="plan-title-shine">Paket Membership</span>
-                    </h1>
+                <div className="mp-page-heading">
+                    <span>Manajemen Keanggotaan</span>
+                    <h1><span className="mp-title-shine">Membership Plans</span></h1>
                 </div>
             }
         >
-            <Head title="Paket Membership" />
+            <Head title="Membership Plans" />
 
-            <div className="flex flex-col gap-4 overflow-x-hidden pb-20 pt-4">
+            <main className="mp-page">
                 {flash?.success && (
-                    <section className="plan-enter flex items-center gap-3 rounded-[22px] border border-emerald-200 bg-emerald-50 px-4 py-3">
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-white text-emerald-600 ring-1 ring-emerald-100">
-                            <CheckCircle2 size={17} />
-                        </span>
-                        <p className="font-bdo text-sm font-semibold text-emerald-700">{flash.success}</p>
+                    <section className="mp-alert mp-alert--success" role="status">
+                        <span><CheckCircle2 size={17} /></span>
+                        <p>{flash.success}</p>
                     </section>
                 )}
 
                 {errors?.plan && (
-                    <section className="plan-enter flex items-center gap-3 rounded-[22px] border border-rose-200 bg-rose-50 px-4 py-3">
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-white text-rose-600 ring-1 ring-rose-100">
-                            <X size={17} />
-                        </span>
-                        <p className="font-bdo text-sm font-semibold text-rose-700">{errors.plan}</p>
+                    <section className="mp-alert mp-alert--error" role="alert">
+                        <span><X size={17} /></span>
+                        <p>{errors.plan}</p>
                     </section>
                 )}
 
-                <section className="plan-enter relative overflow-hidden rounded-[32px] border border-[#F8B5A8]/70 bg-white">
-                    <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-[#E35336]/10 blur-3xl plan-orbit" />
-                    <div className="pointer-events-none absolute -left-20 bottom-0 h-52 w-52 rounded-full bg-emerald-400/10 blur-3xl" />
-                    <div className="relative z-10 flex flex-col gap-5 p-5 sm:p-6 xl:flex-row xl:items-end xl:justify-between">
-                        <div className="max-w-2xl">
-                            <div className="inline-flex items-center gap-2 rounded-full border border-[#F8B5A8] bg-[#FFF7F5] px-3 py-1.5 font-bdo text-[10px] font-bold uppercase tracking-[0.18em] text-[#B93D2A]">
-                                <span className="plan-live-dot" />
-                                Paket publik
-                            </div>
-                            <h2 className="mt-4 font-clash text-2xl font-semibold leading-tight text-slate-950 sm:text-3xl">
-                                Susun paket gym yang jelas, rapi, dan mudah dibandingkan pengguna.
-                            </h2>
-                            <p className="mt-2 font-bdo text-sm font-medium leading-relaxed text-slate-500">
-                                Paket ditampilkan berurutan dari Hemat, Favorit, Performa, hingga Eksklusif; paket utama tetap dapat dipilih secara terpisah.
-                            </p>
+                <section className="mp-hero">
+                    <div className="mp-hero__grid" aria-hidden="true" />
+                    <div className="mp-hero__flare mp-hero__flare--red" aria-hidden="true" />
+                    <div className="mp-hero__flare mp-hero__flare--peach" aria-hidden="true" />
+
+                    <div className="mp-hero__content">
+                        <div className="mp-hero__meta">
+                            <span><i /> Paket publik</span>
                         </div>
 
-                        <button
-                            type="button"
-                            onClick={openCreate}
-                            className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-[linear-gradient(135deg,#F08C78_0%,#E35336_52%,#B93D2A_100%)] px-5 font-clash text-sm font-semibold text-white shadow-[0_18px_30px_-22px_rgba(227,83,54,.95)] transition hover:-translate-y-0.5"
-                        >
-                            <Plus size={17} />
-                            Tambah Paket
-                        </button>
+                        <div className="mp-hero__layout">
+                            <div className="mp-hero__copy">
+                                <p>Katalog membership</p>
+                                <h2>Susun paket gym yang jelas, rapi, dan mudah dibandingkan pengguna.</h2>
+                                <span>
+                                    Paket ditampilkan dari Hemat hingga Eksklusif. Periksa harga, benefit, dan status tayang sebelum paket dilihat pengguna.
+                                </span>
+                            </div>
+
+                            <button type="button" onClick={openCreate} className="mp-hero__cta">
+                                <span><Plus size={16} /></span>
+                                Tambah paket
+                                <ArrowRight size={15} />
+                            </button>
+                        </div>
                     </div>
                 </section>
 
-                <section className="plan-enter grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                    <MetricChip icon={<Layers3 size={15} />} label="Total Paket" value={summary.total} />
-                    <MetricChip icon={<Activity size={15} />} label="Paket Aktif" value={summary.active} tone="emerald" />
-                    <MetricChip icon={<Users size={15} />} label="Member Aktif" value={summary.members} tone="slate" />
-                    <MetricChip icon={<ReceiptText size={15} />} label="Harga Mulai" value={summary.cheapest > 0 ? formatIDR(summary.cheapest) : "-"} />
+                <section className="mp-metrics" aria-label="Ringkasan paket membership">
+                    <span className="mp-metrics__label">Ringkasan</span>
+                    <div className="mp-metrics__items">
+                        <Metric icon={<Layers3 size={15} />} label="Total paket" value={summary.total} note="Seluruh katalog" />
+                        <Metric icon={<Activity size={15} />} label="Tampil publik" value={summary.active} note={Math.max(summary.total - summary.active, 0) + " disembunyikan"} />
+                        <Metric icon={<Users size={15} />} label="Member aktif" value={summary.members} note="Berlaku hari ini" />
+                        <Metric icon={<ReceiptText size={15} />} label="Harga mulai" value={summary.cheapest > 0 ? formatCompactIDR(summary.cheapest) : "—"} note="Titik masuk katalog" />
+                    </div>
                 </section>
 
-                {plans.length === 0 ? (
-                    <EmptyState onCreate={openCreate} />
-                ) : (
-                    <section className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
-                        {plans.map((plan, index) => (
-                            <PlanCard
-                                key={plan.id}
-                                plan={plan}
-                                index={index}
-                                onEdit={openEdit}
-                                onDelete={deletePlan}
-                            />
-                        ))}
-                    </section>
-                )}
-            </div>
+                <section className="mp-catalog">
+                    <header className="mp-catalog__header">
+                        <div className="mp-catalog__title">
+                            <span className="mp-catalog__icon"><Gem size={18} /></span>
+                            <div>
+                                <p>Susunan publik</p>
+                                <h2>Katalog paket</h2>
+                                <span>Urutan tier tetap konsisten; urutan manual berlaku di dalam tier yang sama.</span>
+                            </div>
+                        </div>
+
+                        <div className="mp-catalog__tools">
+                            <label className="mp-search">
+                                <Search size={15} />
+                                <input
+                                    value={query}
+                                    onChange={(event) => setQuery(event.target.value)}
+                                    placeholder="Cari paket atau tier..."
+                                    aria-label="Cari paket membership"
+                                />
+                                {query && (
+                                    <button type="button" onClick={() => setQuery("")} aria-label="Bersihkan pencarian">
+                                        <X size={13} />
+                                    </button>
+                                )}
+                            </label>
+
+                            <div className="mp-filter" aria-label="Filter status paket">
+                                {([
+                                    ["all", "Semua"],
+                                    ["active", "Aktif"],
+                                    ["inactive", "Nonaktif"],
+                                ] as const).map(([value, label]) => (
+                                    <button
+                                        key={value}
+                                        type="button"
+                                        onClick={() => setStatusFilter(value)}
+                                        className={cn(statusFilter === value && "is-selected")}
+                                        aria-pressed={statusFilter === value}
+                                    >
+                                        {label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </header>
+
+                    <div className="mp-catalog__result-bar">
+                        <span><ShieldCheck size={14} /> {filteredPlans.length} paket ditampilkan</span>
+                        <span>Hemat → Favorit → Performa → Eksklusif</span>
+                    </div>
+
+                    {plans.length === 0 ? (
+                        <EmptyState onCreate={openCreate} />
+                    ) : filteredPlans.length === 0 ? (
+                        <EmptyState onCreate={openCreate} filtered />
+                    ) : (
+                        <div className="mp-plan-list">
+                            {filteredPlans.map((plan) => (
+                                <PlanCard
+                                    key={plan.id}
+                                    plan={plan}
+                                    index={plans.findIndex((source) => source.id === plan.id)}
+                                    onEdit={openEdit}
+                                    onDelete={deletePlan}
+                                />
+                            ))}
+                        </div>
+                    )}
+                </section>
+            </main>
 
             <SlideOver
                 isOpen={slideOver.open}
                 onClose={closeSlideOver}
-                title={
-                    <span className="font-clash text-xl font-bold">
-                        {slideOver.item ? "Edit Paket" : "Tambah Paket"}
-                    </span>
-                }
-                description={
-                    slideOver.item ? (
-                        <span className="font-bdo text-sm font-semibold text-[#B93D2A]">
-                            {slideOver.item.name}
-                        </span>
-                    ) : (
-                        <span className="font-bdo text-sm text-slate-500">
-                            Buat paket baru yang siap tampil di website.
-                        </span>
-                    )
-                }
+                panelClassName="mp-slide-over"
+                headerClassName="mp-slide-over__header"
+                contentClassName="mp-slide-over__content"
+                title={slideOver.item ? "Edit Paket" : "Tambah Paket"}
+                description={slideOver.item
+                    ? "Perbarui " + slideOver.item.name + " tanpa mengubah histori member."
+                    : "Bangun paket baru yang siap tampil di website."}
             >
                 {slideOver.open && (
                     <PlanForm

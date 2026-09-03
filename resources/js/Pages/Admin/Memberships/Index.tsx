@@ -15,14 +15,17 @@
         Plus,
         ReceiptText,
         RefreshCw,
+        Search,
+        LoaderCircle,
         Star,
         Tags,
         UserRound,
         Wallet,
         XCircle,
     } from "lucide-react";
-    import { type FormEvent, type ReactNode, useMemo, useRef, useState } from "react";
+    import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
     import DataTable from "@/Components/Admin/DataTable";
+    import type { CursorPaginationState } from "@/Components/Admin/CursorPagination";
     import SlideOver from "@/Components/Admin/SlideOver";
     import AdminLayout from "@/Layouts/AdminLayout";
     import { cn } from "@/lib/utils";
@@ -55,6 +58,29 @@
 
     type Props = PageProps<{
         memberships: AdminMembership[];
+        membership_pagination: {
+            per_page: number;
+            count: number;
+            has_next: boolean;
+            has_previous: boolean;
+            next_cursor: string | null;
+            previous_cursor: string | null;
+        };
+        membership_filters: {
+            date: string;
+            search: string | null;
+            status: MembershipStatus | null;
+            per_page: number;
+        };
+        membership_stats: {
+            total: number;
+            active: number;
+            pending: number;
+            expired: number;
+            cancelled: number;
+            expiring_soon: number;
+            date: string;
+        };
         plans: PlanOption[];
         users: UserOption[];
     }>;
@@ -188,13 +214,11 @@
             value: "warga_ub",
             label: "Warga UB",
             dot: "bg-sky-500",
-            style: "border-sky-200 bg-sky-50 text-sky-700",
         },
         {
             value: "umum",
             label: "Umum",
             dot: "bg-emerald-500",
-            style: "border-emerald-200 bg-emerald-50 text-emerald-700",
         },
     ] as const;
 
@@ -248,23 +272,6 @@
         date.setDate(date.getDate() + delta);
 
         return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-    }
-
-    function isMembershipInPeriod(membership: AdminMembership, dateStr: string): boolean {
-        return membership.start_date <= dateStr && membership.end_date >= dateStr;
-    }
-
-    function isMembershipActiveOnDate(membership: AdminMembership, dateStr: string): boolean {
-        return membership.status === "active" && isMembershipInPeriod(membership, dateStr);
-    }
-
-    function daysBetween(dateA: string, dateB: string): number {
-        const [yearA, monthA, dayA] = dateA.split("-").map(Number);
-        const [yearB, monthB, dayB] = dateB.split("-").map(Number);
-        const a = new Date(yearA, (monthA ?? 1) - 1, dayA ?? 1);
-        const b = new Date(yearB, (monthB ?? 1) - 1, dayB ?? 1);
-
-        return Math.ceil((b.getTime() - a.getTime()) / 86_400_000);
     }
 
     function addMonthsToDateStr(dateStr: string, months: number): string {
@@ -413,62 +420,40 @@
     }
 
     function MembershipBookingStyleControls({
-        memberships,
-        filteredCount,
+        statistics,
         dateStr,
-        setDateStr,
+        onDateChange,
         onCreate,
     }: {
-        memberships: AdminMembership[];
-        filteredCount: number;
+        statistics: Props["membership_stats"];
         dateStr: string;
-        setDateStr: (value: string | ((previous: string) => string)) => void;
+        onDateChange: (value: string) => void;
         onCreate: () => void;
     }) {
         const datePickerRef = useRef<HTMLInputElement>(null);
-        const activeOnDate = memberships.filter((membership) => isMembershipActiveOnDate(membership, dateStr)).length;
-        const expiringSoon = memberships.filter((membership) => {
-            if (!isMembershipActiveOnDate(membership, dateStr)) return false;
-            const days = daysBetween(dateStr, membership.end_date);
-            return days >= 0 && days <= 14;
-        }).length;
-        const expired = memberships.filter((membership) => membership.status === "expired").length;
-        const pending = memberships.filter(
-            (membership) => membership.status === "pending_payment" && isMembershipInPeriod(membership, dateStr),
-        ).length;
+        const activeOnDate = statistics.active;
+        const expiringSoon = statistics.expiring_soon;
+        const expired = statistics.expired;
+        const pending = statistics.pending;
         return (
             <div className="flex flex-col gap-4">
-                <section className="membership-enter membership-card-glint overflow-hidden rounded-[26px] border border-[#FFE0D8] bg-[linear-gradient(135deg,#ffffff_0%,#FFF8F6_62%,#FFF1EE_100%)] p-3 shadow-[0_20px_46px_-38px_rgba(185,61,42,.34)] sm:p-4">
-                    <div className="flex flex-col gap-4">
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div className="flex min-w-0 items-center gap-3">
-                                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] bg-[linear-gradient(135deg,#F08C78_0%,#E35336_54%,#B93D2A_100%)] text-white shadow-[0_16px_26px_-20px_rgba(227,83,54,.95)]">
-                                    <BadgeCheck size={18} />
-                                </div>
-                                <div className="min-w-0">
-                                    <p className="font-bdo text-[10px] font-bold uppercase tracking-[0.16em] text-[#B93D2A]">Ringkasan Membership</p>
-                                    <h2 className="font-clash text-base font-semibold leading-tight text-slate-950 sm:text-lg">Status anggota pada tanggal terpilih</h2>
-                                </div>
-                            </div>
-
-                            <button
-                                type="button"
-                                onClick={onCreate}
-                                className="inline-flex h-11 items-center justify-center gap-2 rounded-[16px] bg-[linear-gradient(135deg,#F08C78_0%,#E35336_54%,#B93D2A_100%)] px-5 font-clash text-sm font-semibold text-white shadow-[0_18px_30px_-24px_rgba(227,83,54,.95)] transition hover:-translate-y-0.5 sm:min-w-[190px]"
-                            >
-                                <Plus size={17} />
-                                Tambah Membership
-                            </button>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
+                <section className="membership-enter flex flex-col justify-between gap-3 rounded-[20px] border border-slate-200 bg-white p-2.5 shadow-[0_18px_40px_-36px_rgba(15,23,42,.45)] md:flex-row md:items-center">
+                    <div className="flex flex-wrap items-center gap-2">
                             <MembershipMetric icon={<Clock3 size={16} />} value={pending} label="Menunggu" note="pembayaran belum selesai" tone="amber" />
                             <MembershipMetric icon={<CheckCircle2 size={16} />} value={activeOnDate} label="Aktif" note="berlaku di tanggal ini" tone="emerald" />
                             <MembershipMetric icon={<Clock3 size={16} />} value={expiringSoon} label="Segera habis" note="maksimal 14 hari lagi" tone="amber" />
                             <MembershipMetric icon={<XCircle size={16} />} value={expired} label="Expired" note="masa aktif berakhir" tone="rose" />
-                            <MembershipMetric icon={<BadgeCheck size={16} />} value={filteredCount} label="Ditampilkan" note="anggota sesuai tanggal" tone="sky" />
-                        </div>
+                            <MembershipMetric icon={<BadgeCheck size={16} />} value={statistics.total} label="Ditampilkan" note="anggota sesuai tanggal" tone="sky" />
                     </div>
+
+                    <button
+                        type="button"
+                        onClick={onCreate}
+                        className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-[10px] bg-[linear-gradient(135deg,#F08C78_0%,#E35336_52%,#B93D2A_100%)] px-4 font-clash text-[13px] font-semibold text-white shadow-[0_18px_30px_-24px_rgba(227,83,54,.95)] transition-all hover:-translate-y-0.5 md:w-auto"
+                    >
+                        <Plus size={16} />
+                        Tambah Membership
+                    </button>
                 </section>
 
                 <section className="membership-enter membership-card-glint rounded-[26px] border border-[#FFE0D8] bg-white p-3 shadow-[0_20px_46px_-40px_rgba(185,61,42,.32)] sm:p-4">
@@ -479,7 +464,7 @@
                                 <div className="flex w-full items-center gap-1.5 rounded-[18px] border border-[#F8B5A8] bg-[linear-gradient(135deg,#F08C78_0%,#E35336_54%,#B93D2A_100%)] p-1.5 shadow-[0_16px_28px_-22px_rgba(227,83,54,.95)] sm:w-auto">
                                     <button
                                         type="button"
-                                        onClick={() => setDateStr((date) => shiftDate(date, -1))}
+                                        onClick={() => onDateChange(shiftDate(dateStr, -1))}
                                         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-white/14 text-white shadow-sm ring-1 ring-white/25 transition hover:-translate-y-0.5 hover:bg-white/24 hover:ring-white/45"
                                         aria-label="Hari sebelumnya"
                                     >
@@ -500,14 +485,14 @@
                                         type="date"
                                         value={dateStr}
                                         onChange={(event) => {
-                                            if (event.target.value) setDateStr(event.target.value);
+                                            if (event.target.value) onDateChange(event.target.value);
                                         }}
                                         className="sr-only"
                                         aria-label="Pilih tanggal acuan membership"
                                     />
                                     <button
                                         type="button"
-                                        onClick={() => setDateStr((date) => shiftDate(date, 1))}
+                                        onClick={() => onDateChange(shiftDate(dateStr, 1))}
                                         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-white/14 text-white shadow-sm ring-1 ring-white/25 transition hover:-translate-y-0.5 hover:bg-white/24 hover:ring-white/45"
                                         aria-label="Hari berikutnya"
                                     >
@@ -516,7 +501,7 @@
                                 </div>
                                 <button
                                     type="button"
-                                    onClick={() => setDateStr(todayStr())}
+                                    onClick={() => onDateChange(todayStr())}
                                     className="w-full rounded-[14px] border border-[#F8B5A8] bg-[linear-gradient(135deg,#F08C78_0%,#E35336_54%,#B93D2A_100%)] px-4 py-2.5 font-bdo text-[13px] font-bold uppercase tracking-wide text-white shadow-[0_16px_28px_-22px_rgba(227,83,54,.95)] transition hover:-translate-y-0.5 hover:brightness-105 sm:w-auto"
                                 >
                                     Hari ini
@@ -524,14 +509,14 @@
                             </div>
                         </div>
 
-                        <div className="ml-auto flex w-full flex-col gap-2 rounded-[18px] border border-slate-200 bg-slate-50 p-2 sm:w-auto">
-                            <span className="px-1 font-bdo text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
+                        <div className="ml-auto flex w-full items-center gap-1.5 rounded-[14px] border border-slate-100 bg-slate-50 p-1 sm:w-auto">
+                            <span className="hidden px-2 font-bdo text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 md:inline">
                                 Tipe
                             </span>
-                            <div className="grid grid-cols-2 gap-1.5">
+                            <div className="flex flex-1 flex-wrap items-center justify-end gap-1.5 sm:flex-none">
                                 {MEMBERSHIP_CATEGORY_LEGEND.map((item) => (
-                                    <span key={item.value} className={cn("inline-flex min-h-10 items-center gap-2 rounded-[14px] border px-3 py-2 font-bdo text-[11px] font-bold shadow-sm transition hover:-translate-y-0.5", item.style)}>
-                                        <span className={cn("h-2.5 w-2.5 rounded-full shadow-sm ring-2 ring-white", item.dot)} />
+                                    <span key={item.value} className="inline-flex items-center gap-1.5 rounded-[10px] bg-white px-2.5 py-1.5 font-bdo text-[10px] font-bold text-slate-600 shadow-sm ring-1 ring-slate-100 transition hover:bg-slate-100 hover:text-slate-800">
+                                        <span className={cn("h-2 w-2 rounded-full", item.dot)} />
                                         {item.label}
                                     </span>
                                 ))}
@@ -557,21 +542,39 @@
         tone: "emerald" | "amber" | "rose" | "sky";
     }) {
         const styles = {
-            emerald: "border-emerald-200 bg-[linear-gradient(135deg,#ffffff_0%,#ECFDF5_100%)] text-emerald-700",
-            amber: "border-amber-200 bg-[linear-gradient(135deg,#ffffff_0%,#FFFBEB_100%)] text-amber-700",
-            rose: "border-rose-200 bg-[linear-gradient(135deg,#ffffff_0%,#FFF1F2_100%)] text-rose-600",
-            sky: "border-sky-200 bg-[linear-gradient(135deg,#ffffff_0%,#F0F9FF_100%)] text-sky-700",
+            emerald: {
+                shell: "border-emerald-100 bg-emerald-50",
+                dot: "bg-emerald-500",
+                text: "text-emerald-600",
+            },
+            amber: {
+                shell: "border-[#F8B5A8] bg-[#FFF4F1]",
+                dot: "bg-[#E35336]",
+                text: "text-[#B93D2A]",
+            },
+            rose: {
+                shell: "border-rose-100 bg-rose-50",
+                dot: "bg-rose-500",
+                text: "text-rose-600",
+            },
+            sky: {
+                shell: "border-slate-200 bg-white",
+                dot: "bg-slate-400",
+                text: "text-slate-500",
+            },
         }[tone];
 
         return (
-            <article className={cn("flex min-w-0 items-center gap-3 rounded-[18px] border p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md", styles)}>
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-white shadow-sm ring-1 ring-current/10">
+            <article
+                className={cn("flex min-w-0 items-center gap-1.5 rounded-[10px] border px-3 py-1 shadow-sm", styles.shell)}
+                title={`${label}: ${value} — ${note}`}
+            >
+                <span className={cn("shrink-0 [&>svg]:h-[13px] [&>svg]:w-[13px]", styles.text)}>
                     {icon}
                 </span>
-                <span className="min-w-0">
-                    <span className="block font-clash text-2xl font-bold leading-none text-slate-950">{value}</span>
-                    <span className="mt-1 block truncate font-bdo text-[10px] font-bold uppercase tracking-wide text-current">{label}</span>
-                    <span className="mt-0.5 hidden truncate font-bdo text-[10px] font-semibold text-slate-400 sm:block">{note}</span>
+                <span className={cn("h-2 w-2 shrink-0 rounded-full", styles.dot)} />
+                <span className={cn("font-bdo text-[10px] font-bold uppercase tracking-wider", styles.text)}>
+                    {value} {label}
                 </span>
             </article>
         );
@@ -587,6 +590,194 @@
             >
                 {children}
                 <span className="pointer-events-none absolute left-2 right-2 top-1.5 h-1 rounded-full bg-white/35 blur-[1px]" />
+            </div>
+        );
+    }
+
+    function MembershipUserLookup({
+        initialUsers,
+        value,
+        onSelect,
+    }: {
+        initialUsers: UserOption[];
+        value: string;
+        onSelect: (user: UserOption | null) => void;
+    }) {
+        const initialSelection = initialUsers.find(
+            (user) => String(user.id) === value,
+        );
+        const [query, setQuery] = useState(initialSelection?.name ?? "");
+        const [options, setOptions] = useState(initialUsers);
+        const [open, setOpen] = useState(false);
+        const [loading, setLoading] = useState(false);
+        const [error, setError] = useState<string | null>(null);
+        const rootRef = useRef<HTMLDivElement>(null);
+        const timerRef = useRef<number | null>(null);
+        const requestRef = useRef<AbortController | null>(null);
+
+        const runSearch = (search: string) => {
+            requestRef.current?.abort();
+
+            if (search.trim().length < 2) {
+                setOptions(initialUsers);
+                setLoading(false);
+                setError(null);
+                return;
+            }
+
+            const controller = new AbortController();
+            requestRef.current = controller;
+            setLoading(true);
+            setError(null);
+
+            fetch(
+                `${route("admin.memberships.users.search")}?search=${encodeURIComponent(search.trim())}`,
+                {
+                    credentials: "same-origin",
+                    signal: controller.signal,
+                    headers: {
+                        Accept: "application/json",
+                        "X-Requested-With": "XMLHttpRequest",
+                    },
+                },
+            )
+                .then((response) => {
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    return response.json() as Promise<{ data: UserOption[] }>;
+                })
+                .then((payload) => setOptions(payload.data))
+                .catch((requestError) => {
+                    if (requestError instanceof DOMException && requestError.name === "AbortError") {
+                        return;
+                    }
+                    setError("Pencarian akun belum tersedia. Coba lagi.");
+                })
+                .finally(() => {
+                    if (!controller.signal.aborted) setLoading(false);
+                });
+        };
+
+        const handleQueryChange = (nextQuery: string) => {
+            setQuery(nextQuery);
+            setOpen(true);
+            onSelect(null);
+
+            if (timerRef.current !== null) {
+                window.clearTimeout(timerRef.current);
+            }
+
+            timerRef.current = window.setTimeout(() => runSearch(nextQuery), 250);
+        };
+
+        const choose = (user: UserOption | null) => {
+            onSelect(user);
+            setQuery(user?.name ?? "");
+            setOptions(user ? [user, ...initialUsers.filter((item) => item.id !== user.id)] : initialUsers);
+            setOpen(false);
+            setError(null);
+        };
+
+        useEffect(() => {
+            const closeOnOutsidePointer = (event: PointerEvent) => {
+                if (!rootRef.current?.contains(event.target as Node)) {
+                    setOpen(false);
+                }
+            };
+
+            document.addEventListener("pointerdown", closeOnOutsidePointer);
+
+            return () => document.removeEventListener("pointerdown", closeOnOutsidePointer);
+        }, []);
+
+        useEffect(() => () => {
+            if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+            requestRef.current?.abort();
+        }, []);
+
+        return (
+            <div ref={rootRef} className="relative">
+                <div className="relative">
+                    <Search
+                        size={15}
+                        className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+                    />
+                    <input
+                        type="search"
+                        value={query}
+                        onFocus={() => setOpen(true)}
+                        onChange={(event) => handleQueryChange(event.target.value)}
+                        placeholder="Cari nama, email, atau nomor..."
+                        className={cn(inputBase, "pl-10 pr-10")}
+                        role="combobox"
+                        aria-expanded={open}
+                        aria-controls="membership-user-options"
+                        autoComplete="off"
+                    />
+                    {loading && (
+                        <LoaderCircle
+                            size={15}
+                            className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 animate-spin text-[#E35336]"
+                        />
+                    )}
+                </div>
+
+                {open && (
+                    <div
+                        id="membership-user-options"
+                        className="absolute left-0 right-0 z-40 mt-2 max-h-64 overflow-y-auto rounded-[18px] border border-slate-200 bg-white p-2 shadow-[0_24px_50px_-28px_rgba(15,23,42,.35)]"
+                        role="listbox"
+                    >
+                        <button
+                            type="button"
+                            onClick={() => choose(null)}
+                            className={cn(
+                                "flex w-full items-center justify-between rounded-[13px] px-3 py-2.5 text-left transition hover:bg-slate-50",
+                                !value && "bg-[#FFF7F5]",
+                            )}
+                        >
+                            <span>
+                                <span className="block font-clash text-sm font-semibold text-slate-800">Tamu / tanpa akun</span>
+                                <span className="block font-bdo text-[11px] font-medium text-slate-400">Nama diisi manual</span>
+                            </span>
+                            {!value && <CheckCircle2 size={15} className="text-[#E35336]" />}
+                        </button>
+
+                        <div className="my-1 h-px bg-slate-100" />
+
+                        {options.map((user) => (
+                            <button
+                                key={user.id}
+                                type="button"
+                                onClick={() => choose(user)}
+                                className={cn(
+                                    "flex w-full items-center justify-between gap-3 rounded-[13px] px-3 py-2.5 text-left transition hover:bg-slate-50",
+                                    String(user.id) === value && "bg-[#FFF7F5]",
+                                )}
+                                role="option"
+                                aria-selected={String(user.id) === value}
+                            >
+                                <span className="min-w-0">
+                                    <span className="block truncate font-clash text-sm font-semibold text-slate-800">{user.name}</span>
+                                    <span className="block truncate font-bdo text-[11px] font-medium text-slate-400">{user.email}</span>
+                                </span>
+                                {String(user.id) === value && (
+                                    <CheckCircle2 size={15} className="shrink-0 text-[#E35336]" />
+                                )}
+                            </button>
+                        ))}
+
+                        {!loading && options.length === 0 && !error && (
+                            <p className="px-3 py-5 text-center font-bdo text-xs font-semibold text-slate-400">
+                                Akun tidak ditemukan.
+                            </p>
+                        )}
+                        {error && (
+                            <p className="px-3 py-3 font-bdo text-xs font-semibold text-rose-600" role="alert">
+                                {error}
+                            </p>
+                        )}
+                    </div>
+                )}
             </div>
         );
     }
@@ -648,31 +839,18 @@
                 </section>
 
                 <div>
-                    <label htmlFor="membership_user_id" className={labelBase}>Hubungkan akun pengguna</label>
-                    <select
-                        id="membership_user_id"
+                    <label className={labelBase}>Hubungkan akun pengguna</label>
+                    <MembershipUserLookup
+                        initialUsers={users}
                         value={data.user_id}
-                        onChange={(event) => {
-                            const userId = event.target.value;
-                            const selectedUser = users.find(
-                                (user) => String(user.id) === userId,
-                            );
+                        onSelect={(selectedUser) => {
                             setData((current) => ({
                                 ...current,
-                                user_id: userId,
-                                customer_name:
-                                    selectedUser?.name ?? current.customer_name,
+                                user_id: selectedUser ? String(selectedUser.id) : "",
+                                customer_name: selectedUser?.name ?? current.customer_name,
                             }));
                         }}
-                        className={inputBase}
-                    >
-                        <option value="">Tamu / tanpa akun</option>
-                        {users.map((user) => (
-                            <option key={user.id} value={user.id}>
-                                {user.name} · {user.email}
-                            </option>
-                        ))}
-                    </select>
+                    />
                     <p className="mt-1.5 font-bdo text-[11px] font-medium text-slate-400">
                         Pilih akun agar membership otomatis muncul di profil pengguna.
                     </p>
@@ -931,10 +1109,16 @@
     function MembershipDetail({
         membership,
         plans,
+        historiesLoading,
+        historiesHasMore,
+        historiesError,
         onClose,
     }: {
         membership: AdminMembership;
         plans: PlanOption[];
+        historiesLoading: boolean;
+        historiesHasMore: boolean;
+        historiesError: string | null;
         onClose: () => void;
     }) {
         const remainingDays = daysUntil(membership.end_date);
@@ -1100,7 +1284,16 @@
                         <p className="font-bdo text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">Riwayat membership</p>
                     </div>
                     <div className="mt-3 grid gap-2">
-                        {(membership.histories ?? []).length === 0 ? (
+                        {historiesLoading ? (
+                            <div className="flex items-center gap-2 rounded-[16px] bg-slate-50 px-3 py-4 font-bdo text-xs font-semibold text-slate-500">
+                                <LoaderCircle size={15} className="animate-spin text-[#E35336]" />
+                                Memuat riwayat terverifikasi...
+                            </div>
+                        ) : historiesError ? (
+                            <p className="rounded-[16px] border border-rose-200 bg-rose-50 px-3 py-3 font-bdo text-xs font-semibold text-rose-600" role="alert">
+                                {historiesError}
+                            </p>
+                        ) : (membership.histories ?? []).length === 0 ? (
                             <p className="rounded-[16px] bg-slate-50 px-3 py-3 font-bdo text-xs font-semibold text-slate-400">
                                 Riwayat baru akan tercatat mulai dari perubahan berikutnya.
                             </p>
@@ -1128,6 +1321,11 @@
                                     </p>
                                 </div>
                             ))
+                        )}
+                        {!historiesLoading && !historiesError && historiesHasMore && (
+                            <p className="rounded-[14px] border border-amber-200 bg-amber-50 px-3 py-2 font-bdo text-[11px] font-semibold text-amber-700">
+                                Menampilkan 100 aktivitas terbaru. Riwayat lama tetap tersimpan aman di sistem.
+                            </p>
                         )}
                     </div>
                 </section>
@@ -1177,7 +1375,23 @@
 
     const listHelper = createColumnHelper<AdminMembership>();
 
-    function ListView({ memberships, onSelect }: { memberships: AdminMembership[]; onSelect: (membership: AdminMembership) => void }) {
+    function ListView({
+        memberships,
+        pagination,
+        searchValue,
+        statusValue,
+        onSearchChange,
+        onStatusChange,
+        onSelect,
+    }: {
+        memberships: AdminMembership[];
+        pagination: CursorPaginationState;
+        searchValue: string;
+        statusValue: MembershipStatus | "";
+        onSearchChange: (value: string) => void;
+        onStatusChange: (value: MembershipStatus | "") => void;
+        onSelect: (membership: AdminMembership) => void;
+    }) {
         const columns = [
             listHelper.accessor("id", {
                 header: "ID",
@@ -1292,6 +1506,25 @@
                     data={memberships}
                     searchColumn="customer_name"
                     searchPlaceholder="Cari nama member..."
+                    searchValue={searchValue}
+                    onSearchChange={onSearchChange}
+                    serverPagination={pagination}
+                    toolbar={
+                        <select
+                            value={statusValue}
+                            onChange={(event) =>
+                                onStatusChange(event.target.value as MembershipStatus | "")
+                            }
+                            className="h-10 rounded-2xl border-0 bg-gray-50 px-3 pr-8 font-bdo text-xs font-semibold text-gray-600 focus:ring-1 focus:ring-gray-900"
+                            aria-label="Filter status membership"
+                        >
+                            <option value="">Semua status</option>
+                            <option value="pending_payment">Menunggu pembayaran</option>
+                            <option value="active">Aktif</option>
+                            <option value="expired">Expired</option>
+                            <option value="cancelled">Dibatalkan</option>
+                        </select>
+                    }
                     emptyMessage="Belum ada membership."
                 />
             </section>
@@ -1299,15 +1532,191 @@
     }
 
     export default function MembershipsIndex() {
-        const { memberships, plans, users } = usePage<Props>().props;
+        const {
+            memberships,
+            membership_pagination: membershipPagination,
+            membership_filters: membershipFilters,
+            membership_stats: membershipStats,
+            plans,
+            users,
+        } = usePage<Props>().props;
         const [selected, setSelected] = useState<AdminMembership | null>(null);
         const [showCreate, setShowCreate] = useState(false);
-        const [dateStr, setDateStr] = useState(todayStr());
-
-        const filteredMemberships = useMemo(
-            () => memberships.filter((membership) => isMembershipInPeriod(membership, dateStr)),
-            [dateStr, memberships],
+        const [dateStr, setDateStr] = useState(membershipFilters.date);
+        const [searchValue, setSearchValue] = useState(membershipFilters.search ?? "");
+        const [statusValue, setStatusValue] = useState<MembershipStatus | "">(
+            membershipFilters.status ?? "",
         );
+        const [historiesLoading, setHistoriesLoading] = useState(false);
+        const [historiesHasMore, setHistoriesHasMore] = useState(false);
+        const [historiesError, setHistoriesError] = useState<string | null>(null);
+        const searchTimer = useRef<number | null>(null);
+        const detailAbort = useRef<AbortController | null>(null);
+        const detailSequence = useRef(0);
+
+        const queryParams = (overrides: Record<string, string | number | null> = {}) => {
+            const params: Record<string, string | number> = {
+                date: dateStr,
+                per_page: membershipPagination.per_page,
+            };
+            const search = searchValue.trim();
+            const status = statusValue;
+
+            if (search) params.search = search;
+            if (status) params.status = status;
+
+            Object.entries(overrides).forEach(([key, value]) => {
+                if (value === null || value === "") {
+                    delete params[key];
+                } else {
+                    params[key] = value;
+                }
+            });
+
+            return params;
+        };
+
+        const reloadList = (overrides: Record<string, string | number | null> = {}) => {
+            router.get(route("admin.memberships.index"), queryParams(overrides), {
+                preserveState: true,
+                preserveScroll: true,
+                replace: true,
+                only: ["memberships", "membership_pagination", "membership_filters"],
+            });
+        };
+
+        const handleDateChange = (nextDate: string) => {
+            setDateStr(nextDate);
+            router.get(
+                route("admin.memberships.index"),
+                queryParams({ date: nextDate, cursor: null }),
+                {
+                    preserveState: true,
+                    preserveScroll: true,
+                    replace: true,
+                    only: [
+                        "memberships",
+                        "membership_pagination",
+                        "membership_filters",
+                        "membership_stats",
+                    ],
+                },
+            );
+        };
+
+        const handleSearchChange = (value: string) => {
+            setSearchValue(value);
+
+            if (searchTimer.current !== null) {
+                window.clearTimeout(searchTimer.current);
+            }
+
+            searchTimer.current = window.setTimeout(() => {
+                reloadList({ search: value.trim() || null, cursor: null });
+            }, 300);
+        };
+
+        const handleStatusChange = (value: MembershipStatus | "") => {
+            setStatusValue(value);
+            reloadList({ status: value || null, cursor: null });
+        };
+
+        const closeDetail = () => {
+            detailSequence.current += 1;
+            detailAbort.current?.abort();
+            detailAbort.current = null;
+            setSelected(null);
+            setHistoriesLoading(false);
+            setHistoriesHasMore(false);
+            setHistoriesError(null);
+        };
+
+        const openDetail = async (membership: AdminMembership) => {
+            detailSequence.current += 1;
+            const sequence = detailSequence.current;
+            detailAbort.current?.abort();
+            const controller = new AbortController();
+            detailAbort.current = controller;
+
+            setSelected(membership);
+            setHistoriesLoading(true);
+            setHistoriesHasMore(false);
+            setHistoriesError(null);
+
+            try {
+                const response = await fetch(
+                    route("admin.memberships.show", membership.id),
+                    {
+                        credentials: "same-origin",
+                        signal: controller.signal,
+                        headers: {
+                            Accept: "application/json",
+                            "X-Requested-With": "XMLHttpRequest",
+                        },
+                    },
+                );
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const payload = (await response.json()) as {
+                    data: AdminMembership;
+                    meta: { histories_has_more: boolean };
+                };
+
+                if (sequence === detailSequence.current) {
+                    setSelected(payload.data);
+                    setHistoriesHasMore(payload.meta.histories_has_more);
+                }
+            } catch (error) {
+                if (error instanceof DOMException && error.name === "AbortError") {
+                    return;
+                }
+
+                if (sequence === detailSequence.current) {
+                    setHistoriesError("Riwayat belum dapat dimuat. Tutup detail lalu coba kembali.");
+                }
+            } finally {
+                if (sequence === detailSequence.current) {
+                    setHistoriesLoading(false);
+                }
+            }
+        };
+
+        useEffect(() => {
+            setDateStr(membershipFilters.date);
+            setSearchValue(membershipFilters.search ?? "");
+            setStatusValue(membershipFilters.status ?? "");
+        }, [
+            membershipFilters.date,
+            membershipFilters.search,
+            membershipFilters.status,
+        ]);
+
+        useEffect(() => {
+            const interval = window.setInterval(() => {
+                if (document.visibilityState === "visible") {
+                    router.reload({
+                        only: [
+                            "memberships",
+                            "membership_pagination",
+                            "membership_stats",
+                        ],
+                        headers: { "X-UBSC-Background-Poll": "1" },
+                    });
+                }
+            }, 60000);
+
+            return () => window.clearInterval(interval);
+        }, []);
+
+        useEffect(() => () => {
+            if (searchTimer.current !== null) {
+                window.clearTimeout(searchTimer.current);
+            }
+            detailAbort.current?.abort();
+        }, []);
 
         return (
             <AdminLayout
@@ -1327,19 +1736,40 @@
 
                 <div className="flex flex-col gap-4 overflow-x-hidden pb-16 pt-3">
                     <MembershipBookingStyleControls
-                        memberships={memberships}
-                        filteredCount={filteredMemberships.length}
+                        statistics={membershipStats}
                         dateStr={dateStr}
-                        setDateStr={setDateStr}
+                        onDateChange={handleDateChange}
                         onCreate={() => setShowCreate(true)}
                     />
 
-                    <ListView memberships={filteredMemberships} onSelect={setSelected} />
+                    <ListView
+                        memberships={memberships}
+                        pagination={{
+                            perPage: membershipPagination.per_page,
+                            count: membershipPagination.count,
+                            hasNext: membershipPagination.has_next,
+                            hasPrevious: membershipPagination.has_previous,
+                            nextCursor: membershipPagination.next_cursor,
+                            previousCursor: membershipPagination.previous_cursor,
+                            total:
+                                !searchValue.trim() && !statusValue
+                                    ? membershipStats.total
+                                    : undefined,
+                            onNavigate: (cursor) => reloadList({ cursor }),
+                            onPerPageChange: (perPage) =>
+                                reloadList({ per_page: perPage, cursor: null }),
+                        }}
+                        searchValue={searchValue}
+                        statusValue={statusValue}
+                        onSearchChange={handleSearchChange}
+                        onStatusChange={handleStatusChange}
+                        onSelect={openDetail}
+                    />
                 </div>
 
                 <SlideOver
                     isOpen={selected !== null}
-                    onClose={() => setSelected(null)}
+                    onClose={closeDetail}
                     title={<span className="font-clash text-xl font-bold">Detail Membership</span>}
                     description={
                         selected ? (
@@ -1349,7 +1779,17 @@
                         ) : undefined
                     }
                 >
-                    {selected && <MembershipDetail key={selected.id} membership={selected} plans={plans} onClose={() => setSelected(null)} />}
+                    {selected && (
+                        <MembershipDetail
+                            key={selected.id}
+                            membership={selected}
+                            plans={plans}
+                            historiesLoading={historiesLoading}
+                            historiesHasMore={historiesHasMore}
+                            historiesError={historiesError}
+                            onClose={closeDetail}
+                        />
+                    )}
                 </SlideOver>
 
                 <SlideOver

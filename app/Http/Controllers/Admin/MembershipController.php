@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Membership;
 use App\Models\MembershipPlan;
 use App\Models\User;
+use App\Services\AdminMembershipReadModel;
 use App\Services\MembershipLifecycleService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -16,26 +18,34 @@ class MembershipController extends Controller
 {
     public function __construct(
         private readonly MembershipLifecycleService $memberships,
+        private readonly AdminMembershipReadModel $readModel,
     ) {}
 
-    public function index(): Response
+    public function index(Request $request): Response
     {
         $this->authorizeAny(['view-members', 'manage-members', 'manage-payment-links']);
 
-        $memberships = Membership::with([
-            'user',
-            'transaction',
-            'plan',
-            'renewedFrom.plan',
-            'createdBy',
-            'histories.plan',
-            'histories.transaction',
-            'histories.renewedFrom.plan',
-            'histories.actor',
-        ])
-            ->orderBy('created_at', 'desc')
-            ->get()
-            ->map(fn (Membership $membership) => $this->transform($membership));
+        $validated = $request->validate([
+            'date' => ['nullable', 'date_format:Y-m-d'],
+            'search' => ['nullable', 'string', 'max:100'],
+            'status' => ['nullable', 'in:pending_payment,active,expired,cancelled'],
+            'per_page' => ['nullable', 'integer', 'in:10,20,50'],
+            'cursor' => ['nullable', 'string', 'max:2048'],
+        ]);
+
+        $date = $validated['date'] ?? today()->toDateString();
+        $filters = [
+            'date' => $date,
+            'search' => trim((string) ($validated['search'] ?? '')) ?: null,
+            'status' => $validated['status'] ?? null,
+            'per_page' => (int) ($validated['per_page'] ?? 20),
+            'cursor' => $validated['cursor'] ?? null,
+        ];
+
+        $listingPayload = null;
+        $listing = function () use (&$listingPayload, $filters): array {
+            return $listingPayload ??= $this->readModel->listing($filters);
+        };
 
         $plans = MembershipPlan::query()
             ->orderByTier()
@@ -54,12 +64,35 @@ class MembershipController extends Controller
             ]);
 
         return Inertia::render('Admin/Memberships/Index', [
-            'memberships' => $memberships,
+            'memberships' => fn (): array => $listing()['data'],
+            'membership_pagination' => fn (): array => $listing()['pagination'],
+            'membership_filters' => [
+                ...$filters,
+                'cursor' => null,
+            ],
+            'membership_stats' => fn (): array => $this->readModel->statistics($date),
             'plans' => $plans,
-            'users' => User::query()
-                ->whereDoesntHave('roles')
-                ->orderBy('name')
-                ->get(['id', 'name', 'email', 'phone_number']),
+            'users' => fn (): array => $this->readModel->initialUsers(),
+        ]);
+    }
+
+    public function show(Membership $membership): JsonResponse
+    {
+        $this->authorizeAny(['view-members', 'manage-members', 'manage-payment-links']);
+
+        return response()->json($this->readModel->detail($membership));
+    }
+
+    public function searchUsers(Request $request): JsonResponse
+    {
+        $this->authorizeAny(['manage-members']);
+
+        $validated = $request->validate([
+            'search' => ['required', 'string', 'min:2', 'max:100'],
+        ]);
+
+        return response()->json([
+            'data' => $this->readModel->searchUsers($validated['search']),
         ]);
     }
 
@@ -142,82 +175,6 @@ class MembershipController extends Controller
         );
 
         return back()->with('success', 'Membership berhasil dibatalkan.');
-    }
-
-    private function transform(Membership $membership): array
-    {
-        $snapshot = is_array($membership->transaction?->service_snapshot)
-            ? $membership->transaction->service_snapshot
-            : [];
-        $planTier = $snapshot['plan_tier'] ?? $membership->plan?->tier;
-        $planDurationMonths = (int) (
-            $snapshot['duration_months']
-            ?? $membership->plan?->duration_months
-            ?? 0
-        );
-
-        return [
-            'id' => $membership->id,
-            'user_id' => $membership->user_id,
-            'membership_plan_id' => $membership->membership_plan_id,
-            'renewed_from_membership_id' => $membership->renewed_from_membership_id,
-            'renewed_from_label' => $membership->renewedFrom
-                ? '#'.str_pad((string) $membership->renewedFrom->id, 5, '0', STR_PAD_LEFT).' - '.($membership->renewedFrom->plan?->name ?? 'Manual')
-                : null,
-            'created_by_name' => $membership->createdBy?->name,
-            'created_via' => $membership->created_via,
-            'plan_name' => $snapshot['plan_name'] ?? $membership->plan?->name,
-            'plan_tier' => $planTier,
-            'plan_tier_label' => $planTier
-                ? (MembershipPlan::TIER_LABELS[$planTier] ?? ucfirst((string) $planTier))
-                : null,
-            'plan_duration_months' => $planDurationMonths ?: null,
-            'plan_duration_label' => $planDurationMonths > 0
-                ? MembershipPlan::durationLabelFor($planDurationMonths)
-                : null,
-            'customer_name' => $membership->customer_name ?? $membership->user?->name ?? 'Guest',
-            'customer_phone' => $membership->registration_phone ?? $membership->user?->phone_number,
-            'registration' => [
-                'email' => $membership->registration_email ?? $membership->user?->email,
-                'phone' => $membership->registration_phone ?? $membership->user?->phone_number,
-                'gender' => $membership->registration_gender,
-                'category' => $membership->registration_category,
-                'expires_at' => $membership->registration_expires_at?->toIso8601String(),
-            ],
-            'start_date' => $membership->start_date->format('Y-m-d'),
-            'end_date' => $membership->end_date->format('Y-m-d'),
-            'status' => $membership->status,
-            'transaction' => $membership->transaction ? [
-                'id' => $membership->transaction->id,
-                'amount' => $membership->transaction->amount,
-                'payment_status' => $membership->transaction->payment_status,
-                'receipt_number' => $membership->transaction->receipt_number,
-                'xendit_invoice_id' => $membership->transaction->xendit_invoice_id,
-                'checkout_url' => $membership->transaction->checkout_url,
-                'paid_at' => $membership->transaction->paid_at?->format('Y-m-d H:i'),
-            ] : null,
-            'histories' => $membership->histories
-                ->sortByDesc('created_at')
-                ->values()
-                ->map(fn ($history) => [
-                    'id' => $history->id,
-                    'action' => $history->action,
-                    'plan_name' => $history->metadata['plan_name'] ?? $history->plan?->name ?? 'Manual',
-                    'start_date' => $history->start_date->format('Y-m-d'),
-                    'end_date' => $history->end_date->format('Y-m-d'),
-                    'transaction_id' => $history->transaction_id,
-                    'receipt_number' => $history->transaction?->receipt_number ?? ($history->metadata['receipt_number'] ?? null),
-                    'renewed_from_membership_id' => $history->renewed_from_membership_id,
-                    'renewed_from_label' => $history->renewedFrom
-                        ? '#'.str_pad((string) $history->renewedFrom->id, 5, '0', STR_PAD_LEFT).' - '.($history->renewedFrom->plan?->name ?? 'Manual')
-                        : null,
-                    'actor_name' => $history->actor?->name,
-                    'actor_type' => $history->actor_type,
-                    'amount' => $history->amount,
-                    'payment_status' => $history->payment_status,
-                    'created_at' => $history->created_at?->format('Y-m-d H:i'),
-                ]),
-        ];
     }
 
     /**
