@@ -4,14 +4,18 @@ namespace App\Http\Controllers\Admin;
 
 use App\Enums\PaymentAttemptStatus;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\StoreAdminBookingRequest;
 use App\Models\Booking;
 use App\Models\BookingOrder;
 use App\Models\BookingSchedule;
 use App\Models\Facility;
 use App\Models\FacilityUnit;
+use App\Services\AdminBookingReadModel;
 use App\Services\BookingInventoryService;
 use App\Services\BookingPriceCalculator;
+use App\Services\DataGovernance\BookingStatusTransitionPolicy;
 use App\Services\Payments\PaymentAttemptService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -27,52 +31,126 @@ class BookingController extends Controller
         private readonly BookingPriceCalculator $priceCalculator,
         private readonly BookingInventoryService $inventoryService,
         private readonly PaymentAttemptService $paymentAttempts,
+        private readonly BookingStatusTransitionPolicy $statusTransitions,
+        private readonly AdminBookingReadModel $readModel,
     ) {}
 
-    public function index(): Response
+    public function index(Request $request): Response
     {
         $this->authorizeAny(['view-bookings', 'manage-bookings', 'manage-payment-links']);
 
-        $bookings = Booking::with(['user', 'facility', 'facilityUnit', 'transaction'])
-            ->orderBy('booking_date', 'desc')
-            ->orderBy('start_time', 'asc')
-            ->get()
-            ->map(fn ($b) => $this->transformBooking($b));
+        $canManageBookings = $request->user()?->can('manage-bookings') ?? false;
+        $canManageBookingPayments = $canManageBookings
+            || ($request->user()?->can('manage-payment-links') ?? false);
 
-        $facilities = Facility::with(['units' => fn ($query) => $query->where('is_active', true)->orderBy('id')])
-            ->where('is_active', true)
-            ->orderBy('sort_order')
-            ->get(['id', 'name'])
-            ->map(fn (Facility $facility) => [
-                'id' => $facility->id,
-                'name' => $facility->name,
-                'units' => $facility->units->map(fn (FacilityUnit $unit) => [
-                    'id' => $unit->id,
-                    'name' => $unit->name,
-                ])->values()->all(),
+        $validated = $request->validate([
+            'date' => ['nullable', 'date_format:Y-m-d'],
+            'date_from' => ['nullable', 'date_format:Y-m-d'],
+            'date_to' => ['nullable', 'date_format:Y-m-d'],
+            'search' => ['nullable', 'string', 'max:100'],
+            'status' => ['nullable', 'in:pending,confirmed,cancelled,completed'],
+            'category' => ['nullable', 'string', 'max:100'],
+            'coverage' => ['nullable', 'in:website,all'],
+            'per_page' => ['nullable', 'integer', 'in:10,20,50'],
+            'cursor' => ['nullable', 'string', 'max:2048'],
+        ]);
+
+        if (isset($validated['date_from'], $validated['date_to'])
+            && $validated['date_to'] < $validated['date_from']) {
+            throw ValidationException::withMessages([
+                'date_to' => 'Tanggal akhir riwayat tidak boleh mendahului tanggal awal.',
             ]);
+        }
+
+        $categories = $this->readModel->categories();
+        $requestedCategory = trim((string) ($validated['category'] ?? ''));
+        $defaultCategory = collect($categories)->first(
+            fn (array $category): bool => (int) $category['website_facilities'] > 0,
+        ) ?? collect($categories)->first();
+        $selectedCategory = $requestedCategory !== ''
+            ? (collect($categories)->firstWhere('slug', $requestedCategory) ?? $defaultCategory)
+            : $defaultCategory;
+
+        $date = $validated['date'] ?? today()->toDateString();
+        $coverage = $validated['coverage'] ?? 'website';
+        $categoryId = $selectedCategory !== null
+            ? (int) $selectedCategory['id']
+            : null;
+        $filters = [
+            'search' => trim((string) ($validated['search'] ?? '')) ?: null,
+            'status' => $validated['status'] ?? null,
+            'date_from' => $validated['date_from'] ?? null,
+            'date_to' => $validated['date_to'] ?? null,
+            'category_id' => $categoryId,
+            'category' => $selectedCategory['slug'] ?? null,
+            'coverage' => $coverage,
+            'per_page' => (int) ($validated['per_page'] ?? 20),
+            'cursor' => $validated['cursor'] ?? null,
+        ];
+
+        $calendarPayload = null;
+        $calendar = function () use (&$calendarPayload, $date, $categoryId, $coverage): array {
+            return $calendarPayload ??= $this->readModel->calendar(
+                $date,
+                $categoryId,
+                $coverage,
+            );
+        };
+
+        $listingPayload = null;
+        $listing = function () use (&$listingPayload, $filters): array {
+            return $listingPayload ??= $this->readModel->listing($filters);
+        };
 
         return Inertia::render('Admin/Bookings/Index', [
-            'bookings' => $bookings,
-            'facilities' => $facilities,
+            'bookings' => fn (): array => $calendar()['data'],
+            'booking_calendar' => fn (): array => $calendar()['meta'],
+            'booking_list' => fn (): array => $listing()['data'],
+            'booking_pagination' => fn (): array => $listing()['pagination'],
+            'booking_filters' => [
+                'search' => $filters['search'],
+                'status' => $filters['status'],
+                'date_from' => $filters['date_from'],
+                'date_to' => $filters['date_to'],
+                'category' => $filters['category'],
+                'coverage' => $filters['coverage'],
+                'per_page' => $filters['per_page'],
+                'date' => $date,
+                'cursor' => null,
+            ],
+            'booking_stats' => fn (): array => $this->readModel->statistics(
+                $date,
+                $categoryId,
+                $coverage,
+            ),
+            'booking_categories' => $categories,
+            'can_manage_bookings' => $canManageBookings,
+            'can_manage_booking_payments' => $canManageBookingPayments,
+            'facilities' => fn (): array => $this->readModel->facilities(
+                $categoryId,
+                $coverage,
+                $date,
+            ),
+            'manual_facilities' => fn (): array => $canManageBookings
+                ? $this->readModel->facilities()
+                : [],
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function show(Booking $booking): JsonResponse
+    {
+        $this->authorizeAny(['view-bookings', 'manage-bookings', 'manage-payment-links']);
+
+        return response()->json([
+            'data' => $this->readModel->detail($booking),
+        ]);
+    }
+
+    public function store(StoreAdminBookingRequest $request): RedirectResponse
     {
         $this->authorize('manage-bookings');
 
-        $data = $request->validate([
-            'customer_name' => ['required', 'string', 'max:255'],
-            'facility_id' => ['required', 'exists:facilities,id'],
-            'facility_unit_id' => ['nullable', 'exists:facility_units,id'],
-            'booking_date' => ['required', 'date', 'after_or_equal:today'],
-            'start_time' => ['required', 'date_format:H:i'],
-            'end_time' => ['required', 'date_format:H:i'],
-            'pax' => ['nullable', 'integer', 'min:1', 'max:9999'],
-            'is_free' => ['boolean'],
-            'notes' => ['nullable', 'string', 'max:500'],
-        ]);
+        $data = $request->validated();
 
         if ($data['end_time'] <= $data['start_time']) {
             return back()->withErrors(['end_time' => 'Jam selesai harus setelah jam mulai.']);
@@ -114,6 +192,18 @@ class BookingController extends Controller
             }
 
             $date = Carbon::parse($data['booking_date']);
+            $startsAt = Carbon::createFromFormat(
+                'Y-m-d H:i',
+                $data['booking_date'].' '.$data['start_time'],
+                config('app.timezone'),
+            );
+
+            if ($startsAt->lessThanOrEqualTo(now())) {
+                throw ValidationException::withMessages([
+                    'start_time' => 'Jadwal ini sudah berlalu. Pilih waktu lain.',
+                ]);
+            }
+
             $schedule = BookingSchedule::query()
                 ->where('month', $date->month)
                 ->where('year', $date->year)
@@ -153,6 +243,7 @@ class BookingController extends Controller
             $booking = Booking::create([
                 'user_id' => null,
                 'customer_name' => $data['customer_name'],
+                'customer_phone' => $data['customer_phone'] ?? null,
                 'facility_id' => $facility->id,
                 'facility_unit_id' => $unitId,
                 'booking_date' => $data['booking_date'],
@@ -164,12 +255,19 @@ class BookingController extends Controller
                 'notes' => $data['notes'] ?? null,
             ]);
 
+            $this->inventoryService->assertPersistedBookingsWithinCapacity(
+                collect([$booking]),
+                $lockedResources['facilities'],
+                $lockedResources['units'],
+                'start_time',
+            );
+
             $booking->transaction()->create([
                 'user_id' => null,
                 'amount' => $subtotal,
                 'payment_status' => $isFree ? 'PAID' : 'UNPAID',
                 'payment_method' => $isFree ? 'complimentary' : null,
-                'checkout_url' => url("/admin/bookings/{$booking->id}"),
+                'checkout_url' => null,
                 'paid_at' => $isFree ? now() : null,
                 'service_snapshot' => [
                     'version' => 1,
@@ -197,7 +295,7 @@ class BookingController extends Controller
                     ]],
                 ],
             ]);
-        }, 3);
+        }, (int) config('resilience.database.transaction_attempts', 3));
 
         return redirect()->route('admin.bookings.index')
             ->with('success', 'Booking berhasil dibuat.');
@@ -209,28 +307,40 @@ class BookingController extends Controller
 
         $data = $request->validate([
             'status' => ['required', 'in:pending,confirmed,cancelled,completed'],
+            'state_version' => ['required', 'string', 'size:64'],
         ]);
 
-        $this->changeStatus($booking, $data['status']);
+        $this->changeStatus($booking, $data['status'], $data['state_version']);
 
         return back()->with('success', 'Status booking berhasil diperbarui.');
     }
 
-    public function destroy(Booking $booking): RedirectResponse
+    public function destroy(Request $request, Booking $booking): RedirectResponse
     {
         $this->authorize('manage-bookings');
 
-        $this->changeStatus($booking, 'cancelled');
+        $data = $request->validate([
+            'state_version' => ['required', 'string', 'size:64'],
+        ]);
+
+        $this->changeStatus($booking, 'cancelled', $data['state_version']);
 
         return back()->with('success', 'Booking berhasil dibatalkan.');
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    private function changeStatus(Booking $bookingReference, string $targetStatus): void
-    {
+    private function changeStatus(
+        Booking $bookingReference,
+        string $targetStatus,
+        string $expectedStateVersion,
+    ): void {
         $this->inventoryService->prepareWriteTransactionIsolation();
-        DB::transaction(function () use ($bookingReference, $targetStatus): void {
+        DB::transaction(function () use (
+            $bookingReference,
+            $targetStatus,
+            $expectedStateVersion,
+        ): void {
             $resourceReferences = $bookingReference->booking_order_id
                 ? Booking::query()
                     ->where('booking_order_id', $bookingReference->booking_order_id)
@@ -268,22 +378,23 @@ class BookingController extends Controller
                 ->lockForUpdate()
                 ->first();
 
+            $currentStateVersion = $this->readModel->stateVersion(
+                $booking,
+                $order,
+                $transaction,
+            );
+
+            if (! hash_equals($currentStateVersion, $expectedStateVersion)) {
+                throw ValidationException::withMessages([
+                    'state_version' => 'Data booking berubah sejak panel dibuka. Muat ulang detail sebelum melanjutkan.',
+                ]);
+            }
+
             if ($booking->status === $targetStatus) {
                 return;
             }
 
-            $allowedTransitions = [
-                'pending' => ['confirmed', 'cancelled'],
-                'confirmed' => ['completed', 'cancelled'],
-                'cancelled' => [],
-                'completed' => [],
-            ];
-
-            if (! in_array($targetStatus, $allowedTransitions[$booking->status] ?? [], true)) {
-                throw ValidationException::withMessages([
-                    'status' => 'Perubahan status booking tidak valid.',
-                ]);
-            }
+            $this->statusTransitions->assertAllowed($booking->status, $targetStatus);
 
             if ($targetStatus === 'cancelled' && $transaction) {
                 $this->paymentAttempts->guardAndTerminateOpenAttempts(
@@ -340,10 +451,12 @@ class BookingController extends Controller
                     ]);
                 }
 
-                Booking::query()
-                    ->whereKey($siblings->modelKeys())
-                    ->whereIn('status', ['pending', 'confirmed'])
-                    ->update(['status' => 'cancelled']);
+                foreach ($siblings as $sibling) {
+                    if (in_array($sibling->status, ['pending', 'confirmed'], true)) {
+                        $this->statusTransitions->assertAllowed($sibling->status, 'cancelled');
+                        $sibling->update(['status' => 'cancelled']);
+                    }
+                }
                 $order->update(['status' => 'cancelled']);
 
                 if ($transaction && $transaction->payment_status === 'UNPAID') {
@@ -355,12 +468,21 @@ class BookingController extends Controller
 
             $booking->update(['status' => $targetStatus]);
 
+            if ($targetStatus === 'confirmed') {
+                $this->inventoryService->assertPersistedBookingsWithinCapacity(
+                    collect([$booking]),
+                    $lockedResources['facilities'],
+                    $lockedResources['units'],
+                    'status',
+                );
+            }
+
             if ($targetStatus === 'cancelled'
                 && ! $order
                 && $transaction?->payment_status === 'UNPAID') {
                 $transaction->update(['payment_status' => 'FAILED']);
             }
-        }, 3);
+        }, (int) config('resilience.database.transaction_attempts', 3));
     }
 
     /**
@@ -393,40 +515,5 @@ class BookingController extends Controller
             $startTime,
             $endTime,
         );
-    }
-
-    private function transformBooking(Booking $booking): array
-    {
-        $userCategory = $booking->user?->identity_category === 'warga_kampus' ? 'warga_ub' : 'umum';
-
-        // Prefer the stored customer_name; fall back to the linked user's name
-        $customerName = $booking->customer_name ?? $booking->user?->name ?? 'Guest';
-        $customerPhone = $booking->user?->phone_number;
-
-        return [
-            'id' => $booking->id,
-            'user_id' => $booking->user_id,
-            'facility_id' => $booking->facility_id,
-            'facility_unit_id' => $booking->facility_unit_id,
-            'booking_date' => $booking->booking_date->format('Y-m-d'),
-            'start_time' => substr($booking->start_time, 0, 5),
-            'end_time' => substr($booking->end_time, 0, 5),
-            'subtotal_price' => $booking->subtotal_price,
-            'status' => $booking->status,
-            'notes' => $booking->notes,
-            'customer_name' => $customerName,
-            'customer_phone' => $customerPhone,
-            'is_free' => $booking->subtotal_price === 0 && $booking->user_id === null,
-            'user_category' => $userCategory,
-            'facility_name' => $booking->facility->name,
-            'facility_unit_name' => $booking->facilityUnit?->name,
-            'transaction' => $booking->transaction ? [
-                'id' => $booking->transaction->id,
-                'amount' => $booking->transaction->amount,
-                'payment_status' => $booking->transaction->payment_status,
-                'checkout_url' => $booking->transaction->checkout_url,
-                'paid_at' => $booking->transaction->paid_at?->format('Y-m-d H:i'),
-            ] : null,
-        ];
     }
 }
