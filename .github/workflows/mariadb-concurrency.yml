@@ -8,6 +8,8 @@ on:
 
 permissions:
   contents: read
+  checks: read
+  statuses: read
 
 concurrency:
   group: mariadb-concurrency-${{ github.workflow }}-${{ github.ref }}
@@ -25,7 +27,7 @@ jobs:
       APP_ENV: testing
       APP_DEBUG: "false"
       APP_KEY: base64:MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
-      CACHE_STORE: array
+      CACHE_STORE: database
       SESSION_DRIVER: array
       QUEUE_CONNECTION: sync
       DB_CONNECTION: mysql
@@ -38,7 +40,7 @@ jobs:
 
     services:
       mariadb:
-        image: mariadb:10.11
+        image: mariadb:10.11.18@sha256:8020e05c4c498d06c87f0a1db010eb79bd6f8fb30e9b763d4690c34ce1e61008
         env:
           MARIADB_DATABASE: ubsc_race_ci_${{ github.run_id }}_${{ github.run_attempt }}
           MARIADB_ROOT_PASSWORD: concurrency_only
@@ -52,10 +54,23 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Use the supported Node runtime
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+
+      - name: Verify protected branch concurrency governance
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: node scripts/verify-github-concurrency-gate.mjs --rules-only
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
         with:
           php-version: "8.3"
           extensions: bcmath, dom, fileinfo, gd, intl, mbstring, pdo_mysql
@@ -64,6 +79,15 @@ jobs:
 
       - name: Install PHP dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Validate high-availability application contracts
+        run: >-
+          vendor/bin/phpunit
+          tests/Unit/HighAvailabilityContractTest.php
+          tests/Unit/DatabaseReplicationContractTest.php
+          tests/Unit/DatabaseWriterProbeTest.php
+          tests/Unit/HighAvailabilityProbeTest.php
+          --stop-on-failure
 
       - name: Refuse any non-isolated database
         run: >-
@@ -97,9 +121,25 @@ jobs:
       - name: Migrate isolated race database
         run: php artisan migrate --force --no-interaction
 
+      - name: Validate recovery and replication control planes on real MariaDB
+        run: >-
+          vendor/bin/phpunit
+          --configuration phpunit.mariadb.xml
+          tests/Feature/RecoveryEvidenceTest.php
+          tests/Feature/DatabaseReplicationControlPlaneTest.php
+          tests/Unit/DisasterRecoveryContractTest.php
+          tests/Unit/DatabaseReplicationContractTest.php
+          tests/Unit/RecoveryAttestationInteropTest.php
+          tests/Unit/DatabaseReplicationAttestationInteropTest.php
+          tests/Unit/DeploymentArtifactTest.php
+          --stop-on-failure
+
       - name: Run small multi-process concurrency suite
         run: >-
           vendor/bin/phpunit
           --configuration phpunit.mariadb.xml
           tests/Integration/MariaDbBookingConcurrencyTest.php
+          tests/Integration/MariaDbReplicationControlPlaneConcurrencyTest.php
+          tests/Integration/MariaDbRecoveryLedgerConcurrencyTest.php
+          tests/Integration/MariaDbResilienceLedgerConcurrencyTest.php
           --stop-on-failure
