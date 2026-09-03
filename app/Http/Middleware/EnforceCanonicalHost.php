@@ -21,14 +21,10 @@ class EnforceCanonicalHost
             ?: ($request->isSecure() ? 'https' : 'http');
         $canonicalPort = parse_url($origin, PHP_URL_PORT)
             ?: ($canonicalScheme === 'https' ? 443 : 80);
-        $forwardedProto = strtolower(trim(explode(',', (string) $request->header('X-Forwarded-Proto'))[0]));
-        $requestScheme = $forwardedProto ?: $request->getScheme();
-        $forwardedPort = trim(explode(',', (string) $request->header('X-Forwarded-Port'))[0]);
-        $requestPort = ctype_digit($forwardedPort)
-            ? (int) $forwardedPort
-            : ($forwardedProto !== ''
-                ? ($requestScheme === 'https' ? 443 : 80)
-                : $request->getPort());
+        // Forwarded headers are interpreted only by Laravel's trusted-proxy
+        // middleware. Never trust raw client-supplied X-Forwarded-* values.
+        $requestScheme = $request->getScheme();
+        $requestPort = $request->getPort();
 
         if ($canonicalHost
             && ($request->getHost() !== $canonicalHost

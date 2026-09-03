@@ -12,6 +12,7 @@ use App\Support\PublicSeo;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Vite;
 use Inertia\Middleware;
 use Inertia\Support\Header;
 use Symfony\Component\HttpFoundation\Response;
@@ -64,6 +65,7 @@ class HandleInertiaRequests extends Middleware
 
         return [
             ...parent::share($request),
+            'csp_nonce' => Vite::cspNonce(),
             'ziggy' => fn () => [
                 ...(new Ziggy)->toArray(),
                 'location' => $request->url(),

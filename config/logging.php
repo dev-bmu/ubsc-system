@@ -57,6 +57,7 @@ return [
             'driver' => 'stack',
             'channels' => explode(',', (string) env('LOG_STACK', 'single')),
             'ignore_exceptions' => false,
+            'tap' => [\App\Logging\RedactSensitiveLogContext::class],
         ],
 
         'single' => [
@@ -64,6 +65,7 @@ return [
             'path' => storage_path('logs/laravel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
             'replace_placeholders' => true,
+            'tap' => [\App\Logging\RedactSensitiveLogContext::class],
         ],
 
         'daily' => [
@@ -72,6 +74,7 @@ return [
             'level' => env('LOG_LEVEL', 'debug'),
             'days' => env('LOG_DAILY_DAYS', 14),
             'replace_placeholders' => true,
+            'tap' => [\App\Logging\RedactSensitiveLogContext::class],
         ],
 
         /*
@@ -90,6 +93,7 @@ return [
             // The relational audit trail remains authoritative. A temporary
             // logging sink outage must never fail or duplicate a payment.
             'ignore_exceptions' => true,
+            'tap' => [\App\Logging\RedactSensitiveLogContext::class],
         ],
 
         'payment_daily' => [
@@ -102,6 +106,7 @@ return [
             'days' => (int) env('PAYMENT_LOG_DAILY_DAYS', 45),
             'replace_placeholders' => true,
             'formatter' => JsonFormatter::class,
+            'tap' => [\App\Logging\RedactSensitiveLogContext::class],
         ],
 
         'slack' => [
@@ -111,6 +116,7 @@ return [
             'emoji' => env('LOG_SLACK_EMOJI', ':boom:'),
             'level' => env('LOG_LEVEL', 'critical'),
             'replace_placeholders' => true,
+            'tap' => [\App\Logging\RedactSensitiveLogContext::class],
         ],
 
         'papertrail' => [
@@ -123,6 +129,7 @@ return [
                 'connectionString' => 'tls://'.env('PAPERTRAIL_URL').':'.env('PAPERTRAIL_PORT'),
             ],
             'processors' => [PsrLogMessageProcessor::class],
+            'tap' => [\App\Logging\RedactSensitiveLogContext::class],
         ],
 
         'stderr' => [
@@ -134,6 +141,25 @@ return [
             ],
             'formatter' => env('LOG_STDERR_FORMATTER'),
             'processors' => [PsrLogMessageProcessor::class],
+            'tap' => [\App\Logging\RedactSensitiveLogContext::class],
+        ],
+
+        'json_stderr' => [
+            'driver' => 'monolog',
+            'level' => env('LOG_LEVEL', 'info'),
+            'handler' => StreamHandler::class,
+            'handler_with' => [
+                'stream' => 'php://stderr',
+            ],
+            'formatter' => JsonFormatter::class,
+            'formatter_with' => [
+                'batchMode' => JsonFormatter::BATCH_MODE_JSON,
+                'appendNewline' => true,
+                'ignoreEmptyContextAndExtra' => false,
+                'includeStacktraces' => false,
+            ],
+            'processors' => [PsrLogMessageProcessor::class],
+            'tap' => [\App\Logging\RedactSensitiveLogContext::class],
         ],
 
         'syslog' => [
@@ -141,12 +167,14 @@ return [
             'level' => env('LOG_LEVEL', 'debug'),
             'facility' => env('LOG_SYSLOG_FACILITY', LOG_USER),
             'replace_placeholders' => true,
+            'tap' => [\App\Logging\RedactSensitiveLogContext::class],
         ],
 
         'errorlog' => [
             'driver' => 'errorlog',
             'level' => env('LOG_LEVEL', 'debug'),
             'replace_placeholders' => true,
+            'tap' => [\App\Logging\RedactSensitiveLogContext::class],
         ],
 
         'null' => [

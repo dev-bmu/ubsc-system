@@ -29,6 +29,7 @@ export interface SeoHeadProps {
 
 type SharedSeoPageProps = ApplicationPageProps & {
     seo?: SeoHeadPayload | null;
+    csp_nonce?: string;
 };
 
 export function serializeSeoJsonLd(jsonLd: SeoJsonLd | null | undefined) {
@@ -55,7 +56,8 @@ export function serializeSeoJsonLd(jsonLd: SeoJsonLd | null | undefined) {
 }
 
 export function SeoHead({ seo }: SeoHeadProps) {
-    const sharedSeo = usePage<SharedSeoPageProps>().props.seo;
+    const pageProps = usePage<SharedSeoPageProps>().props;
+    const sharedSeo = pageProps.seo;
     const resolvedSeo = seo ?? sharedSeo;
 
     if (!resolvedSeo) {
@@ -181,6 +183,7 @@ export function SeoHead({ seo }: SeoHeadProps) {
                 <script
                     head-key="seo-json-ld"
                     type="application/ld+json"
+                    nonce={pageProps.csp_nonce}
                     dangerouslySetInnerHTML={{ __html: jsonLd }}
                 />
             )}
