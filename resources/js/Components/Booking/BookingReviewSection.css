@@ -593,15 +593,353 @@
 .booking-review-form button:focus-visible,
 .booking-review-form textarea:focus-visible,
 .booking-review-rating input:focus-visible + span,
+[data-booking-user-review-action]:focus-visible,
 [data-review-form-title]:focus-visible {
     outline: 2px solid currentColor;
     outline-offset: -4px;
 }
 
+.booking-user-review {
+    --own-review-tone: #b86b16;
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    margin-top: 12px;
+    padding: clamp(20px, 2.4vw, 34px);
+    border: 1px solid rgba(17, 17, 17, 0.12);
+    background:
+        linear-gradient(100deg, rgba(255, 255, 255, 0.98), rgba(247, 247, 244, 0.94)),
+        #fff;
+}
+
+.booking-user-review::before {
+    position: absolute;
+    z-index: -1;
+    inset: 0 auto 0 0;
+    width: 3px;
+    background: var(--own-review-tone);
+    content: "";
+}
+
+.booking-user-review::after {
+    position: absolute;
+    z-index: -1;
+    top: -90px;
+    right: -70px;
+    width: 260px;
+    height: 260px;
+    border: 1px solid color-mix(in srgb, var(--own-review-tone) 18%, transparent);
+    border-radius: 50%;
+    content: "";
+}
+
+.booking-user-review--approved {
+    --own-review-tone: #09865c;
+}
+
+.booking-user-review--rejected {
+    --own-review-tone: #d62d20;
+}
+
+.booking-user-review__header,
+.booking-user-review__footer,
+.booking-user-review__identity,
+.booking-user-review__status,
+.booking-user-review__rating {
+    display: flex;
+    align-items: center;
+}
+
+.booking-user-review__header {
+    justify-content: space-between;
+    gap: 20px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid rgba(17, 17, 17, 0.1);
+}
+
+.booking-user-review__identity {
+    min-width: 0;
+    gap: 12px;
+}
+
+.booking-user-review__identity > span {
+    display: grid;
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    place-items: center;
+    border-radius: 50%;
+    color: #fff;
+    background: #111;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.booking-user-review__identity small,
+.booking-user-review__feedback > span {
+    display: block;
+    color: rgba(17, 17, 17, 0.44);
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.booking-user-review__identity h3 {
+    overflow: hidden;
+    margin: 3px 0 0;
+    color: #111;
+    font-size: clamp(15px, 1.2vw, 18px);
+    font-weight: 600;
+    letter-spacing: -0.025em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.booking-user-review__status {
+    flex: 0 0 auto;
+    gap: 7px;
+    padding: 8px 11px;
+    border: 1px solid color-mix(in srgb, var(--own-review-tone) 28%, transparent);
+    border-radius: 999px;
+    color: var(--own-review-tone);
+    background: color-mix(in srgb, var(--own-review-tone) 7%, white);
+    font-size: 10px;
+    font-weight: 650;
+}
+
+.booking-user-review__status svg {
+    width: 14px;
+    height: 14px;
+    stroke-width: 1.7;
+}
+
+.booking-user-review__body {
+    display: grid;
+    grid-template-columns: minmax(190px, 0.28fr) minmax(0, 1fr);
+    gap: clamp(24px, 4vw, 64px);
+    padding: clamp(22px, 2.8vw, 38px) 0;
+}
+
+.booking-user-review__rating {
+    align-self: start;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.booking-user-review__rating .booking-review-stars {
+    width: 112px;
+    color: var(--own-review-tone);
+}
+
+.booking-user-review__rating strong {
+    color: #111;
+    font-size: clamp(25px, 2.4vw, 38px);
+    font-weight: 500;
+    letter-spacing: -0.055em;
+}
+
+.booking-user-review__body > p {
+    margin: 0;
+    color: #111;
+    font-size: clamp(18px, 1.7vw, 27px);
+    font-weight: 400;
+    line-height: 1.18;
+    letter-spacing: -0.038em;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.booking-user-review__feedback {
+    grid-column: 2;
+    margin-top: -18px;
+    padding: 14px 16px;
+    border-left: 2px solid var(--own-review-tone);
+    background: color-mix(in srgb, var(--own-review-tone) 5%, white);
+}
+
+.booking-user-review__feedback p {
+    margin: 6px 0 0;
+    color: rgba(17, 17, 17, 0.7);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.4;
+}
+
+.booking-user-review__footer {
+    justify-content: space-between;
+    gap: 24px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(17, 17, 17, 0.1);
+}
+
+.booking-user-review__footer > div {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: auto auto;
+    gap: 4px 12px;
+}
+
+.booking-user-review__footer span,
+.booking-user-review__footer time,
+.booking-user-review__footer small {
+    color: rgba(17, 17, 17, 0.48);
+    font-size: 9px;
+    font-weight: 550;
+}
+
+.booking-user-review__footer span {
+    color: var(--own-review-tone);
+}
+
+.booking-user-review__footer small {
+    grid-column: 1 / -1;
+    margin-top: 2px;
+}
+
+.booking-user-review__footer button {
+    display: inline-flex;
+    min-height: 42px;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    padding: 0 16px;
+    border: 1px solid #111;
+    border-radius: 2px;
+    color: #fff;
+    background: #111;
+    cursor: pointer;
+    font-size: 10px;
+    font-weight: 600;
+    transition: color 180ms ease, background 180ms ease, opacity 180ms ease;
+}
+
+.booking-user-review__footer button:hover {
+    color: #111;
+    background: transparent;
+}
+
+.booking-user-review__footer button:disabled {
+    opacity: 0.42;
+    cursor: not-allowed;
+}
+
+.booking-user-review__footer button svg {
+    width: 14px;
+    height: 14px;
+    stroke-width: 1.5;
+}
+
 .booking-reviews__composer {
-    margin-top: 10px;
+    display: grid;
+    grid-template-rows: 0fr;
+    margin-top: 0;
+    visibility: hidden;
+    opacity: 0;
+    transform: translate3d(0, -18px, 0) scaleY(0.985);
+    transform-origin: 50% 0;
+    pointer-events: none;
     color: var(--review-white);
-    background: var(--review-ink);
+    transition:
+        grid-template-rows 760ms cubic-bezier(0.16, 1, 0.3, 1),
+        margin-top 760ms cubic-bezier(0.16, 1, 0.3, 1),
+        opacity 280ms ease,
+        transform 760ms cubic-bezier(0.16, 1, 0.3, 1),
+        visibility 0s linear 760ms;
+}
+
+.booking-reviews__composer.is-open {
+    grid-template-rows: 1fr;
+    margin-top: 10px;
+    visibility: visible;
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scaleY(1);
+    pointer-events: auto;
+    transition:
+        grid-template-rows 880ms cubic-bezier(0.16, 1, 0.3, 1),
+        margin-top 880ms cubic-bezier(0.16, 1, 0.3, 1),
+        opacity 340ms ease 40ms,
+        transform 880ms cubic-bezier(0.16, 1, 0.3, 1),
+        visibility 0s linear 0s;
+}
+
+.booking-reviews__composer-clip {
+    position: relative;
+    min-height: 0;
+    overflow: hidden;
+    isolation: isolate;
+    background:
+        linear-gradient(90deg, rgba(255, 75, 43, 0.055), transparent 24%),
+        var(--review-ink);
+}
+
+.booking-reviews__composer-clip::before {
+    position: absolute;
+    z-index: 3;
+    top: 0;
+    right: 0;
+    left: 0;
+    height: 1px;
+    background: linear-gradient(
+        90deg,
+        #ff4b2b 0%,
+        rgba(255, 75, 43, 0.68) 36%,
+        rgba(255, 255, 255, 0.34) 58%,
+        transparent 100%
+    );
+    transform: scaleX(0);
+    transform-origin: left center;
+    content: "";
+    transition: transform 640ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.booking-reviews__composer.is-open
+    .booking-reviews__composer-clip::before {
+    transform: scaleX(1);
+    transition-delay: 110ms;
+}
+
+.booking-review-form > header,
+.booking-review-form__fields,
+.booking-review-form > footer,
+.booking-review-form__error,
+.booking-review-form--success > div,
+.booking-review-form--success > button {
+    opacity: 0;
+    transform: translate3d(0, 22px, 0);
+    transition:
+        opacity 220ms ease,
+        transform 440ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.booking-reviews__composer.is-open .booking-review-form > header,
+.booking-reviews__composer.is-open .booking-review-form__fields,
+.booking-reviews__composer.is-open .booking-review-form > footer,
+.booking-reviews__composer.is-open .booking-review-form__error,
+.booking-reviews__composer.is-open .booking-review-form--success > div,
+.booking-reviews__composer.is-open .booking-review-form--success > button {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+}
+
+.booking-reviews__composer.is-open .booking-review-form > header,
+.booking-reviews__composer.is-open .booking-review-form--success > button {
+    transition-delay: 150ms;
+}
+
+.booking-reviews__composer.is-open .booking-review-form__fields,
+.booking-reviews__composer.is-open .booking-review-form--success > div {
+    transition-delay: 240ms;
+}
+
+.booking-reviews__composer.is-open .booking-review-form__error {
+    transition-delay: 300ms;
+}
+
+.booking-reviews__composer.is-open .booking-review-form > footer {
+    transition-delay: 330ms;
 }
 
 .booking-review-form {
@@ -676,6 +1014,77 @@
     margin: 0;
     padding: 0 48px 0 0;
     border: 0;
+}
+
+@keyframes bookingReviewRatingResolve {
+    0% {
+        opacity: 0.48;
+        transform: translate3d(-5px, 0, 0) scale(0.965);
+    }
+    58% {
+        opacity: 1;
+        transform: translate3d(1px, 0, 0) scale(1.018);
+    }
+    100% {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) scale(1);
+    }
+}
+
+.booking-review-rating__visual {
+    position: relative;
+    display: grid;
+    min-height: 112px;
+    align-content: end;
+    justify-items: start;
+    gap: 12px;
+    padding: 4px 0 22px;
+}
+
+.booking-review-rating__visual::after {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 1px;
+    background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0.22),
+        rgba(255, 255, 255, 0.06) 74%,
+        transparent
+    );
+    content: "";
+}
+
+.booking-review-rating__stars {
+    width: clamp(142px, 11vw, 172px);
+    max-width: 100%;
+    height: auto;
+    overflow: visible;
+    transform-origin: left center;
+    animation: bookingReviewRatingResolve 360ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.booking-review-rating__stars .section-two-stars__base {
+    fill: rgba(255, 255, 255, 0.16);
+}
+
+.booking-review-rating__visual:not(.has-value)
+    .booking-review-rating__stars
+    .section-two-stars__fill {
+    opacity: 0;
+}
+
+.booking-review-rating__visual > span {
+    color: rgba(255, 255, 255, 0.34);
+    font-size: 9px;
+    font-weight: 500;
+    line-height: 1.2;
+    transition: color 220ms ease;
+}
+
+.booking-review-rating__visual.has-value > span {
+    color: rgba(255, 255, 255, 0.66);
 }
 
 .booking-review-rating__head,
@@ -1179,8 +1588,57 @@
         font-size: clamp(28px, 8.2vw, 34px);
     }
 
-    .booking-reviews__composer {
+    .booking-reviews__composer.is-open {
         margin-top: 8px;
+    }
+
+    .booking-user-review {
+        margin-top: 10px;
+        padding: 18px 16px;
+    }
+
+    .booking-user-review__header {
+        align-items: flex-start;
+    }
+
+    .booking-user-review__status {
+        padding: 7px 9px;
+        font-size: 9px;
+    }
+
+    .booking-user-review__body {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 18px;
+        padding-block: 22px;
+    }
+
+    .booking-user-review__rating {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .booking-user-review__rating strong {
+        font-size: 23px;
+    }
+
+    .booking-user-review__body > p {
+        font-size: 20px;
+    }
+
+    .booking-user-review__feedback {
+        grid-column: 1;
+        margin-top: 0;
+    }
+
+    .booking-user-review__footer {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .booking-user-review__footer button {
+        width: 100%;
     }
 
     .booking-review-form {
@@ -1215,6 +1673,16 @@
 
     .booking-review-rating {
         padding-right: 0;
+    }
+
+    .booking-review-rating__visual {
+        min-height: 94px;
+        gap: 10px;
+        padding-bottom: 18px;
+    }
+
+    .booking-review-rating__stars {
+        width: 150px;
     }
 
     .booking-review-form textarea {
@@ -1418,5 +1886,6 @@
         animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
+        transition-delay: 0s !important;
     }
 }

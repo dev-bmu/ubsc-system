@@ -14,11 +14,12 @@ import {
 } from "@dnd-kit/sortable";
 import {
     Building2,
-    Check,
     CheckCircle2,
     ChevronDown,
     ChevronLeft,
     ChevronRight,
+    CircleAlert,
+    Clock3,
     Eye,
     EyeOff,
     Filter,
@@ -28,13 +29,19 @@ import {
     Plus,
     Quote,
     Search,
+    ShieldCheck,
     Sparkles,
     Star,
     Trash2,
     UploadCloud,
-    X,
 } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+    useCallback,
+    useEffect,
+    useMemo,
+    useState,
+    type ReactNode,
+} from "react";
 import SortableCard from "@/Components/Admin/SortableCard";
 import { SingleDropzone } from "@/Components/Admin/ImageDropzone";
 import SlideOver from "@/Components/Admin/SlideOver";
@@ -42,12 +49,32 @@ import AdminLayout from "@/Layouts/AdminLayout";
 import { cn } from "@/lib/utils";
 import type { PageProps, ReviewItem, TestimonialItem } from "@/types";
 
-type Props = PageProps<{ testimonials: TestimonialItem[]; reviews: ReviewItem[] }>;
+type ReviewPagination = {
+    data: ReviewItem[];
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+    from: number | null;
+    to: number | null;
+};
+
+type ReviewStats = {
+    total: number;
+    pending: number;
+    approved: number;
+    rejected: number;
+};
+
+type Props = PageProps<{
+    testimonials: TestimonialItem[];
+    reviews: ReviewPagination;
+    review_stats: ReviewStats;
+    review_filters: { search: string; status: ReviewFilter };
+}>;
 type ActiveTab = "testimonials" | "reviews";
 type StatusFilter = "all" | "active" | "inactive";
-type ReviewFilter = "all" | "approved" | "pending";
-
-const REVIEW_PAGE_SIZE = 8;
+type ReviewFilter = "all" | "approved" | "pending" | "rejected";
 
 type FormData = {
     author_name: string;
@@ -501,15 +528,14 @@ function PublicStrip({ activeItems, activeCount }: { activeItems: TestimonialIte
 
 function HeroSection({
     items,
-    reviews,
+    approvedReviewCount,
     onCreate,
 }: {
     items: TestimonialItem[];
-    reviews: ReviewItem[];
+    approvedReviewCount: number;
     onCreate: () => void;
 }) {
     const activeItems = items.filter((item) => item.is_active);
-    const approved = reviews.filter((review) => review.is_approved).length;
     const previewItems = activeItems.length > 0 ? activeItems : items;
 
     return (
@@ -556,7 +582,7 @@ function HeroSection({
                         {[
                             { label: "Total", value: items.length },
                             { label: "Aktif", value: activeItems.length },
-                            { label: "Review", value: approved },
+                            { label: "Review", value: approvedReviewCount },
                         ].map((item) => (
                             <div key={item.label} className="rounded-[16px] border border-white/18 bg-white/12 px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,.16)] backdrop-blur">
                                 <p className="font-clash text-lg font-bold leading-none text-white">{item.value}</p>
@@ -584,8 +610,8 @@ function TabSwitcher({
     pendingCount: number;
 }) {
     const tabs = [
-        { value: "testimonials" as const, label: "Testimoni", icon: Building2, count: testimonialCount },
         { value: "reviews" as const, label: "Review", icon: MessageSquare, count: pendingCount },
+        { value: "testimonials" as const, label: "Testimoni", icon: Building2, count: testimonialCount },
     ];
 
     return (
@@ -798,6 +824,7 @@ function ReviewsToolbar({
                         <option value="all">Semua review</option>
                         <option value="approved">Disetujui</option>
                         <option value="pending">Pending</option>
+                        <option value="rejected">Perlu diperbaiki</option>
                     </select>
                     <ChevronDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 </label>
@@ -812,66 +839,199 @@ function ReviewsToolbar({
 
 function ReviewCard({
     review,
-    onToggle,
-    onDelete,
+    onOpen,
 }: {
     review: ReviewItem;
-    onToggle: (review: ReviewItem) => void;
-    onDelete: (review: ReviewItem) => void;
+    onOpen: (review: ReviewItem) => void;
 }) {
+    const statusTone = review.status === "approved"
+        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+        : review.status === "rejected"
+          ? "border-rose-200 bg-rose-50 text-rose-700"
+          : "border-amber-200 bg-amber-50 text-amber-700";
+    const StatusIcon = review.status === "approved"
+        ? ShieldCheck
+        : review.status === "rejected"
+          ? CircleAlert
+          : Clock3;
+
     return (
         <article
             className={cn(
-                "rounded-[20px] border bg-white p-3.5 shadow-[0_12px_30px_-28px_rgba(185,61,42,.42)] transition hover:border-[#F8B5A8]",
-                review.is_approved ? "border-[#FFE0D8]" : "border-amber-200 bg-amber-50/45",
+                "group relative overflow-hidden rounded-[20px] border bg-white p-3.5 shadow-[0_12px_30px_-28px_rgba(185,61,42,.42)] transition hover:-translate-y-0.5 hover:border-[#F8B5A8] hover:shadow-[0_22px_42px_-34px_rgba(185,61,42,.48)]",
+                review.status === "pending" ? "border-amber-200" : "border-[#FFE0D8]",
             )}
         >
+            <span className={cn(
+                "absolute inset-y-0 left-0 w-[3px]",
+                review.status === "approved" ? "bg-emerald-500" : review.status === "rejected" ? "bg-rose-500" : "bg-amber-500",
+            )} />
             <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[15px] bg-[#FFF1EE] font-clash text-sm font-bold text-[#B93D2A] ring-1 ring-[#FFD5CD]">
-                    {review.reviewer_name.charAt(0).toUpperCase()}
-                </div>
+                {review.reviewer_avatar ? (
+                    <img
+                        src={review.reviewer_avatar}
+                        alt=""
+                        className="h-10 w-10 shrink-0 rounded-[15px] object-cover ring-1 ring-[#FFD5CD]"
+                    />
+                ) : (
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[15px] bg-[#FFF1EE] font-clash text-sm font-bold text-[#B93D2A] ring-1 ring-[#FFD5CD]">
+                        {review.reviewer_name.charAt(0).toUpperCase()}
+                    </div>
+                )}
                 <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                         <p className="truncate font-clash text-sm font-semibold text-slate-950">{review.reviewer_name}</p>
                         <StarRow rating={review.rating} />
                     </div>
-                    <p className="mt-1 font-bdo text-[11px] font-semibold text-slate-400">{review.created_at}</p>
+                    <p className="mt-1 truncate font-bdo text-[11px] font-semibold text-slate-400">
+                        {review.reviewer_email ?? review.submitted_at}
+                    </p>
                 </div>
                 <span
                     className={cn(
-                        "shrink-0 rounded-full border px-2.5 py-1 font-bdo text-[10px] font-bold uppercase tracking-wide",
-                        review.is_approved
-                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                            : "border-amber-200 bg-amber-50 text-amber-700",
+                        "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 font-bdo text-[10px] font-bold",
+                        statusTone,
                     )}
                 >
-                    {review.is_approved ? "Disetujui" : "Pending"}
+                    <StatusIcon size={12} />
+                    {review.status_label}
                 </span>
             </div>
             <p className="mt-3 line-clamp-3 font-bdo text-[13px] font-semibold leading-5 text-slate-600">{review.text}</p>
-            <div className="mt-3 flex items-center justify-end gap-2 border-t border-[#FFE0D8] pt-3">
+            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[#FFE0D8] pt-3">
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 font-bdo text-[10px] font-bold text-slate-500">
+                    {review.eligibility_label}
+                    {review.eligibility_reference_id ? ` #${review.eligibility_reference_id}` : ""}
+                </span>
+                <span className="font-bdo text-[10px] font-semibold text-slate-400">v{review.version}</span>
                 <button
                     type="button"
-                    onClick={() => onToggle(review)}
-                    className={cn(
-                        "inline-flex h-9 items-center justify-center gap-2 rounded-[14px] px-3.5 font-clash text-xs font-semibold transition",
-                        review.is_approved
-                            ? "border border-slate-200 bg-white text-slate-500 hover:bg-slate-100"
-                            : "border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
-                    )}
+                    onClick={() => onOpen(review)}
+                    className="ml-auto inline-flex h-9 items-center justify-center gap-2 rounded-[14px] bg-slate-950 px-3.5 font-clash text-xs font-semibold text-white transition hover:bg-[#B93D2A]"
                 >
-                    {review.is_approved ? <X size={14} /> : <Check size={14} />}
-                    {review.is_approved ? "Batalkan" : "Setujui"}
+                    <Eye size={14} />
+                    Tinjau
                 </button>
-                <ActionButton
-                    onClick={() => onDelete(review)}
-                    className="border-rose-200 bg-rose-50 text-rose-500 hover:bg-rose-100"
-                    aria-label={`Hapus review ${review.reviewer_name}`}
-                >
-                    <Trash2 size={15} />
-                </ActionButton>
             </div>
         </article>
+    );
+}
+
+function ReviewModerationPanel({
+    review,
+    onClose,
+}: {
+    review: ReviewItem;
+    onClose: () => void;
+}) {
+    const [feedback, setFeedback] = useState(review.moderation_feedback ?? "");
+    const [processing, setProcessing] = useState(false);
+    const [errors, setErrors] = useState<Record<string, string>>({});
+
+    const submit = (action: "approve" | "reject") => {
+        setErrors({});
+        router.patch(
+            route("admin.reviews.moderate", review.id),
+            {
+                action,
+                expected_version: review.version,
+                feedback: action === "reject" ? feedback : null,
+            },
+            {
+                preserveScroll: true,
+                onStart: () => setProcessing(true),
+                onError: (nextErrors) => setErrors(
+                    Object.fromEntries(
+                        Object.entries(nextErrors).map(([key, value]) => [key, String(value)]),
+                    ),
+                ),
+                onSuccess: onClose,
+                onFinish: () => setProcessing(false),
+            },
+        );
+    };
+
+    return (
+        <div className="flex flex-col gap-4">
+            <div className="overflow-hidden rounded-[22px] border border-[#FFD5CD] bg-[linear-gradient(145deg,#FFF7F5_0%,#FFFFFF_100%)] p-4">
+                <div className="flex items-start gap-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] bg-slate-950 font-clash text-sm font-bold text-white">
+                        {review.reviewer_name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <p className="truncate font-clash text-base font-semibold text-slate-950">{review.reviewer_name}</p>
+                        <p className="mt-0.5 truncate font-bdo text-xs font-semibold text-slate-400">{review.reviewer_email ?? "Akun pengguna terverifikasi"}</p>
+                        <div className="mt-2"><StarRow rating={review.rating} /></div>
+                    </div>
+                    <span className="rounded-full border border-[#FFD5CD] bg-white px-2.5 py-1 font-bdo text-[10px] font-bold text-[#B93D2A]">
+                        Versi {review.version}
+                    </span>
+                </div>
+            </div>
+
+            <div className="rounded-[22px] border border-slate-200 bg-white p-4">
+                <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                    <span className="font-bdo text-[10px] font-bold uppercase tracking-widest text-slate-400">Isi ulasan</span>
+                    <span className="font-bdo text-[11px] font-bold text-slate-500">{review.rating.toFixed(1)} / 5.0</span>
+                </div>
+                <p className="mt-4 whitespace-pre-wrap break-words font-bdo text-[15px] font-semibold leading-6 text-slate-700">{review.text}</p>
+            </div>
+
+            <div className={cn("grid gap-2", review.status === "approved" ? "grid-cols-1" : "sm:grid-cols-2")}>
+                <div className="rounded-[18px] border border-slate-200 bg-slate-50 px-3.5 py-3">
+                    <p className="font-bdo text-[9px] font-bold uppercase tracking-widest text-slate-400">Bukti kelayakan</p>
+                    <p className="mt-1 font-clash text-sm font-semibold text-slate-900">
+                        {review.eligibility_label}{review.eligibility_reference_id ? ` #${review.eligibility_reference_id}` : ""}
+                    </p>
+                </div>
+                <div className="rounded-[18px] border border-slate-200 bg-slate-50 px-3.5 py-3">
+                    <p className="font-bdo text-[9px] font-bold uppercase tracking-widest text-slate-400">Dikirim</p>
+                    <p className="mt-1 font-clash text-sm font-semibold text-slate-900">{review.submitted_at}</p>
+                </div>
+            </div>
+
+            <label className="rounded-[22px] border border-rose-200 bg-rose-50/55 p-4">
+                <span className="font-clash text-sm font-semibold text-slate-950">Catatan perbaikan</span>
+                <span className="mt-1 block font-bdo text-xs font-medium leading-5 text-slate-500">
+                    Wajib saat ulasan dikembalikan. Catatan ini terlihat oleh pengguna.
+                </span>
+                <textarea
+                    value={feedback}
+                    onChange={(event) => setFeedback(event.target.value)}
+                    maxLength={500}
+                    rows={4}
+                    className="mt-3 w-full resize-y rounded-[16px] border border-rose-200 bg-white px-3.5 py-3 font-bdo text-sm font-semibold text-slate-700 outline-none transition focus:border-rose-400 focus:ring-4 focus:ring-rose-100"
+                    placeholder="Contoh: Mohon hindari data pribadi dan jelaskan pengalaman fasilitas secara spesifik."
+                />
+                <span className="mt-1.5 flex items-center justify-between font-bdo text-[10px] font-semibold text-slate-400">
+                    <span>{errors.feedback ?? errors.review ?? "Minimal 5 karakter untuk keputusan penolakan."}</span>
+                    <span>{feedback.length}/500</span>
+                </span>
+            </label>
+
+            <div className="grid gap-2 sm:grid-cols-2">
+                <button
+                    type="button"
+                    onClick={() => submit("reject")}
+                    disabled={processing || feedback.trim().length < 5}
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-[16px] border border-rose-200 bg-rose-50 px-4 font-clash text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                    <CircleAlert size={15} />
+                    Kembalikan untuk diperbaiki
+                </button>
+                {review.status !== "approved" && (
+                    <button
+                        type="button"
+                        onClick={() => submit("approve")}
+                        disabled={processing}
+                        className="inline-flex h-11 items-center justify-center gap-2 rounded-[16px] bg-[linear-gradient(135deg,#F08C78_0%,#E35336_52%,#B93D2A_100%)] px-4 font-clash text-sm font-semibold text-white shadow-[0_18px_34px_-24px_rgba(227,83,54,.95)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-55"
+                    >
+                        <ShieldCheck size={15} />
+                        {processing ? "Memproses..." : "Setujui & tayangkan"}
+                    </button>
+                )}
+            </div>
+        </div>
     );
 }
 
@@ -887,19 +1047,24 @@ function EmptyState({ icon, title, text, action }: { icon: ReactNode; title: str
 }
 
 export default function TestimonialsIndex() {
-    const { testimonials: initialTestimonials, reviews } = usePage<Props>().props;
+    const {
+        testimonials: initialTestimonials,
+        reviews,
+        review_stats: reviewStats,
+        review_filters: reviewFilters,
+    } = usePage<Props>().props;
 
     const [items, setItems] = useState<TestimonialItem[]>(initialTestimonials);
-    const [activeTab, setActiveTab] = useState<ActiveTab>("testimonials");
+    const [activeTab, setActiveTab] = useState<ActiveTab>("reviews");
     const [slideOver, setSlideOver] = useState<{ open: boolean; item: TestimonialItem | null }>({
         open: false,
         item: null,
     });
+    const [reviewPanel, setReviewPanel] = useState<ReviewItem | null>(null);
     const [testimonialQuery, setTestimonialQuery] = useState("");
     const [testimonialStatus, setTestimonialStatus] = useState<StatusFilter>("all");
-    const [reviewQuery, setReviewQuery] = useState("");
-    const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("all");
-    const [reviewPage, setReviewPage] = useState(1);
+    const [reviewQuery, setReviewQuery] = useState(reviewFilters.search);
+    const [reviewFilter, setReviewFilter] = useState<ReviewFilter>(reviewFilters.status);
 
     useEffect(() => setItems(initialTestimonials), [initialTestimonials]);
 
@@ -927,34 +1092,77 @@ export default function TestimonialsIndex() {
         });
     }, [items, testimonialQuery, testimonialStatus]);
 
-    const filteredReviews = useMemo(() => {
-        const normalized = reviewQuery.trim().toLowerCase();
+    useEffect(() => {
+        const normalizedSearch = reviewQuery.trim();
 
-        return reviews.filter((review) => {
-            const matchesFilter =
-                reviewFilter === "all" || (reviewFilter === "approved" ? review.is_approved : !review.is_approved);
-            const matchesQuery = normalized.length === 0 || [
-                review.reviewer_name,
-                review.text,
-                String(review.rating),
-            ].join(" ").toLowerCase().includes(normalized);
+        if (
+            normalizedSearch === reviewFilters.search &&
+            reviewFilter === reviewFilters.status
+        ) {
+            return;
+        }
 
-            return matchesFilter && matchesQuery;
-        });
-    }, [reviews, reviewFilter, reviewQuery]);
+        const timeoutId = window.setTimeout(() => {
+            router.get(
+                route("admin.testimonials.index"),
+                {
+                    review_search: normalizedSearch || undefined,
+                    review_status:
+                        reviewFilter === "all" ? undefined : reviewFilter,
+                    review_page: 1,
+                },
+                {
+                    only: ["reviews", "review_stats", "review_filters"],
+                    preserveScroll: true,
+                    preserveState: true,
+                    replace: true,
+                },
+            );
+        }, 320);
+
+        return () => window.clearTimeout(timeoutId);
+    }, [reviewFilter, reviewFilters.search, reviewFilters.status, reviewQuery]);
+
+    const loadReviewPage = useCallback(
+        (page: number) => {
+            router.get(
+                route("admin.testimonials.index"),
+                {
+                    review_search: reviewQuery.trim() || undefined,
+                    review_status:
+                        reviewFilter === "all" ? undefined : reviewFilter,
+                    review_page: page,
+                },
+                {
+                    only: ["reviews", "review_stats", "review_filters"],
+                    preserveScroll: true,
+                    preserveState: true,
+                },
+            );
+        },
+        [reviewFilter, reviewQuery],
+    );
 
     useEffect(() => {
-        setReviewPage(1);
-    }, [reviewFilter, reviewQuery]);
+        if (
+            reviews.total > 0 &&
+            reviews.data.length === 0 &&
+            reviews.current_page > reviews.last_page
+        ) {
+            loadReviewPage(reviews.last_page);
+        }
+    }, [loadReviewPage, reviews]);
 
-    const reviewPageCount = Math.max(1, Math.ceil(filteredReviews.length / REVIEW_PAGE_SIZE));
-    const safeReviewPage = Math.min(reviewPage, reviewPageCount);
-    const reviewStart = (safeReviewPage - 1) * REVIEW_PAGE_SIZE;
-    const reviewEnd = Math.min(reviewStart + REVIEW_PAGE_SIZE, filteredReviews.length);
-    const paginatedReviews = filteredReviews.slice(reviewStart, reviewEnd);
+    const reviewPageCount = Math.max(1, reviews.last_page);
+    const safeReviewPage = Math.min(reviews.current_page, reviewPageCount);
+    const reviewStart = reviews.from ?? 0;
+    const reviewEnd = reviews.to ?? 0;
+    const paginatedReviews = reviews.data;
 
     const activeCount = items.filter((item) => item.is_active).length;
-    const pendingCount = reviews.filter((review) => !review.is_approved).length;
+    const pendingCount = reviewStats.pending;
+    const approvedCount = reviewStats.approved;
+    const rejectedCount = reviewStats.rejected;
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
         if (!over || active.id === over.id) return;
@@ -977,19 +1185,6 @@ export default function TestimonialsIndex() {
         router.delete(route("admin.testimonials.destroy", item.id), { preserveScroll: true });
     };
 
-    const handleToggleApprove = (review: ReviewItem) => {
-        router.post(
-            route("admin.reviews.toggle-approve", review.id),
-            {},
-            { preserveScroll: true },
-        );
-    };
-
-    const handleDeleteReview = (review: ReviewItem) => {
-        if (!confirm(`Hapus review dari "${review.reviewer_name}"?`)) return;
-        router.delete(route("admin.reviews.destroy", review.id), { preserveScroll: true });
-    };
-
     return (
         <AdminLayout
             header={
@@ -1009,7 +1204,7 @@ export default function TestimonialsIndex() {
             <div className="flex flex-col gap-4 overflow-x-hidden pb-16 pt-4">
                 <HeroSection
                     items={items}
-                    reviews={reviews}
+                    approvedReviewCount={approvedCount}
                     onCreate={openNew}
                 />
 
@@ -1101,30 +1296,34 @@ export default function TestimonialsIndex() {
                             setQuery={setReviewQuery}
                             filter={reviewFilter}
                             setFilter={setReviewFilter}
-                            total={filteredReviews.length}
+                            total={reviews.total}
                         />
 
-                        <div className="grid gap-2.5 border-b border-[#FFE0D8] bg-[#FFF7F5]/70 p-2.5 sm:grid-cols-3">
+                        <div className="grid gap-2.5 border-b border-[#FFE0D8] bg-[#FFF7F5]/70 p-2.5 sm:grid-cols-2 xl:grid-cols-4">
                             <div className="rounded-[18px] border border-[#FFD5CD] bg-white px-3.5 py-2.5">
                                 <p className="font-bdo text-[10px] font-bold uppercase tracking-wide text-slate-400">Total</p>
-                                <p className="mt-1 font-clash text-lg font-bold text-slate-950">{reviews.length} review</p>
+                                <p className="mt-1 font-clash text-lg font-bold text-slate-950">{reviewStats.total} review</p>
                             </div>
                             <div className="rounded-[18px] border border-emerald-200 bg-emerald-50 px-3.5 py-2.5">
                                 <p className="font-bdo text-[10px] font-bold uppercase tracking-wide text-emerald-600/70">Disetujui</p>
-                                <p className="mt-1 font-clash text-lg font-bold text-emerald-800">{reviews.filter((review) => review.is_approved).length}</p>
+                                <p className="mt-1 font-clash text-lg font-bold text-emerald-800">{approvedCount}</p>
                             </div>
                             <div className="rounded-[18px] border border-amber-200 bg-amber-50 px-3.5 py-2.5">
                                 <p className="font-bdo text-[10px] font-bold uppercase tracking-wide text-amber-600/70">Pending</p>
                                 <p className="mt-1 font-clash text-lg font-bold text-amber-800">{pendingCount}</p>
                             </div>
+                            <div className="rounded-[18px] border border-rose-200 bg-rose-50 px-3.5 py-2.5">
+                                <p className="font-bdo text-[10px] font-bold uppercase tracking-wide text-rose-600/70">Perlu diperbaiki</p>
+                                <p className="mt-1 font-clash text-lg font-bold text-rose-800">{rejectedCount}</p>
+                            </div>
                         </div>
 
                         <div className="testimonial-scrollbar max-h-[590px] overflow-y-auto p-2.5 sm:p-3">
-                            {filteredReviews.length === 0 ? (
+                            {reviews.data.length === 0 ? (
                                 <EmptyState
                                     icon={<MessageSquare size={20} />}
-                                    title={reviews.length === 0 ? "Belum ada review" : "Review tidak ditemukan"}
-                                    text={reviews.length === 0 ? "Review pengguna akan muncul di sini setelah mereka mengirim ulasan." : "Coba ubah kata kunci atau filter review."}
+                                    title={reviewStats.total === 0 ? "Belum ada review" : "Review tidak ditemukan"}
+                                    text={reviewStats.total === 0 ? "Review pengguna akan muncul di sini setelah mereka mengirim ulasan." : "Coba ubah kata kunci atau filter review."}
                                 />
                             ) : (
                                 <div className="grid gap-2.5 lg:grid-cols-2">
@@ -1132,23 +1331,22 @@ export default function TestimonialsIndex() {
                                         <ReviewCard
                                             key={review.id}
                                             review={review}
-                                            onToggle={handleToggleApprove}
-                                            onDelete={handleDeleteReview}
+                                            onOpen={setReviewPanel}
                                         />
                                     ))}
                                 </div>
                             )}
                         </div>
 
-                        {filteredReviews.length > 0 && (
+                        {reviews.total > 0 && (
                             <div className="flex flex-col gap-2.5 border-t border-[#FFE0D8] bg-[#FFF7F5]/70 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
                                 <p className="font-bdo text-xs font-semibold text-slate-500">
-                                    Menampilkan {reviewStart + 1}-{reviewEnd} dari {filteredReviews.length} review
+                                    Menampilkan {reviewStart}-{reviewEnd} dari {reviews.total} review
                                 </p>
                                 <div className="grid grid-cols-[36px_minmax(0,1fr)_36px] items-center gap-2 sm:flex">
                                     <ActionButton
                                         disabled={safeReviewPage <= 1}
-                                        onClick={() => setReviewPage((page) => Math.max(1, page - 1))}
+                                        onClick={() => loadReviewPage(Math.max(1, safeReviewPage - 1))}
                                         className="border-slate-200 bg-white text-slate-500 hover:border-[#F8B5A8] hover:text-[#B93D2A]"
                                         aria-label="Halaman sebelumnya"
                                     >
@@ -1159,7 +1357,7 @@ export default function TestimonialsIndex() {
                                     </div>
                                     <ActionButton
                                         disabled={safeReviewPage >= reviewPageCount}
-                                        onClick={() => setReviewPage((page) => Math.min(reviewPageCount, page + 1))}
+                                        onClick={() => loadReviewPage(Math.min(reviewPageCount, safeReviewPage + 1))}
                                         className="border-slate-200 bg-white text-slate-500 hover:border-[#F8B5A8] hover:text-[#B93D2A]"
                                         aria-label="Halaman berikutnya"
                                     >
@@ -1205,6 +1403,26 @@ export default function TestimonialsIndex() {
                         key={slideOver.item?.id ?? "new"}
                         item={slideOver.item}
                         onClose={close}
+                    />
+                )}
+            </SlideOver>
+
+            <SlideOver
+                isOpen={reviewPanel !== null}
+                onClose={() => setReviewPanel(null)}
+                title={<span className="font-clash text-xl font-bold">Validasi Review</span>}
+                description={
+                    <span className="font-bdo text-sm text-slate-500">
+                        Verifikasi isi dan bukti kelayakan sebelum review ditayangkan.
+                    </span>
+                }
+                panelClassName="max-w-xl"
+            >
+                {reviewPanel && (
+                    <ReviewModerationPanel
+                        key={`${reviewPanel.id}-${reviewPanel.version}`}
+                        review={reviewPanel}
+                        onClose={() => setReviewPanel(null)}
                     />
                 )}
             </SlideOver>

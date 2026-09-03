@@ -3,6 +3,10 @@ import {
     Check,
     ChevronLeft,
     ChevronRight,
+    CircleAlert,
+    Clock3,
+    Pencil,
+    ShieldCheck,
     X,
 } from "lucide-react";
 import {
@@ -15,7 +19,11 @@ import {
 import useEmblaCarousel from "embla-carousel-react";
 import { useForm, usePage } from "@inertiajs/react";
 import type { PageProps } from "@/types";
-import type { UserExistingReview } from "@/Pages/BookingPage";
+import type {
+    PublicReviewSummary,
+    UserExistingReview,
+    UserReviewEligibility,
+} from "@/Pages/BookingPage";
 import BookingReviewCard, { type Review } from "./BookingReviewCard";
 import ReviewAvatar from "./ReviewAvatar";
 import ReviewRatingStars from "./ReviewRatingStars";
@@ -30,10 +38,26 @@ const RATING_OPTIONS = Array.from(
     (_, index) => (index + 1) / 2,
 );
 
+const REVIEW_FEED_REFRESH_BASE_MS = 60_000;
+const REVIEW_FEED_REFRESH_JITTER_MS = 20_000;
+
+function ratingDescriptor(value: number): string {
+    if (value <= 0) return "Pilih nilai pengalaman Anda";
+    if (value <= 1) return "Perlu banyak perbaikan";
+    if (value <= 2) return "Belum memuaskan";
+    if (value <= 3) return "Cukup baik";
+    if (value <= 4) return "Pengalaman yang baik";
+    if (value < 5) return "Pengalaman yang sangat baik";
+
+    return "Pengalaman yang luar biasa";
+}
+
 type BookingPageInertiaProps = PageProps<{
     can_review?: boolean;
+    review_eligibility?: UserReviewEligibility | null;
     existing_review?: UserExistingReview | null;
     approved_reviews?: Review[];
+    approved_reviews_summary?: PublicReviewSummary;
 }>;
 
 function formatCount(value: number): string {
@@ -66,9 +90,9 @@ function formatMarketingReviewCount(value: number): string {
         ? Math.max(0, Math.floor(value))
         : 0;
 
-    if (count <= 1) return String(count);
+    if (count < 1_000) return String(count);
 
-    return `${formatCompactReviewCount(count - 1)}+`;
+    return `${formatCompactReviewCount(count)}+`;
 }
 
 function isReview(value: unknown): value is Review {
@@ -94,13 +118,62 @@ function isReview(value: unknown): value is Review {
     );
 }
 
-function reviewsFromFeed(payload: unknown): Review[] | null {
+function summarizeReviews(reviews: Review[]): PublicReviewSummary {
+    return {
+        total: reviews.length,
+        averageRating:
+            reviews.length > 0
+                ? reviews.reduce((total, review) => total + review.rating, 0) /
+                  reviews.length
+                : null,
+        avatars: reviews.slice(0, 4).map((review) => ({
+            reviewId: review.id,
+            authorName: review.authorName,
+            avatar: review.avatar ?? review.avatarFallback ?? "",
+            avatarFallback: review.avatarFallback ?? review.avatar ?? "",
+        })),
+    };
+}
+
+function isReviewSummary(value: unknown): value is PublicReviewSummary {
+    if (!value || typeof value !== "object") return false;
+
+    const summary = value as Partial<PublicReviewSummary>;
+
+    return (
+        typeof summary.total === "number" &&
+        Number.isInteger(summary.total) &&
+        summary.total >= 0 &&
+        (summary.averageRating === null ||
+            (typeof summary.averageRating === "number" &&
+                Number.isFinite(summary.averageRating) &&
+                summary.averageRating >= 0.5 &&
+                summary.averageRating <= 5)) &&
+        Array.isArray(summary.avatars) &&
+        summary.avatars.every((avatar) =>
+            Boolean(
+                avatar &&
+                    typeof avatar.reviewId === "string" &&
+                    typeof avatar.authorName === "string" &&
+                    typeof avatar.avatar === "string" &&
+                    typeof avatar.avatarFallback === "string",
+            ),
+        )
+    );
+}
+
+function reviewFeedFromPayload(
+    payload: unknown,
+): { reviews: Review[]; summary: PublicReviewSummary } | null {
     if (!payload || typeof payload !== "object") return null;
 
     const reviews = (payload as { reviews?: unknown }).reviews;
     if (!Array.isArray(reviews) || !reviews.every(isReview)) return null;
 
-    return reviews;
+    const summary = (payload as { summary?: unknown }).summary;
+    if (!isReviewSummary(summary) || summary.total < reviews.length) return null;
+
+    return { reviews, summary };
 }
 
 function RatingSelector({
@@ -115,6 +188,25 @@ function RatingSelector({
     return (
         <fieldset className="booking-review-rating" disabled={disabled}>
             <legend className="booking-reviews__sr-only">Rating Anda</legend>
+            <div
+                className={`booking-review-rating__visual${
+                    value > 0 ? " has-value" : ""
+                }`}
+                aria-live="polite"
+                aria-atomic="true"
+            >
+                <ReviewRatingStars
+                    key={value > 0 ? value : "empty"}
+                    rating={value}
+                    className="booking-review-rating__stars"
+                    label={
+                        value > 0
+                            ? `Rating dipilih ${value.toFixed(1)} dari 5`
+                            : "Belum ada rating yang dipilih"
+                    }
+                />
+                <span>{ratingDescriptor(value)}</span>
+            </div>
             <div className="booking-review-rating__head">
                 <span>Rating</span>
                 <strong>{value > 0 ? value.toFixed(1) : "—"} / 5.0</strong>
@@ -158,7 +250,15 @@ function ReviewForm({
             text: existingReview?.text ?? "",
         });
 
-    const canSubmit = data.rating >= 0.5 && data.text.trim().length >= 10;
+    const hasChanges =
+        !existingReview ||
+        data.rating !== existingReview.rating ||
+        data.text.trim() !== existingReview.text.trim();
+    const canSubmit =
+        data.rating >= 0.5 &&
+        data.text.trim().length >= 10 &&
+        hasChanges;
+    const workflowError = (errors as Record<string, string>).review;
 
     const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -265,11 +365,18 @@ function ReviewForm({
                     {errors.rating}
                 </p>
             )}
+            {workflowError && (
+                <p className="booking-review-form__error" role="alert">
+                    {workflowError}
+                </p>
+            )}
 
             <footer>
                 <p>
                     {isEditing
-                        ? "Versi baru akan ditinjau kembali sebelum diterbitkan."
+                        ? hasChanges
+                            ? "Versi baru akan ditinjau kembali sebelum diterbitkan."
+                            : "Ubah rating atau isi ulasan sebelum memperbarui."
                         : "Identitas member menjaga setiap ulasan tetap dapat dipercaya."}
                 </p>
                 <button type="submit" disabled={!canSubmit || processing}>
@@ -287,16 +394,99 @@ function ReviewForm({
     );
 }
 
+function UserReviewPanel({
+    review,
+    userName,
+    canEdit,
+    onEdit,
+}: {
+    review: UserExistingReview;
+    userName: string;
+    canEdit: boolean;
+    onEdit: () => void;
+}) {
+    const statusIcon =
+        review.status === "approved" ? (
+            <ShieldCheck aria-hidden="true" />
+        ) : review.status === "rejected" ? (
+            <CircleAlert aria-hidden="true" />
+        ) : (
+            <Clock3 aria-hidden="true" />
+        );
+
+    return (
+        <article
+            className={`booking-user-review booking-user-review--${review.status}`}
+            aria-labelledby="booking-user-review-title"
+        >
+            <header className="booking-user-review__header">
+                <div className="booking-user-review__identity">
+                    <span aria-hidden="true">
+                        {userName.trim().charAt(0).toUpperCase() || "U"}
+                    </span>
+                    <div>
+                        <small>Ulasan Anda</small>
+                        <h3 id="booking-user-review-title">{userName}</h3>
+                    </div>
+                </div>
+                <span className="booking-user-review__status">
+                    {statusIcon}
+                    {review.status_label}
+                </span>
+            </header>
+
+            <div className="booking-user-review__body">
+                <div className="booking-user-review__rating">
+                    <ReviewRatingStars
+                        rating={review.rating}
+                        label={`Rating Anda ${review.rating.toFixed(1)} dari 5`}
+                    />
+                    <strong>{review.rating.toFixed(1)} / 5.0</strong>
+                </div>
+                <p>{review.text}</p>
+                {review.status === "rejected" && review.moderation_feedback && (
+                    <aside className="booking-user-review__feedback">
+                        <span>Catatan moderator</span>
+                        <p>{review.moderation_feedback}</p>
+                    </aside>
+                )}
+            </div>
+
+            <footer className="booking-user-review__footer">
+                <div>
+                    <span>{review.eligibility_label}</span>
+                    <time>{review.submitted_at ?? review.updated_at ?? "Baru dikirim"}</time>
+                    <small>{review.status_message}</small>
+                </div>
+                <button
+                    type="button"
+                    data-booking-user-review-action
+                    onClick={onEdit}
+                    disabled={!canEdit}
+                >
+                    <Pencil aria-hidden="true" />
+                    {canEdit ? "Edit ulasan" : "Akses edit terkunci"}
+                </button>
+            </footer>
+        </article>
+    );
+}
+
 export default function BookingReviewSection() {
     const {
         auth,
         can_review,
+        review_eligibility,
         existing_review,
         approved_reviews = [],
+        approved_reviews_summary,
     } = usePage<BookingPageInertiaProps>().props;
     const user = auth.user;
     const { openAuth } = useAuthFlow();
     const [reviews, setReviews] = useState<Review[]>(approved_reviews);
+    const [reviewSummary, setReviewSummary] = useState<PublicReviewSummary>(
+        approved_reviews_summary ?? summarizeReviews(approved_reviews),
+    );
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [composerOpen, setComposerOpen] = useState(false);
     const [feedStatus, setFeedStatus] = useState<
@@ -319,23 +509,29 @@ export default function BookingReviewSection() {
         });
     }, [openAuth]);
 
-    const applyReviews = useCallback((nextReviews: Review[]) => {
-        const activeReviewId =
-            reviewsRef.current[selectedIndexRef.current]?.id ?? null;
-        const preservedIndex = activeReviewId
-            ? nextReviews.findIndex((review) => review.id === activeReviewId)
-            : -1;
-        const nextIndex = preservedIndex >= 0 ? preservedIndex : 0;
+    const applyReviews = useCallback(
+        (nextReviews: Review[], nextSummary?: PublicReviewSummary) => {
+            const activeReviewId =
+                reviewsRef.current[selectedIndexRef.current]?.id ?? null;
+            const preservedIndex = activeReviewId
+                ? nextReviews.findIndex(
+                      (review) => review.id === activeReviewId,
+                  )
+                : -1;
+            const nextIndex = preservedIndex >= 0 ? preservedIndex : 0;
 
-        reviewsRef.current = nextReviews;
-        selectedIndexRef.current = nextIndex;
-        setSelectedIndex(nextIndex);
-        setReviews(nextReviews);
-    }, []);
+            reviewsRef.current = nextReviews;
+            selectedIndexRef.current = nextIndex;
+            setSelectedIndex(nextIndex);
+            setReviews(nextReviews);
+            setReviewSummary(nextSummary ?? summarizeReviews(nextReviews));
+        },
+        [],
+    );
 
     useEffect(() => {
-        applyReviews(approved_reviews);
-    }, [approved_reviews, applyReviews]);
+        applyReviews(approved_reviews, approved_reviews_summary);
+    }, [approved_reviews, approved_reviews_summary, applyReviews]);
 
     useEffect(() => {
         selectedIndexRef.current = selectedIndex;
@@ -380,13 +576,13 @@ export default function BookingReviewSection() {
                 throw new Error(`Review feed returned ${response.status}`);
             }
 
-            const nextReviews = reviewsFromFeed(await response.json());
-            if (!nextReviews) {
+            const nextFeed = reviewFeedFromPayload(await response.json());
+            if (!nextFeed) {
                 throw new Error("Review feed payload is invalid");
             }
 
             feedEtagRef.current = response.headers.get("ETag");
-            applyReviews(nextReviews);
+            applyReviews(nextFeed.reviews, nextFeed.summary);
             setFeedStatus("connected");
         } catch (error) {
             if (error instanceof DOMException && error.name === "AbortError") {
@@ -417,18 +613,31 @@ export default function BookingReviewSection() {
         const markOffline = () => {
             setFeedStatus("offline");
         };
-        const pollId = window.setInterval(() => {
-            void refreshReviewFeed();
-        }, 15_000);
+        let disposed = false;
+        let pollId: number | null = null;
+        const scheduleRefresh = () => {
+            if (disposed) return;
+
+            const jitter = Math.floor(
+                Math.random() * REVIEW_FEED_REFRESH_JITTER_MS,
+            );
+
+            pollId = window.setTimeout(async () => {
+                await refreshReviewFeed();
+                if (!disposed) scheduleRefresh();
+            }, REVIEW_FEED_REFRESH_BASE_MS + jitter);
+        };
 
         void refreshReviewFeed();
+        scheduleRefresh();
         document.addEventListener("visibilitychange", refreshWhenVisible);
         window.addEventListener("focus", refreshWhenVisible);
         window.addEventListener("online", refreshWhenOnline);
         window.addEventListener("offline", markOffline);
 
         return () => {
-            window.clearInterval(pollId);
+            disposed = true;
+            if (pollId !== null) window.clearTimeout(pollId);
             document.removeEventListener(
                 "visibilitychange",
                 refreshWhenVisible,
@@ -442,15 +651,12 @@ export default function BookingReviewSection() {
     }, [refreshReviewFeed]);
 
     const canDrag = reviews.length > 1;
-    const averageRating =
-        reviews.length > 0
-            ? reviews.reduce((total, review) => total + review.rating, 0) /
-              reviews.length
-            : 0;
+    const reviewTotal = Math.max(reviewSummary.total, reviews.length);
+    const averageRating = reviewSummary.averageRating ?? 0;
     const summaryReviews = reviews.slice(0, 3);
     const remainingReviewCount = Math.max(
         0,
-        reviews.length - summaryReviews.length,
+        reviewTotal - summaryReviews.length,
     );
     const reviewSignature = reviews.map((review) => review.id).join(":");
     const [emblaRef, emblaApi] = useEmblaCarousel({
@@ -460,6 +666,8 @@ export default function BookingReviewSection() {
         slidesToScroll: 1,
         watchDrag: canDrag,
     });
+    const needsEmailVerification =
+        review_eligibility?.reason === "email_unverified";
 
     const syncCarousel = useCallback(() => {
         if (!emblaApi) return;
@@ -500,9 +708,20 @@ export default function BookingReviewSection() {
         requestAnimationFrame(() => {
             composerRef.current
                 ?.querySelector<HTMLElement>("[data-review-form-title]")
-                ?.focus();
+                ?.focus({ preventScroll: true });
         });
     }, [composerOpen]);
+
+    useEffect(() => {
+        const composer = composerRef.current;
+        if (!composer) return;
+
+        if (composerOpen) {
+            composer.removeAttribute("inert");
+        } else {
+            composer.setAttribute("inert", "");
+        }
+    }, [composerOpen, user, can_review]);
 
     const selectReview = useCallback(
         (index: number) => {
@@ -534,8 +753,12 @@ export default function BookingReviewSection() {
     }, [emblaApi, reviewSignature]);
 
     const closeComposer = useCallback(() => {
+        composerTriggerRef.current?.focus({ preventScroll: true });
         setComposerOpen(false);
-        requestAnimationFrame(() => composerTriggerRef.current?.focus());
+    }, []);
+
+    const openComposer = useCallback(() => {
+        setComposerOpen(true);
     }, []);
 
     const handleCarouselKeyDown = (
@@ -601,7 +824,7 @@ export default function BookingReviewSection() {
                                     Semua Ulasan
                                 </ScrollTextReveal>
                             </span>
-                            <span>{formatCount(reviews.length)} /</span>
+                            <span>{formatCount(reviewTotal)} /</span>
                         </header>
 
                         <div className="booking-review-score__value">
@@ -655,12 +878,12 @@ export default function BookingReviewSection() {
                                             label={`Rata-rata ${averageRating.toFixed(1)} dari 5`}
                                         />
                                         <p
-                                            aria-label={`Dipercaya oleh ${reviews.length} pengguna`}
+                                            aria-label={`Dipercaya oleh ${reviewTotal} pengguna`}
                                         >
                                             Dipercaya oleh{" "}
                                             <strong>
                                                 {formatMarketingReviewCount(
-                                                    reviews.length,
+                                                    reviewTotal,
                                                 )}{" "}
                                                 pengguna
                                             </strong>
@@ -676,8 +899,8 @@ export default function BookingReviewSection() {
                                 className="booking-reviews__sr-only"
                                 aria-live="polite"
                             >
-                                {reviews.length > 0
-                                    ? `Rata-rata ${averageRating.toFixed(1)} dari 5 berdasarkan ${reviews.length} ulasan. ${
+                                {reviewTotal > 0
+                                    ? `Rata-rata ${averageRating.toFixed(1)} dari 5 berdasarkan ${reviewTotal} ulasan. ${
                                           feedStatus === "connected"
                                               ? "Data ulasan tersinkron."
                                               : ""
@@ -742,9 +965,20 @@ export default function BookingReviewSection() {
                                     />
                                 ) : !can_review ? (
                                     <ReservasiButton
-                                        label="Tuliskan Ulasan"
-                                        ariaLabel="Selesaikan reservasi untuk menuliskan ulasan"
-                                        href="#booking-finder"
+                                        label={
+                                            needsEmailVerification
+                                                ? "Verifikasi Email"
+                                                : "Mulai Reservasi"
+                                        }
+                                        ariaLabel={
+                                            review_eligibility?.message ??
+                                            "Selesaikan reservasi atau miliki membership untuk menuliskan ulasan"
+                                        }
+                                        href={
+                                            needsEmailVerification
+                                                ? route("verification.notice")
+                                                : "#booking-finder"
+                                        }
                                         size="review"
                                     />
                                 ) : (
@@ -759,8 +993,10 @@ export default function BookingReviewSection() {
                                         buttonRef={composerTriggerRef}
                                         ariaExpanded={composerOpen}
                                         ariaControls="booking-review-composer"
-                                        onClick={() =>
-                                            setComposerOpen((open) => !open)
+                                        onClick={
+                                            composerOpen
+                                                ? closeComposer
+                                                : openComposer
                                         }
                                     />
                                 )}
@@ -832,16 +1068,30 @@ export default function BookingReviewSection() {
                     </div>
                 </div>
 
-                {user && can_review && composerOpen && (
+                {user && existing_review && (
+                    <UserReviewPanel
+                        review={existing_review}
+                        userName={user.name}
+                        canEdit={Boolean(can_review)}
+                        onEdit={openComposer}
+                    />
+                )}
+
+                {user && can_review && (
                     <div
                         id="booking-review-composer"
                         ref={composerRef}
-                        className="booking-reviews__composer"
+                        className={`booking-reviews__composer ${
+                            composerOpen ? "is-open" : "is-closed"
+                        }`}
+                        aria-hidden={!composerOpen}
                     >
-                        <ReviewForm
-                            existingReview={existing_review ?? null}
-                            onClose={closeComposer}
-                        />
+                        <div className="booking-reviews__composer-clip">
+                            <ReviewForm
+                                existingReview={existing_review ?? null}
+                                onClose={closeComposer}
+                            />
+                        </div>
                     </div>
                 )}
             </div>
