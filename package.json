@@ -53,7 +53,7 @@
         "maath": "^0.10.8",
         "maplibre-gl": "^5.19.0",
         "ogl": "^1.0.11",
-        "react-dropzone": "^14.4.1",
+        "react-dropzone": "^20.1.1",
         "tailwind-merge": "^3.5.0",
         "tailwindcss-animate": "^1.0.7",
         "three": "^0.183.1"
