@@ -147,6 +147,30 @@ Perintah produksi yang diizinkan setelah semua gate lulus adalah:
 php artisan migrate --force --isolated --no-interaction
 ```
 
+Entry point deployment resmi langsung menjalankan sinkronisasi katalog setelah
+migrasi:
+
+```bash
+php artisan reference-data:sync --repair --no-interaction
+```
+
+Langkah ini memulihkan data referensi pricing dan konten publik bawaan yang
+hilang: kategori fasilitas, fasilitas, harga dasar, paket membership, kategori
+berita, promo homepage, sponsor, reels, info banner, testimonial, serta fallback
+aset yang memang tersimpan di Git. Jika belum ada akun penulis, artikel bawaan
+memakai byline sistem tanpa membuat akun, password, atau credential baru.
+
+Prosesnya idempotent dan tidak mengganti edit administrator, booking, membership
+pelanggan, harga khusus unit, review pengguna, media upload, akun, pembayaran,
+atau data operasional lain. Item bawaan yang tidak ingin ditampilkan sebaiknya
+dinonaktifkan melalui admin, bukan dihapus, karena mode `--repair` memang
+memulihkan kembali baseline yang hilang. Jangan menggantinya dengan
+`migrate:fresh` maupun `db:seed` pada database yang sudah berisi data.
+
+`git pull` sendiri hanya mengambil file. Gunakan entry point deployment resmi
+agar migrasi normal dan sinkronisasi di atas dijalankan otomatis setelah pull;
+tidak ada langkah fresh migration atau seeding yang diperlukan.
+
 Kegagalan migrasi adalah kondisi berhenti. Jangan menjalankan rollback database
 otomatis dan jangan mengedit tabel secara manual untuk memaksa status migrasi.
 

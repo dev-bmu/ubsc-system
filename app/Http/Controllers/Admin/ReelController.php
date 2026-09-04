@@ -19,11 +19,11 @@ class ReelController extends Controller
             ->latest()
             ->get()
             ->map(fn (Reel $r) => [
-                'id'            => $r->id,
-                'title'         => $r->title,
-                'is_active'     => $r->is_active,
-                'thumbnail_url' => $r->getFirstMediaUrl('thumbnail') ?: null,
-                'video_url'     => $r->getFirstMediaUrl('video') ?: null,
+                'id' => $r->id,
+                'title' => $r->title,
+                'is_active' => $r->is_active,
+                'thumbnail_url' => $r->thumbnailUrl(),
+                'video_url' => $r->videoUrl(),
             ]);
 
         return Inertia::render('Admin/Reels/Index', ['items' => $items]);
@@ -34,14 +34,14 @@ class ReelController extends Controller
         $this->authorize('manage-cms');
 
         $data = $request->validate([
-            'title'     => ['required', 'string', 'max:255'],
+            'title' => ['required', 'string', 'max:255'],
             'is_active' => ['boolean'],
             'thumbnail' => ['nullable', 'image', 'max:5120'],
-            'video'     => ['nullable', 'mimes:mp4,webm', 'max:51200'],
+            'video' => ['nullable', 'mimes:mp4,webm', 'max:51200'],
         ]);
 
         $item = Reel::create([
-            'title'     => $data['title'],
+            'title' => $data['title'],
             'is_active' => $data['is_active'] ?? true,
         ]);
 
@@ -61,14 +61,14 @@ class ReelController extends Controller
         $this->authorize('manage-cms');
 
         $data = $request->validate([
-            'title'     => ['required', 'string', 'max:255'],
+            'title' => ['required', 'string', 'max:255'],
             'is_active' => ['boolean'],
             'thumbnail' => ['nullable', 'image', 'max:5120'],
-            'video'     => ['nullable', 'mimes:mp4,webm', 'max:51200'],
+            'video' => ['nullable', 'mimes:mp4,webm', 'max:51200'],
         ]);
 
         $reel->update([
-            'title'     => $data['title'],
+            'title' => $data['title'],
             'is_active' => $data['is_active'] ?? $reel->is_active,
         ]);
 

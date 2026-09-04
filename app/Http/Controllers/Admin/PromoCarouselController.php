@@ -19,11 +19,11 @@ class PromoCarouselController extends Controller
             ->orderBy('sort_order')
             ->get()
             ->map(fn (PromoCarousel $p) => [
-                'id'         => $p->id,
-                'title'      => $p->title,
-                'is_active'  => $p->is_active,
+                'id' => $p->id,
+                'title' => $p->title,
+                'is_active' => $p->is_active,
                 'sort_order' => $p->sort_order,
-                'slide_url'  => $p->getFirstMediaUrl('slide') ?: null,
+                'slide_url' => $p->slideUrl(),
             ]);
 
         return Inertia::render('Admin/Promo/Index', ['items' => $items]);
@@ -34,15 +34,15 @@ class PromoCarouselController extends Controller
         $this->authorize('manage-cms');
 
         $data = $request->validate([
-            'title'      => ['nullable', 'string', 'max:255'],
-            'is_active'  => ['boolean'],
+            'title' => ['nullable', 'string', 'max:255'],
+            'is_active' => ['boolean'],
             'sort_order' => ['integer', 'min:0'],
-            'slide'      => ['nullable', 'image', 'max:5120'],
+            'slide' => ['nullable', 'image', 'max:5120'],
         ]);
 
         $item = PromoCarousel::create([
-            'title'      => $data['title'] ?? null,
-            'is_active'  => $data['is_active'] ?? true,
+            'title' => $data['title'] ?? null,
+            'is_active' => $data['is_active'] ?? true,
             'sort_order' => $data['sort_order'] ?? 0,
         ]);
 
@@ -58,15 +58,15 @@ class PromoCarouselController extends Controller
         $this->authorize('manage-cms');
 
         $data = $request->validate([
-            'title'      => ['nullable', 'string', 'max:255'],
-            'is_active'  => ['boolean'],
+            'title' => ['nullable', 'string', 'max:255'],
+            'is_active' => ['boolean'],
             'sort_order' => ['integer', 'min:0'],
-            'slide'      => ['nullable', 'image', 'max:5120'],
+            'slide' => ['nullable', 'image', 'max:5120'],
         ]);
 
         $promoCarousel->update([
-            'title'      => $data['title'] ?? null,
-            'is_active'  => $data['is_active'] ?? $promoCarousel->is_active,
+            'title' => $data['title'] ?? null,
+            'is_active' => $data['is_active'] ?? $promoCarousel->is_active,
             'sort_order' => $data['sort_order'] ?? $promoCarousel->sort_order,
         ]);
 

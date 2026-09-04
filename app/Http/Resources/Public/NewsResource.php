@@ -10,12 +10,12 @@ class NewsResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id'          => $this->id,
-            'title'       => $this->title,
-            'slug'        => $this->slug,
-            'date'        => $this->published_at?->format('d.m.Y') ?? '',
-            'category'    => $this->whenLoaded('category', fn () => $this->category->name, ''),
-            'image'       => $this->getFirstMediaUrl('thumbnail'),
+            'id' => $this->id,
+            'title' => $this->title,
+            'slug' => $this->slug,
+            'date' => $this->published_at?->format('d.m.Y') ?? '',
+            'category' => $this->whenLoaded('category', fn () => $this->category->name, ''),
+            'image' => $this->thumbnailUrl(),
             'description' => $this->excerpt,
         ];
     }

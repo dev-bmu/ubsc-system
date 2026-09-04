@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\MembershipPlan;
+use App\Support\ReferenceData\PricingCatalogDefinition;
 use Illuminate\Database\Seeder;
 use RuntimeException;
 
@@ -53,7 +54,8 @@ class MembershipPlanSeeder extends Seeder
 
     public function run(): void
     {
-        $imagePath = public_path(self::IMAGE);
+        $definitions = PricingCatalogDefinition::membershipPlans();
+        $imagePath = public_path(ltrim($definitions[0]['card_image_url'], '/'));
 
         if (! is_file($imagePath)) {
             throw new RuntimeException("Default membership image was not found at [{$imagePath}].");
@@ -64,7 +66,7 @@ class MembershipPlanSeeder extends Seeder
             ->where('is_primary', true)
             ->exists();
 
-        foreach (self::PLANS as $definition) {
+        foreach ($definitions as $definition) {
             $plan = MembershipPlan::query()
                 ->where('bootstrap_key', $definition['key'])
                 ->first();
@@ -80,7 +82,7 @@ class MembershipPlanSeeder extends Seeder
             } else {
                 $plan = new MembershipPlan;
                 $plan->forceFill([
-                    ...$this->baseAttributes(),
+                    ...$this->baseAttributes($definition),
                     'bootstrap_key' => $definition['key'],
                     'tier' => $definition['tier'],
                     'public_badge' => $definition['label'],
@@ -115,7 +117,7 @@ class MembershipPlanSeeder extends Seeder
      * lets existing installations upgrade without duplicating those exact
      * plans, while unrelated admin-created packages remain untouched.
      *
-     * @param  array{key: string, tier: string, label: string, sort_order: int}  $definition
+     * @param  array<string, mixed>  $definition
      */
     private function legacyMatch(array $definition): ?MembershipPlan
     {
@@ -138,21 +140,22 @@ class MembershipPlanSeeder extends Seeder
     }
 
     /**
+     * @param  array<string, mixed>  $definition
      * @return array<string, mixed>
      */
-    private function baseAttributes(): array
+    private function baseAttributes(array $definition): array
     {
         return [
-            'name' => self::BASE_NAME,
-            'description' => self::BASE_DESCRIPTION,
-            'savings_label' => 'Hemat 20%',
-            'cta_label' => 'Mulai Membership',
+            'name' => $definition['name'],
+            'description' => $definition['description'],
+            'savings_label' => $definition['savings_label'],
+            'cta_label' => $definition['cta_label'],
             'card_image_url' => null,
-            'price' => 150000,
-            'compare_at_price' => 187500,
-            'duration_months' => 1,
-            'features' => self::FEATURES,
-            'is_active' => true,
+            'price' => $definition['price'],
+            'compare_at_price' => $definition['compare_at_price'],
+            'duration_months' => $definition['duration_months'],
+            'features' => $definition['features'],
+            'is_active' => $definition['is_active'],
         ];
     }
 }

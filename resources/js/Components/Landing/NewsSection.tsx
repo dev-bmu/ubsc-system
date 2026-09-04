@@ -64,7 +64,8 @@ interface NewsSectionProps {
     news?: NewsItem[];
 }
 
-export default function NewsSection({ news = DUMMY_NEWS }: NewsSectionProps) {
+export default function NewsSection({ news: suppliedNews = DUMMY_NEWS }: NewsSectionProps) {
+    const news = suppliedNews.length > 0 ? suppliedNews : DUMMY_NEWS;
     const sectionRef = useRef<HTMLElement>(null);
     const entranceReady = useHomepageEntranceReady();
     const [emblaRef, emblaApi] = useEmblaCarousel({

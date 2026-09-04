@@ -2,11 +2,11 @@
 
 namespace App\Models;
 
+use App\Support\ReferenceData\ReferenceAsset;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
-use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 class PromoCarousel extends Model implements HasMedia
 {
@@ -28,6 +28,12 @@ class PromoCarousel extends Model implements HasMedia
     public function registerMediaCollections(): void
     {
         $this->addMediaCollection('slide')->singleFile();
+    }
+
+    public function slideUrl(): ?string
+    {
+        return $this->getFirstMediaUrl('slide')
+            ?: ReferenceAsset::url($this->fallback_asset_path);
     }
 
     public function scopeActive(Builder $query): Builder

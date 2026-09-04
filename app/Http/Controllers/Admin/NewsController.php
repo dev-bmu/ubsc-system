@@ -233,7 +233,7 @@ class NewsController extends Controller
                 'avatar' => $author?->avatar,
                 'avatar_url' => $author?->avatar ? '/storage/'.$author->avatar : null,
             ],
-            'thumbnail' => $n->getFirstMediaUrl('thumbnail') ?: null,
+            'thumbnail' => $n->thumbnailUrl(),
             'gallery_images' => $n->getMedia('thumbnail')
                 ->map(fn ($media): array => [
                     'id' => $media->id,

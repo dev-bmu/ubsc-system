@@ -125,6 +125,7 @@ run_verifier verify-resilience-drills.sh "${APP_DIRECTORY}"
 
 echo "[24/39] Applying migrations and sealing first-run replication state"
 run_artisan migrate --force --isolated --no-interaction
+run_artisan reference-data:sync --repair --no-interaction
 run_artisan replication:attestation-import --bootstrap-if-empty --fail-on-unhealthy --quiet
 
 echo "[25/39] Verifying background-job safety contracts"

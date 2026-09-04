@@ -58,6 +58,7 @@ run_artisan production:check --strict --probe
 
 echo "[7/11] Applying isolated expand-compatible migrations before traffic switch"
 run_artisan migrate --force --isolated
+run_artisan reference-data:sync --repair --no-interaction
 
 echo "[8/11] Rechecking schema-visible application dependencies"
 run_artisan production:check --strict --probe

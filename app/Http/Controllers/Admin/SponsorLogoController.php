@@ -19,11 +19,11 @@ class SponsorLogoController extends Controller
             ->orderBy('sort_order')
             ->get()
             ->map(fn (SponsorLogo $s) => [
-                'id'         => $s->id,
-                'name'       => $s->name,
-                'is_active'  => $s->is_active,
+                'id' => $s->id,
+                'name' => $s->name,
+                'is_active' => $s->is_active,
                 'sort_order' => $s->sort_order,
-                'logo_url'   => $s->getFirstMediaUrl('logo') ?: null,
+                'logo_url' => $s->logoUrl(),
             ]);
 
         return Inertia::render('Admin/Sponsors/Index', ['items' => $items]);
@@ -34,15 +34,15 @@ class SponsorLogoController extends Controller
         $this->authorize('manage-cms');
 
         $data = $request->validate([
-            'name'       => ['required', 'string', 'max:255'],
-            'is_active'  => ['boolean'],
+            'name' => ['required', 'string', 'max:255'],
+            'is_active' => ['boolean'],
             'sort_order' => ['integer', 'min:0'],
-            'logo'       => ['nullable', 'image', 'max:5120'],
+            'logo' => ['nullable', 'image', 'max:5120'],
         ]);
 
         $item = SponsorLogo::create([
-            'name'       => $data['name'],
-            'is_active'  => $data['is_active'] ?? true,
+            'name' => $data['name'],
+            'is_active' => $data['is_active'] ?? true,
             'sort_order' => $data['sort_order'] ?? 0,
         ]);
 
@@ -58,15 +58,15 @@ class SponsorLogoController extends Controller
         $this->authorize('manage-cms');
 
         $data = $request->validate([
-            'name'       => ['required', 'string', 'max:255'],
-            'is_active'  => ['boolean'],
+            'name' => ['required', 'string', 'max:255'],
+            'is_active' => ['boolean'],
             'sort_order' => ['integer', 'min:0'],
-            'logo'       => ['nullable', 'image', 'max:5120'],
+            'logo' => ['nullable', 'image', 'max:5120'],
         ]);
 
         $sponsorLogo->update([
-            'name'       => $data['name'],
-            'is_active'  => $data['is_active'] ?? $sponsorLogo->is_active,
+            'name' => $data['name'],
+            'is_active' => $data['is_active'] ?? $sponsorLogo->is_active,
             'sort_order' => $data['sort_order'] ?? $sponsorLogo->sort_order,
         ]);
 

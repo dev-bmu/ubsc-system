@@ -955,6 +955,11 @@ export default function SectionTwo({
     const sectionRef = useRef<HTMLElement>(null);
     const entranceReady = useHomepageEntranceReady();
     const [membershipModalOpen, setMembershipModalOpen] = useState(false);
+    const visiblePromos = useMemo(() => {
+        const supplied = promos?.filter((promo) => Boolean(promo.src)) ?? [];
+
+        return supplied.length > 0 ? supplied : DUMMY_IMAGES;
+    }, [promos]);
     const plans = useMemo(
         () =>
             membershipPlans && membershipPlans.length > 0
@@ -1191,7 +1196,7 @@ export default function SectionTwo({
                         data-section-two-reveal
                         className="section-two-object-reveal section-two-object-reveal--media mt-[2.9375rem] md:mt-20 xl:mt-[5.6rem]"
                     >
-                        <ImageCarousel images={promos ?? DUMMY_IMAGES} density="compact" />
+                        <ImageCarousel images={visiblePromos} density="compact" />
                     </div>
 
                     <div className="relative mt-[clamp(2.4rem,2.96vw,3.6rem)] grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(288px,0.72fr)] lg:items-center xl:gap-6">

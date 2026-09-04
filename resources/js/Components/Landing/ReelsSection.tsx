@@ -280,7 +280,8 @@ function FluidReelSlide({
     );
 }
 
-export default function ReelsSection({ reels = DUMMY_REELS }: ReelsSectionProps) {
+export default function ReelsSection({ reels: suppliedReels = DUMMY_REELS }: ReelsSectionProps) {
+    const reels = suppliedReels.length > 0 ? suppliedReels : DUMMY_REELS;
     const sectionRef               = useRef<HTMLElement>(null);
     const [isVisible, setIsVisible]   = useState(false);
     const [isComplete, setIsComplete] = useState(false);

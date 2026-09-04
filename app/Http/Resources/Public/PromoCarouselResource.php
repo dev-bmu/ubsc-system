@@ -10,8 +10,8 @@ class PromoCarouselResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id'  => $this->id,
-            'src' => $this->getFirstMediaUrl('slide'),
+            'id' => $this->id,
+            'src' => $this->slideUrl(),
             'alt' => $this->title,
         ];
     }

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\ReferenceData\ReferenceAsset;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Spatie\MediaLibrary\HasMedia;
@@ -27,6 +28,18 @@ class Reel extends Model implements HasMedia
     {
         $this->addMediaCollection('thumbnail')->singleFile();
         $this->addMediaCollection('video')->singleFile();
+    }
+
+    public function thumbnailUrl(): ?string
+    {
+        return $this->getFirstMediaUrl('thumbnail')
+            ?: ReferenceAsset::url($this->fallback_thumbnail_path);
+    }
+
+    public function videoUrl(): ?string
+    {
+        return $this->getFirstMediaUrl('video')
+            ?: ReferenceAsset::url($this->fallback_video_path);
     }
 
     public function scopeActive(Builder $query): Builder
