@@ -8,8 +8,6 @@ on:
 
 permissions:
   contents: read
-  checks: read
-  statuses: read
 
 concurrency:
   group: mariadb-concurrency-${{ github.workflow }}-${{ github.ref }}
@@ -54,20 +52,9 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
-
-      - name: Use the supported Node runtime
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: "22"
-
-      - name: Verify protected branch concurrency governance
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          GITHUB_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-        run: node scripts/verify-github-concurrency-gate.mjs --rules-only
 
       - name: Set up PHP
         uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2

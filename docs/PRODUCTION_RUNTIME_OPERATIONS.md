@@ -341,9 +341,10 @@ never skips ahead or claims success after a hung provider/database operation.
 ## 3. Independent availability monitoring
 
 `.github/workflows/external-availability.yml` runs outside the application
-every five minutes. It checks `/up`, `/health/ready`, and `/`; retries transient
-failures; stores bounded evidence; opens only one GitHub incident during an
-outage; and closes it after recovery.
+every five minutes only after the repository variable
+`UBSC_EXTERNAL_MONITORING_ENABLED` is set to `true`. It checks `/up`,
+`/health/ready`, and `/`; retries transient failures; stores bounded evidence;
+opens only one GitHub incident during an outage; and closes it after recovery.
 
 Repository configuration:
 
@@ -353,7 +354,9 @@ Repository configuration:
 3. Optionally set secrets `UBSC_UPTIME_ALERT_WEBHOOK_URL` and
    `UBSC_UPTIME_ALERT_WEBHOOK_TOKEN` for an off-site pager/webhook.
 4. Run the workflow manually once and confirm all three checks pass.
-5. Only then set the production application values:
+5. Set repository variable `UBSC_EXTERNAL_MONITORING_ENABLED=true` to activate
+   the five-minute schedule.
+6. Only then set the production application values:
 
 ```text
 EXTERNAL_MONITORING_ENABLED=true

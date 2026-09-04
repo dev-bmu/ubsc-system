@@ -33,10 +33,13 @@ or change commit authorship, so `ibamzjr` can remain the sole contributor while
 an authorized maintainer supplies separation of duties.
 Select **GitHub Actions** as the required check's expected source; leaving the
 source unrestricted allows another integration to publish a colliding name.
-The concurrency job also performs a read-only ruleset self-check before running
-tests and fails when either strict, source-pinned rule disappears. Initial bootstrap is
-deliberate: push the workflow, let its job name register once, create the rule
-as a repository administrator, then rerun the workflow.
+The concurrency job always runs the MariaDB race suite, including while the
+repository ruleset is being bootstrapped. Repository policy is audited
+separately through the manually dispatched `Repository governance audit`
+workflow, so a missing administrative setting can never suppress the database
+evidence it is meant to protect. Initial bootstrap is deliberate: push the
+workflow, let its stable job name register once, create the rule as a repository
+administrator, then run the governance audit.
 
 GitHub identifies a normal workflow status check by its **job name**, not by a
 `workflow / job` display label. After the workflow has been pushed, passed on

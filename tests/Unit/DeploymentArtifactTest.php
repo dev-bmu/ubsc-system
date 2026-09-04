@@ -327,6 +327,10 @@ final class DeploymentArtifactTest extends TestCase
         self::assertStringNotContainsString('actions/setup-node@v', $workflow);
         self::assertStringNotContainsString('actions/upload-artifact@v', $workflow);
         self::assertStringContainsString('persist-credentials: false', $workflow);
+        self::assertStringContainsString(
+            "vars.UBSC_EXTERNAL_MONITORING_ENABLED == 'true'",
+            $workflow,
+        );
         self::assertStringContainsString('verify-edge-security.sh "$UBSC_BASE_URL"', $workflow);
         self::assertStringContainsString('EDGE_OUTCOME: ${{ steps.edge.outcome }}', $workflow);
         self::assertMatchesRegularExpression(
@@ -354,6 +358,9 @@ final class DeploymentArtifactTest extends TestCase
             'permissions:',
             'contents: read',
             'persist-credentials: false',
+            'APP_ENV: testing',
+            'DB_CONNECTION: sqlite',
+            'DB_DATABASE: ":memory:"',
             'composer validate --no-check-publish --strict',
             'composer audit --locked',
             "git ls-files -z '*.php' | xargs -0 -n1 php -l",
@@ -379,6 +386,22 @@ final class DeploymentArtifactTest extends TestCase
             '/actions\/setup-node@[0-9a-f]{40}/',
             $workflow,
         );
+    }
+
+    public function test_local_setup_provisions_environment_before_composer_package_discovery(): void
+    {
+        $composer = json_decode(
+            $this->artifact('composer.json'),
+            true,
+            flags: JSON_THROW_ON_ERROR,
+        );
+        $setup = $composer['scripts']['setup'] ?? [];
+
+        self::assertSame(
+            '@php -r "file_exists(\'.env\') || copy(\'.env.example\', \'.env\');"',
+            $setup[0] ?? null,
+        );
+        self::assertSame('composer install', $setup[1] ?? null);
     }
 
     public function test_production_overlay_declares_dedicated_coordination_redis(): void
@@ -1191,7 +1214,7 @@ final class DeploymentArtifactTest extends TestCase
             'scripts/verify-github-concurrency-gate.mjs',
         );
         $runbook = $this->artifact('.github/CONCURRENCY_CI.md');
-        $workflow = $this->artifact('.github/workflows/mariadb-concurrency.yml');
+        $workflow = $this->artifact('.github/workflows/repository-governance.yml');
 
         self::assertStringContainsString(
             'const REQUIRED_CHECKS = [',
@@ -1239,7 +1262,7 @@ final class DeploymentArtifactTest extends TestCase
         self::assertStringContainsString('persist-credentials: false', $workflow);
         self::assertStringContainsString('checks: read', $workflow);
         self::assertStringContainsString('statuses: read', $workflow);
-        self::assertStringContainsString('ruleset self-check', $runbook);
+        self::assertStringContainsString('governance audit', $runbook);
         self::assertStringContainsString('Block branch deletion', $runbook);
     }
 
@@ -1272,6 +1295,7 @@ final class DeploymentArtifactTest extends TestCase
             '.github/workflows/mariadb-concurrency.yml',
             '.github/workflows/external-availability.yml',
             '.github/workflows/capacity-test.yml',
+            '.github/workflows/repository-governance.yml',
         ] as $artifact) {
             $workflow = $this->artifact($artifact);
 
