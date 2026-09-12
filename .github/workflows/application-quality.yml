@@ -76,6 +76,17 @@ jobs:
           node-version: "22"
           cache: npm
 
+      - name: Set up PHP for Composer-provided frontend modules
+        uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
+        with:
+          php-version: "8.3"
+          extensions: bcmath, dom, fileinfo, gd, intl, mbstring
+          coverage: none
+          tools: composer:v2
+
+      - name: Install locked Composer frontend dependencies
+        run: composer install --no-dev --no-scripts --no-interaction --no-progress --prefer-dist
+
       - name: Install the exact JavaScript lockfile
         run: npm ci --ignore-scripts
 

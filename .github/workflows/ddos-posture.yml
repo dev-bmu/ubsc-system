@@ -15,6 +15,7 @@ concurrency:
 jobs:
   posture:
     name: Edge and origin isolation proof
+    if: github.event_name == 'workflow_dispatch' || vars.UBSC_EXTERNAL_DDOS_MONITORING_ENABLED == 'true'
     runs-on: ubuntu-latest
     environment: production-observability
     timeout-minutes: 8

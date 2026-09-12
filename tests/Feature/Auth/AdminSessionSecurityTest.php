@@ -177,6 +177,9 @@ class AdminSessionSecurityTest extends TestCase
         $issuedAt = now()->subHour()->timestamp;
         $lastHumanActivity = now()->subMinutes(29)->timestamp;
         $inertiaVersion = app(HandleInertiaRequests::class)->version(request());
+        $versionHeaders = $inertiaVersion !== null
+            ? ['X-Inertia-Version' => $inertiaVersion]
+            : [];
 
         $this->actingAs($staff)
             ->withSession([
@@ -186,7 +189,7 @@ class AdminSessionSecurityTest extends TestCase
             ])
             ->withHeaders([
                 'X-Inertia' => 'true',
-                'X-Inertia-Version' => $inertiaVersion,
+                ...$versionHeaders,
                 'X-UBSC-Background-Poll' => '1',
             ])
             ->get('/_test/admin-session-security')
@@ -200,7 +203,7 @@ class AdminSessionSecurityTest extends TestCase
         $this->travel(2)->minutes();
         $this->withHeaders([
             'X-Inertia' => 'true',
-            'X-Inertia-Version' => $inertiaVersion,
+            ...$versionHeaders,
             'X-UBSC-Background-Poll' => '1',
         ])->get('/_test/admin-session-security')
             ->assertRedirect(route('ubsc-staff.login'));

@@ -24,8 +24,7 @@ class CanonicalHostTest extends TestCase
         config()->set('app.url', 'http://localhost:8000');
 
         $this
-            ->withServerVariables(['HTTP_HOST' => 'preview.test'])
-            ->get('/')
+            ->get('http://preview.test/')
             ->assertOk();
     }
 }

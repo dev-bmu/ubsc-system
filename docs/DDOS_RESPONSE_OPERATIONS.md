@@ -125,6 +125,13 @@ Configure `UBSC_PRODUCTION_URL` as a protected environment variable, require
 reviewers for the `production-observability` environment, and rotate an origin
 address immediately if this external proof ever succeeds.
 
+Run the workflow manually after configuring both targets and verify that it
+passes. Then set the repository variable
+`UBSC_EXTERNAL_DDOS_MONITORING_ENABLED=true` to enable daily checks. Before
+activation, scheduled runs are skipped; manual runs always validate the
+configuration and fail if targets are missing. Once enabled, removing a target
+causes a failure rather than silently disabling monitoring.
+
 ## Detection and alerting
 
 Stream provider security events off-host and page the operator for:

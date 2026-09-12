@@ -12,6 +12,15 @@ use Tests\Support\TestingDatabaseGuard;
 
 abstract class TestCase extends BaseTestCase
 {
+    protected function refreshApplication()
+    {
+        parent::refreshApplication();
+
+        // HTTP feature tests exercise server responses without compiled assets.
+        // The frontend CI job separately builds and validates the real bundle.
+        $this->withoutVite();
+    }
+
     /**
      * Boot the application, then fail closed before any database-reset trait
      * can run when the resolved connection is not an isolated test database.
