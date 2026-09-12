@@ -72,12 +72,12 @@ jobs:
 
     steps:
       - name: Check out the test contract
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Use the supported Node runtime
-        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "22"
 
@@ -85,7 +85,7 @@ jobs:
         run: node --test tests/Load/capacity-file.test.mjs tests/Load/validate-capacity-evidence.test.mjs tests/Load/sign-capacity-evidence.test.mjs tests/Load/capacity-control-crypto.test.mjs
 
       - name: Install k6
-        uses: grafana/setup-k6-action@c00053c996b4061198c9c24a00474b748abdf8b7 # v1
+        uses: grafana/setup-k6-action@db07bd9765aac508ef18982e52ab937fe633a065 # v1
 
       - name: Execute the authorized read-only profile
         run: |
@@ -106,7 +106,7 @@ jobs:
 
       - name: Retain bounded evidence
         if: always()
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ubsc-capacity-evidence-${{ github.run_id }}
           path: artifacts/
