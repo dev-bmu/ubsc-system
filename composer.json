@@ -17,7 +17,7 @@
         "laravel/sanctum": "^4.0",
         "laravel/scout": "^11.3",
         "laravel/socialite": "^5.26",
-        "laravel/tinker": "^2.10.1",
+        "laravel/tinker": "^3.0.2",
         "league/flysystem-aws-s3-v3": "^3.25.1",
         "meilisearch/meilisearch-php": "^1.16",
         "spatie/laravel-medialibrary": "^11.23",
