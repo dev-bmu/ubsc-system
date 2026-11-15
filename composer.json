@@ -13,7 +13,7 @@
         "http-interop/http-factory-guzzle": "^1.2",
         "inertiajs/inertia-laravel": "^2.0",
         "laravel/framework": "^12.61.1",
-        "laravel/passkeys": "0.2.1",
+        "laravel/passkeys": "0.3.0",
         "laravel/sanctum": "^4.0",
         "laravel/scout": "^11.3",
         "laravel/socialite": "^5.26",
